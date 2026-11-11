@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#fdf6ee">
+<title>Ruin Walk – GPS-RPG</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--bg:#fdf6ee;--ink:#4a3526;--acc:#f6a623;--hp:#e5534b;--en:#3b82f6;--ok:#3aa76d;--card:#fffaf4;--line:#e8d9c6;--sb:env(safe-area-inset-bottom,0px);--st:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;font-family:Georgia,'Times New Roman',serif;color:var(--ink);background:#ddd;overflow:hidden;touch-action:manipulation}
+#map{position:absolute;inset:0;background:#efe6d8}
+.leaflet-tile-pane{filter:sepia(.3) saturate(.85) brightness(1.04)}
+button{font-family:inherit;color:inherit}
+/* HUD */
+#hud{position:absolute;left:10px;top:calc(10px + var(--st));z-index:500;display:flex;gap:8px;align-items:center;background:rgba(255,250,244,.94);border:1px solid var(--line);border-radius:30px;padding:6px 12px 6px 6px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+#lv{width:38px;height:38px;border-radius:50%;background:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:18px;color:#fff}
+.bars{display:flex;flex-direction:column;gap:4px;width:130px}
+.bar{position:relative;height:15px;border-radius:8px;background:#e9dccb;overflow:hidden}
+.bar i{position:absolute;left:0;top:0;bottom:0;width:100%}
+.bar.hp i{background:linear-gradient(#ff7a6e,#e5534b)}
+.bar.en i{background:linear-gradient(#6aa8ff,#3b82f6)}
+.bar span{position:absolute;inset:0;text-align:center;font-size:11px;line-height:15px;font-weight:bold;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+#gps{position:absolute;right:10px;top:calc(10px + var(--st));z-index:500;background:rgba(255,250,244,.94);border:1px solid var(--line);border-radius:20px;padding:6px 10px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+#gps.good{color:#1f7a49}#gps.ok{color:#9a6a00}#gps.bad{color:#b3322b}
+#toast{position:absolute;left:50%;top:calc(66px + var(--st));transform:translateX(-50%) translateY(-10px);z-index:900;background:rgba(60,40,28,.92);color:#fff;padding:9px 16px;border-radius:20px;font-size:14px;opacity:0;pointer-events:none;transition:.25s;max-width:90%;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#loc{position:absolute;right:12px;bottom:calc(76px + var(--sb));z-index:500;width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:var(--card);font-size:22px;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+#loc.off{background:var(--acc);color:#fff}
+#attr{position:absolute;left:8px;bottom:calc(68px + var(--sb));z-index:400;font-size:10px;background:rgba(255,255,255,.7);padding:1px 5px;border-radius:4px}
+/* Nav */
+#nav{position:absolute;left:0;right:0;bottom:0;z-index:600;display:flex;justify-content:space-around;background:var(--card);border-top:1px solid var(--line);padding:6px 4px calc(6px + var(--sb))}
+#nav button{flex:1;border:0;background:none;font-size:11px;padding:2px 0;display:flex;flex-direction:column;align-items:center;gap:1px}
+#nav button b{font-size:22px;font-weight:normal}
+/* Card */
+#card{position:absolute;left:10px;right:10px;bottom:calc(70px + var(--sb));z-index:700;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px;box-shadow:0 4px 16px rgba(0,0,0,.3);display:none;max-width:480px;margin:0 auto}
+.ch{display:flex;gap:10px;align-items:center}
+.ci{width:48px;height:48px;border-radius:12px;background:#f3e8d9;display:flex;align-items:center;justify-content:center;font-size:28px}
+.ch small{display:block;opacity:.7;margin-top:2px}
+.ch>div:nth-child(2){flex:1}
+.x{border:0;background:none;font-size:20px;padding:4px 8px}
+.row{margin:8px 0 4px;font-size:13px;line-height:1.5}
+.bad{color:#b3322b}.good{color:#1f7a49}
+.act{width:100%;margin-top:8px;border:0;border-radius:12px;background:var(--acc);color:#fff;font-size:16px;padding:12px;font-weight:bold}
+.act:disabled{background:#e4dacb;color:#8a7766}
+.hpbar{height:10px;border-radius:6px;background:#e9dccb;overflow:hidden;margin-top:6px}
+.hpbar i{display:block;height:100%;background:var(--hp)}
+/* Sheet */
+#sheet{position:absolute;left:0;right:0;bottom:0;top:12%;z-index:800;background:var(--card);border-radius:22px 22px 0 0;box-shadow:0 -4px 20px rgba(0,0,0,.35);display:none;flex-direction:column}
+.sh-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 8px;background:linear-gradient(#ffe0b0,var(--card));border-radius:22px 22px 0 0}
+.sh-head h2{margin:0;font-size:22px}
+#shB{flex:1;overflow:auto;padding:6px 16px calc(24px + var(--sb))}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.it{background:#f6ecdd;border:1px solid var(--line);border-radius:12px;text-align:center;padding:8px 2px;position:relative}
+.it span{font-size:26px;display:block}.it b{position:absolute;right:6px;top:3px;font-size:13px}.it small{font-size:10px;display:block;line-height:1.1}
+h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding-bottom:3px}
+.rec{background:#f6ecdd;border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:8px}
+.rec .t{font-weight:bold}.rec .c{font-size:13px;margin:4px 0}
+.btn{border:0;border-radius:10px;background:var(--acc);color:#fff;padding:8px 14px;font-weight:bold;font-size:14px}
+.btn:disabled{background:#e4dacb;color:#8a7766}
+.btn.sec{background:#e9dccb;color:var(--ink)}
+.q{background:#f6ecdd;border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:8px}
+.q.done{opacity:.55}.q.act2{background:#ffe9c4;border-color:var(--acc)}
+.kv{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:15px}
+/* Entities */
+.ent{width:44px;height:44px;border-radius:50%;background:rgba(255,250,244,.96);border:2px solid #d9c3a5;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 2px 6px rgba(0,0,0,.3);position:relative;transition:.15s}
+.ent.near{border-color:var(--ok);box-shadow:0 0 0 4px rgba(58,167,109,.35),0 2px 6px rgba(0,0,0,.3)}
+.ent.sel{transform:scale(1.18)}
+.ent.mob{border-color:#e5534b;background:#fde8e5}
+.ent.mob.near{box-shadow:0 0 0 4px rgba(229,83,75,.35)}
+.mhp{position:absolute;left:4px;right:4px;bottom:-9px;height:5px;background:#5a2a27;border-radius:3px;overflow:hidden}
+.mhp u{display:block;height:100%;background:#ff6b5e;width:100%}
+.me{width:22px;height:22px;border-radius:50%;background:#3b82f6;border:3px solid #fff;box-shadow:0 0 0 2px #3b82f6,0 2px 8px rgba(0,0,0,.4)}
+/* Start */
+#start{position:absolute;inset:0;z-index:1000;background:linear-gradient(#ffe7c2,#fdf6ee);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center;gap:12px}
+#start h1{margin:0;font-size:36px}
+#start p{margin:0;max-width:340px;line-height:1.45}
+#start .btn{font-size:17px;padding:14px 22px;width:100%;max-width:340px}
+#start .warn{color:#b3322b;font-size:13px}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div id="hud">
+  <div id="lv">1</div>
+  <div class="bars">
+    <div class="bar hp"><i id="hpb"></i><span id="hpt"></span></div>
+    <div class="bar en"><i id="enb"></i><span id="en2"></span></div>
+  </div>
+</div>
+<div id="gps" class="bad">GPS: aus</div>
+<div id="toast"></div>
+<button id="loc" data-a="loc" aria-label="Zentrieren">◎</button>
+<div id="attr">© OpenStreetMap-Mitwirkende</div>
+<div id="card"></div>
+
+<nav id="nav">
+  <button data-a="open" data-s="inv"><b>🎒</b>Inventar</button>
+  <button data-a="open" data-s="craft"><b>🔨</b>Herstellen</button>
+  <button data-a="open" data-s="quests"><b>📜</b>Quests</button>
+  <button data-a="open" data-s="char"><b>🧙</b>Charakter</button>
+  <button data-a="open" data-s="set"><b>⚙️</b>Mehr</button>
+</nav>
+
+<div id="sheet">
+  <div class="sh-head"><h2 id="shT"></h2><button class="x" data-a="shx">✕</button></div>
+  <div id="shB"></div>
+</div>
+
+<div id="start">
+  <h1>🏹 Ruin Walk</h1>
+  <p>Erkunde deine echte Umgebung: sammle Ressourcen, stelle Werkzeug her und jage Monster. Geh dafür wirklich los, die Dinge liegen an echten Orten.</p>
+  <button class="btn" data-a="start">📍 Standort aktivieren &amp; starten</button>
+  <button class="btn sec" data-a="starttest">Erst ohne GPS testen (Augsburg)</button>
+  <p class="warn" id="startWarn"></p>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(()=>{
+'use strict';
+const $=s=>document.querySelector(s);
+
+if(typeof L==='undefined'){
+  $('#startWarn').textContent='Karte konnte nicht geladen werden. Bitte Internetverbindung prüfen und Seite neu laden.';
+  $('#start [data-a=start]').disabled=true;$('#start [data-a=starttest]').disabled=true;
+  return;
+}
+if(!window.isSecureContext){
+  $('#startWarn').textContent='Hinweis: GPS funktioniert nur, wenn die Seite über https:// geöffnet wird.';
+}
+
+/* ---------- Konstanten ---------- */
+const KEY='ruinwalk_v1';
+const DLAT=0.0015, DLON=0.00226;   // Zellgröße ca. 165 m x 165 m
+const RANGE=40, BOW=60, VIEW=2, SHOW_DIST=500;
+const START_POS=[48.3705,10.8978]; // Augsburg Rathausplatz (Testmodus)
+
+const ITEMS={
+  stock:{n:'Stock',i:'🥢'}, stein:{n:'Kleiner Stein',i:'🪨'}, ranke:{n:'Ranke',i:'🌿'},
+  holz:{n:'Holz',i:'🪵'}, eisenerz:{n:'Eisenerz',i:'🟤'}, kraut:{n:'Heilkraut',i:'☘️'},
+  fell:{n:'Fell',i:'🧶'}, trank:{n:'Heiltrank',i:'🧪'},
+  axt:{n:'Holzfälleraxt',i:'🪓'}, spitzhacke:{n:'Spitzhacke',i:'⛏️'}, fellweste:{n:'Fellweste',i:'🦺'}
+};
+const TOOLNAME={holz:'Holzfälleraxt',berg:'Spitzhacke'};
+const NODES={
+  stock:{n:'Ast',i:'🥢',w:22,drop:'stock',min:1,max:2,en:2,xp:1,res:8*60e3},
+  stein:{n:'Kleiner Stein',i:'🪨',w:22,drop:'stein',min:1,max:2,en:2,xp:1,res:8*60e3},
+  ranke:{n:'Ranke',i:'🌿',w:16,drop:'ranke',min:1,max:2,en:2,xp:1,res:8*60e3},
+  kraut:{n:'Heilkraut',i:'☘️',w:14,drop:'kraut',min:1,max:2,en:2,xp:2,skill:'sammeln',res:10*60e3},
+  baum:{n:'Baum',i:'🌲',w:14,drop:'holz',min:2,max:3,en:4,xp:3,skill:'holz',tool:'holz',res:12*60e3},
+  erz:{n:'Eisenerzvorkommen',i:'⛰️',w:8,drop:'eisenerz',min:1,max:2,en:5,xp:4,skill:'berg',tool:'berg',res:15*60e3}
+};
+const MOBS={rohling:{n:'Rohling',i:'🐺',hp:30,min:3,max:8,xp:8,drop:'fell',dmin:1,dmax:2,res:15*60e3}};
+const RECIPES=[
+  {id:'axt',kind:'tool',type:'holz',dur:15,cost:{stock:3,stein:2,ranke:2}},
+  {id:'spitzhacke',kind:'tool',type:'berg',dur:15,cost:{holz:2,stein:3,ranke:2}},
+  {id:'trank',kind:'item',cost:{kraut:3}},
+  {id:'fellweste',kind:'armor',def:3,cost:{fell:4,ranke:2}}
+];
+const SKILLNAME={holz:'Holzfällen',berg:'Bergbau',sammeln:'Sammeln'};
+
+/* ---------- Spielstand ---------- */
+const def=()=>({lv:1,xp:0,hp:100,en:100,inv:{},tools:[],skills:{holz:0,berg:0,sammeln:0},cd:{},mh:{},
+  stats:{col:{},nodes:{},kills:0,crafted:{}},qdone:[],def:0,last:Date.now(),test:false});
+let S=def();
+try{
+  const raw=localStorage.getItem(KEY);
+  if(raw){const o=JSON.parse(raw);S=Object.assign(def(),o);S.stats=Object.assign(def().stats,o.stats||{});S.skills=Object.assign(def().skills,o.skills||{});}
+}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+
+const maxHP=()=>100+10*(S.lv-1);
+const atk=()=>10+2*S.lv;
+const sl=k=>1+Math.floor(S.skills[k]/10);
+const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+const add=(k,n)=>{S.inv[k]=(S.inv[k]||0)+n;};
+const have=k=>S.inv[k]||0;
+const findTool=t=>S.tools.find(x=>x.type===t&&x.dur>0);
+function addXP(n){
+  S.xp+=n;
+  while(S.xp>=S.lv*40){S.xp-=S.lv*40;S.lv++;S.hp=maxHP();toast('⭐ Level '+S.lv+' erreicht!');}
+}
+function regen(dt){
+  S.hp=Math.min(maxHP(),S.hp+dt/5);
+  S.en=Math.min(100,S.en+dt/6);
+}
+regen(Math.min(8*3600,Math.max(0,(Date.now()-S.last)/1000)));
+S.last=Date.now();
+
+/* ---------- Geo ---------- */
+function dist(a,b){
+  const R=6371000,r=Math.PI/180;
+  const dLat=(b.lat-a.lat)*r,dLon=(b.lon-a.lon)*r;
+  const x=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(x));
+}
+
+/* ---------- Welt (deterministisch pro Zelle, für alle Spieler gleich) ---------- */
+function hash(x,y){let h=(x*374761393+y*668265263)|0;h=(h^(h>>>13))*1274126177|0;return(h^(h>>>16))>>>0;}
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const WT=Object.values(NODES).reduce((s,n)=>s+n.w,0);
+function pickType(r){let v=r()*WT;for(const k in NODES){v-=NODES[k].w;if(v<=0)return k;}return 'stock';}
+const cellCache=new Map();
+function cellEnts(cx,cy){
+  const key=cx+'_'+cy;
+  if(cellCache.has(key))return cellCache.get(key);
+  const r=mulberry(hash(cx,cy)),out=[],n=3+Math.floor(r()*3);
+  for(let i=0;i<n;i++){
+    const type=pickType(r);
+    out.push({id:'n'+key+'_'+i,kind:'node',type,lat:(cy+.1+r()*.8)*DLAT,lon:(cx+.1+r()*.8)*DLON});
+  }
+  if(r()<.7)out.push({id:'m'+key,kind:'mob',type:'rohling',lat:(cy+.1+r()*.8)*DLAT,lon:(cx+.1+r()*.8)*DLON});
+  if(cellCache.size>400)cellCache.clear();
+  cellCache.set(key,out);
+  return out;
+}
+function def2(e){return e.kind==='node'?NODES[e.type]:MOBS[e.type];}
+function alive(e){const c=S.cd[e.id];return !c||Date.now()-c>=def2(e).res;}
+function pruneCd(){const now=Date.now();for(const k in S.cd){if(now-S.cd[k]>3600e3){delete S.cd[k];delete S.mh[k];}}}
+pruneCd();
+
+/* ---------- Karte ---------- */
+const map=L.map('map',{zoomControl:false,attributionControl:false,maxZoom:19,minZoom:13}).setView(START_POS,16);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+
+let P=null,acc=null,pm=null,pc=null,pr=null,follow=true,watchId=null,lastGps=null,lastCell='';
+const ents=new Map();
+let sel=null;
+
+function setPos(lat,lon,a){
+  P={lat,lon};acc=a;
+  if(!pm){
+    pm=L.marker([lat,lon],{icon:L.divIcon({className:'',html:'<div class="me"></div>',iconSize:[26,26],iconAnchor:[13,13]}),zIndexOffset:1000,interactive:false}).addTo(map);
+    pc=L.circle([lat,lon],{radius:a||20,weight:1,color:'#3b82f6',fillOpacity:.07,interactive:false}).addTo(map);
+    pr=L.circle([lat,lon],{radius:RANGE,weight:1.5,color:'#3aa76d',dashArray:'5 6',fill:false,interactive:false}).addTo(map);
+    map.setView([lat,lon],17);
+  }else{
+    pm.setLatLng([lat,lon]);pc.setLatLng([lat,lon]);pr.setLatLng([lat,lon]);pc.setRadius(a||20);
+    if(follow)map.panTo([lat,lon],{animate:true,duration:.5});
+  }
+  const cell=Math.floor(lon/DLON)+'_'+Math.floor(lat/DLAT);
+  if(cell!==lastCell){lastCell=cell;refreshWorld();}
+  updateNear();renderCard();gpsChip();
+}
+function gpsChip(msg){
+  const g=$('#gps');
+  if(msg){g.textContent=msg;g.className='bad';return;}
+  if(S.test){g.textContent='🧪 Testmodus';g.className='ok';return;}
+  if(acc==null){g.textContent='GPS: suche…';g.className='ok';return;}
+  g.textContent='GPS ±'+Math.round(acc)+' m';
+  g.className=acc<30?'good':acc<80?'ok':'bad';
+}
+function onPos(p){
+  lastGps={lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy};
+  if(S.test)return;
+  setPos(lastGps.lat,lastGps.lon,lastGps.acc);
+}
+function onErr(err){
+  const m={1:'Standort verweigert – bitte im Browser erlauben',2:'Position nicht verfügbar',3:'GPS-Timeout – besser draußen probieren'};
+  gpsChip(m[err.code]||'GPS-Fehler');
+  toast(m[err.code]||'GPS-Fehler');
+}
+async function startGPS(){
+  $('#start').style.display='none';
+  if(!navigator.geolocation){gpsChip('Kein GPS im Browser');return;}
+  gpsChip();
+  if(watchId!=null)navigator.geolocation.clearWatch(watchId);
+  watchId=navigator.geolocation.watchPosition(onPos,onErr,{enableHighAccuracy:true,maximumAge:2000,timeout:20000});
+  try{if(navigator.wakeLock)await navigator.wakeLock.request('screen');}catch(e){}
+}
+map.on('dragstart',()=>{follow=false;$('#loc').classList.add('off');});
+map.on('click',e=>{if(S.test){setPos(e.latlng.lat,e.latlng.lng,5);}else{deselect();}});
+
+/* ---------- Entities auf der Karte ---------- */
+function mk(e){
+  const d=def2(e);
+  const html='<div class="ent '+e.kind+'">'+d.i+(e.kind==='mob'?'<b class="mhp"><u></u></b>':'')+'</div>';
+  const m=L.marker([e.lat,e.lon],{icon:L.divIcon({className:'',html,iconSize:[44,44],iconAnchor:[22,22]}),zIndexOffset:e.kind==='mob'?500:100}).addTo(map);
+  m.on('click',ev=>{L.DomEvent.stopPropagation(ev);select(e.id);});
+  return m;
+}
+function refreshWorld(){
+  if(!P)return;
+  const cx=Math.floor(P.lon/DLON),cy=Math.floor(P.lat/DLAT),want=new Map();
+  for(let dx=-VIEW;dx<=VIEW;dx++)for(let dy=-VIEW;dy<=VIEW;dy++)
+    for(const e of cellEnts(cx+dx,cy+dy))if(alive(e)&&dist(P,e)<=SHOW_DIST)want.set(e.id,e);
+  for(const [id,o] of ents){if(!want.has(id)){map.removeLayer(o.m);ents.delete(id);if(sel&&sel.id===id)deselect();}}
+  for(const [id,e] of want){if(!ents.has(id))ents.set(id,{e,m:mk(e)});}
+  for(const [id,o] of ents){
+    if(o.e.kind==='mob'){
+      const el=o.m.getElement();if(!el)continue;
+      const u=el.querySelector('.mhp u'),mx=MOBS[o.e.type].hp;
+      if(u)u.style.width=(100*(S.mh[id]??mx)/mx)+'%';
+    }
+  }
+  updateNear();
+}
+function updateNear(){
+  if(!P)return;
+  for(const [id,o] of ents){
+    const el=o.m.getElement();if(!el||!el.firstElementChild)continue;
+    const n=el.firstElementChild,r=o.e.kind==='mob'?BOW:RANGE;
+    n.classList.toggle('near',dist(P,o.e)<=r);
+    n.classList.toggle('sel',!!sel&&sel.id===id);
+  }
+}
+function select(id){const o=ents.get(id);if(!o)return;sel=o.e;renderCard();updateNear();}
+function deselect(){sel=null;$('#card').style.display='none';updateNear();}
+
+/* ---------- Karte unten (Details) ---------- */
+function renderCard(){
+  const c=$('#card');
+  if(!sel){c.style.display='none';return;}
+  const e=sel,d=def2(e),isMob=e.kind==='mob';
+  let sub,body='',label,dis=true,action='';
+  if(!P){sub='Warte auf Position…';label='Kein GPS';}
+  else{
+    const ds=dist(P,e);
+    sub=(isMob?'Monster · schwach':'Ressource')+' · '+Math.round(ds)+' m entfernt';
+    if(isMob){
+      const mx=d.hp,hp=S.mh[e.id]??mx;
+      body='<div class="row">❤️ '+hp+' / '+mx+'<div class="hpbar"><i style="width:'+(100*hp/mx)+'%"></i></div>Schießt mit Bogen bis '+BOW+' m · Energie 2</div>';
+      action='shoot';label='🏹 Mit Bogen schießen';
+      if(ds>BOW)label='Zu weit – noch '+Math.ceil(ds-BOW)+' m';
+      else if(S.en<2)label='Zu erschöpft';
+      else dis=false;
+    }else{
+      action='collect';label='Einsammeln';
+      let tl='';
+      const tool=d.tool?findTool(d.tool):null;
+      if(d.tool)tl=tool?ITEMS[tool.id].i+' '+ITEMS[tool.id].n+' · Haltbarkeit '+tool.dur:'<span class="bad">Benötigt: '+TOOLNAME[d.tool]+'</span>';
+      body='<div class="row">'+(tl?tl+'<br>':'')+'Energie: '+d.en+' · Ertrag: '+ITEMS[d.drop].i+' '+d.min+'–'+d.max+'</div>';
+      if(ds>RANGE)label='Zu weit – noch '+Math.ceil(ds-RANGE)+' m';
+      else if(d.tool&&!tool)label='Werkzeug fehlt';
+      else if(S.en<d.en)label='Zu erschöpft';
+      else dis=false;
+    }
+  }
+  c.innerHTML='<div class="ch"><div class="ci">'+d.i+'</div><div><b>'+d.n+'</b><small>'+sub+'</small></div><button class="x" data-a="close">✕</button></div>'
+    +body+'<button class="act" data-a="'+(action||'close')+'" '+(dis?'disabled':'')+'>'+label+'</button>';
+  c.style.display='block';
+}
+
+/* ---------- Aktionen ---------- */
+function collect(){
+  const e=sel;if(!e||e.kind!=='node'||!P)return;
+  const t=NODES[e.type];
+  if(dist(P,e)>RANGE){toast('Zu weit weg');return;}
+  let tool=null;
+  if(t.tool){tool=findTool(t.tool);if(!tool){toast('Dir fehlt das Werkzeug');return;}}
+  if(S.en<t.en){toast('Zu erschöpft');return;}
+  S.en-=t.en;
+  let broke='';
+  if(tool){tool.dur--;if(tool.dur<=0){S.tools=S.tools.filter(x=>x!==tool);broke=' · '+ITEMS[tool.id].n+' zerbrochen!';}}
+  let q=rnd(t.min,t.max);
+  if(t.skill&&Math.random()<Math.min(.5,(sl(t.skill)-1)*.1))q++;
+  add(t.drop,q);
+  S.stats.col[t.drop]=(S.stats.col[t.drop]||0)+q;
+  S.stats.nodes[e.type]=(S.stats.nodes[e.type]||0)+1;
+  if(t.skill)S.skills[t.skill]+=t.xp;
+  S.cd[e.id]=Date.now();
+  addXP(t.xp);
+  toast('+'+q+' '+ITEMS[t.drop].n+broke);
+  deselect();refreshWorld();checkQuests();save();hud();
+}
+function shoot(){
+  const e=sel;if(!e||e.kind!=='mob'||!P)return;
+  const m=MOBS[e.type];
+  if(dist(P,e)>BOW){toast('Zu weit weg');return;}
+  if(S.en<2){toast('Zu erschöpft');return;}
+  S.en-=2;
+  let dmg=atk()+rnd(0,8);const crit=Math.random()<.1;if(crit)dmg*=2;
+  const hp=(S.mh[e.id]??m.hp)-dmg;
+  if(hp<=0){
+    delete S.mh[e.id];S.cd[e.id]=Date.now();S.stats.kills++;
+    const q=rnd(m.dmin,m.dmax);add(m.drop,q);S.stats.col[m.drop]=(S.stats.col[m.drop]||0)+q;
+    addXP(m.xp);
+    toast('💥 '+m.n+' besiegt! +'+q+' '+ITEMS[m.drop].n);
+    deselect();refreshWorld();checkQuests();
+  }else{
+    S.mh[e.id]=hp;
+    let msg=(crit?'💥 Kritisch! ':'🎯 ')+dmg+' Schaden';
+    if(Math.random()<.6){
+      const h=Math.max(1,rnd(m.min,m.max)-S.def);S.hp-=h;msg+=' · '+m.n+' trifft dich: -'+h;
+    }
+    if(S.hp<=0){
+      S.hp=Math.round(maxHP()*.3);S.mh[e.id]=m.hp;
+      msg='😵 Du bist zusammengebrochen. Der Rohling erholt sich.';
+      deselect();
+    }
+    toast(msg);refreshWorld();
+  }
+  save();hud();renderCard();
+}
+function craft(id){
+  const r=RECIPES.find(x=>x.id===id);if(!r)return;
+  if(r.kind==='armor'&&S.stats.crafted[id]){toast('Schon hergestellt');return;}
+  for(const k in r.cost)if(have(k)<r.cost[k]){toast('Material fehlt');return;}
+  for(const k in r.cost)S.inv[k]-=r.cost[k];
+  if(r.kind==='tool')S.tools.push({id:r.id,type:r.type,dur:r.dur});
+  else if(r.kind==='item')add(r.id,1);
+  else if(r.kind==='armor')S.def+=r.def;
+  S.stats.crafted[id]=(S.stats.crafted[id]||0)+1;
+  toast('🔨 '+ITEMS[id].n+' hergestellt');
+  checkQuests();save();openSheet('craft');
+}
+function useItem(id){
+  if(id==='trank'&&have('trank')>0){
+    if(S.hp>=maxHP()){toast('Leben ist schon voll');return;}
+    S.inv.trank--;S.hp=Math.min(maxHP(),S.hp+40);toast('🧪 +40 Leben');hud();save();openSheet('inv');
+  }
+}
+
+/* ---------- Quests ---------- */
+const QUESTS=[
+  {id:'q1',t:'Erste Schritte',d:'Sammle Material und stelle eine Holzfälleraxt her.',rt:'10 XP',
+   goals:()=>[['Stöcke sammeln',S.stats.col.stock||0,3],['Kleine Steine sammeln',S.stats.col.stein||0,2],['Ranken sammeln',S.stats.col.ranke||0,2],['Holzfälleraxt herstellen',S.stats.crafted.axt||0,1]],
+   reward:()=>addXP(10)},
+  {id:'q2',t:'Holzfäller',d:'Fälle ein paar Bäume im Umkreis.',rt:'2 Heiltränke',
+   goals:()=>[['Bäume fällen',S.stats.nodes.baum||0,3]],reward:()=>add('trank',2)},
+  {id:'q3',t:'Jäger',d:'Besiege Rohlinge mit deinem Bogen.',rt:'20 XP',
+   goals:()=>[['Rohlinge besiegen',S.stats.kills||0,2]],reward:()=>addXP(20)},
+  {id:'q4',t:'Bergmann',d:'Stelle eine Spitzhacke her und baue Eisenerz ab.',rt:'30 XP',
+   goals:()=>[['Spitzhacke herstellen',S.stats.crafted.spitzhacke||0,1],['Eisenerz abbauen',S.stats.nodes.erz||0,2]],reward:()=>addXP(30)}
+];
+function checkQuests(){
+  for(const q of QUESTS){
+    if(S.qdone.includes(q.id))continue;
+    if(q.goals().every(g=>g[1]>=g[2])){S.qdone.push(q.id);q.reward();toast('📜 Quest abgeschlossen: '+q.t+' (+'+q.rt+')');}
+    break; // immer nur die aktive Quest prüfen
+  }
+}
+
+/* ---------- Menüs ---------- */
+let curSheet=null,confirmReset=false;
+function openSheet(s){
+  curSheet=s;
+  const titles={inv:'Inventar',craft:'Herstellen',quests:'Quests',char:'Charakter',set:'Mehr'};
+  $('#shT').textContent=titles[s];
+  let h='';
+  if(s==='inv'){
+    const it=Object.entries(S.inv).filter(([k,n])=>n>0&&ITEMS[k]);
+    h+=it.length?'<div class="grid">'+it.map(([k,n])=>'<div class="it"><span>'+ITEMS[k].i+'</span><b>'+n+'</b><small>'+ITEMS[k].n+'</small></div>').join('')+'</div>':'<p>Noch leer. Geh los und sammle etwas!</p>';
+    h+='<h3>Werkzeug</h3>';
+    h+=S.tools.length?S.tools.map(t=>'<div class="kv"><span>'+ITEMS[t.id].i+' '+ITEMS[t.id].n+'</span><span>Haltbarkeit '+t.dur+'</span></div>').join(''):'<p>Kein Werkzeug. Stelle unter „Herstellen“ eins her.</p>';
+    if(have('trank')>0)h+='<h3>Benutzen</h3><button class="btn" data-a="use" data-id="trank">🧪 Heiltrank trinken ('+have('trank')+')</button>';
+  }
+  if(s==='craft'){
+    h+=RECIPES.map(r=>{
+      const ok=Object.keys(r.cost).every(k=>have(k)>=r.cost[k]),done=r.kind==='armor'&&S.stats.crafted[r.id];
+      const cost=Object.keys(r.cost).map(k=>'<span class="'+(have(k)>=r.cost[k]?'good':'bad')+'">'+ITEMS[k].i+' '+have(k)+'/'+r.cost[k]+'</span>').join(' · ');
+      const info=r.kind==='tool'?'Haltbarkeit '+r.dur:r.kind==='armor'?'+'+r.def+' Verteidigung':'Heilt 40 Leben';
+      return '<div class="rec"><div class="t">'+ITEMS[r.id].i+' '+ITEMS[r.id].n+'</div><div class="c">'+cost+'</div><small>'+info+'</small><br><button class="btn" style="margin-top:6px" data-a="craft" data-id="'+r.id+'" '+((!ok||done)?'disabled':'')+'>'+(done?'Schon vorhanden':'Herstellen')+'</button></div>';
+    }).join('');
+  }
+  if(s==='quests'){
+    let activeSet=false;
+    h+=QUESTS.map(q=>{
+      const dn=S.qdone.includes(q.id);let cls='q';
+      if(dn)cls+=' done';else if(!activeSet){cls+=' act2';activeSet=true;}
+      const lines=(dn||cls.includes('act2'))?q.goals().map(g=>'<div>'+(g[1]>=g[2]?'✅':'⬜')+' '+g[0]+' '+Math.min(g[1],g[2])+'/'+g[2]+'</div>').join(''):'<div>🔒 Noch gesperrt</div>';
+      return '<div class="'+cls+'"><b>'+(dn?'✓ ':'')+q.t+'</b><div style="font-size:13px;margin:3px 0">'+q.d+'</div>'+lines+'<small>Belohnung: '+q.rt+'</small></div>';
+    }).join('');
+  }
+  if(s==='char'){
+    const need=S.lv*40;
+    h+='<div class="kv"><span>Level</span><b>'+S.lv+'</b></div>'
+      +'<div class="kv"><span>Erfahrung</span><b>'+Math.floor(S.xp)+' / '+need+'</b></div>'
+      +'<div class="kv"><span>Leben</span><b>'+Math.floor(S.hp)+' / '+maxHP()+'</b></div>'
+      +'<div class="kv"><span>Angriff</span><b>'+atk()+'</b></div>'
+      +'<div class="kv"><span>Verteidigung</span><b>'+S.def+'</b></div>'
+      +'<div class="kv"><span>Besiegte Monster</span><b>'+S.stats.kills+'</b></div>'
+      +'<h3>Lebensfertigkeiten</h3>'
+      +Object.keys(SKILLNAME).map(k=>'<div class="kv"><span>'+SKILLNAME[k]+'</span><b>Stufe '+sl(k)+' <small>('+(S.skills[k]%10)+'/10)</small></b></div>').join('')
+      +'<h3>Klasse</h3><div class="kv"><span>🏹 Bogenschütze</span><small>Fernkampf bis '+BOW+' m</small></div>';
+  }
+  if(s==='set'){
+    h+='<h3>Testmodus</h3><p style="font-size:14px">Im Testmodus ignoriert das Spiel dein GPS. Tippe auf die Karte, um dich dorthin zu bewegen, zum Beispiel drinnen oder am Schreibtisch.</p>'
+      +'<button class="btn" data-a="test">Testmodus: '+(S.test?'AN (ausschalten)':'AUS (einschalten)')+'</button>'
+      +'<h3>Spielstand</h3><p style="font-size:14px">Wird automatisch in diesem Browser gespeichert.</p>'
+      +'<button class="btn sec" data-a="reset">'+(confirmReset?'Wirklich alles löschen? Nochmal tippen':'Spielstand löschen')+'</button>'
+      +'<h3>Über</h3><p style="font-size:13px;line-height:1.5">Prototyp. Ressourcen und Monster entstehen deterministisch an festen Orten der echten Karte, für alle Spieler gleich. Respawn nach 8–15 Minuten. Kartendaten © OpenStreetMap-Mitwirkende.</p>';
+  }
+  $('#shB').innerHTML=h;
+  $('#sheet').style.display='flex';
+}
+function closeSheet(){$('#sheet').style.display='none';curSheet=null;confirmReset=false;}
+
+/* ---------- UI ---------- */
+let tt=null;
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600);}
+function hud(){
+  const mx=maxHP();
+  $('#lv').textContent=S.lv;
+  $('#hpb').style.width=(100*S.hp/mx)+'%';$('#hpt').textContent=Math.floor(S.hp)+'/'+mx;
+  $('#enb').style.width=S.en+'%';$('#en2').textContent=Math.floor(S.en)+'/100';
+}
+function setTest(on){
+  S.test=on;
+  if(on){if(!P)setPos(START_POS[0],START_POS[1],5);else gpsChip();}
+  else{if(lastGps)setPos(lastGps.lat,lastGps.lon,lastGps.acc);else{gpsChip();if(watchId==null)startGPS();}}
+  save();
+}
+document.addEventListener('click',ev=>{
+  const b=ev.target.closest('[data-a]');if(!b||b.disabled)return;
+  const a=b.dataset.a;
+  switch(a){
+    case 'start':startGPS();break;
+    case 'starttest':$('#start').style.display='none';setTest(true);break;
+    case 'close':deselect();break;
+    case 'collect':collect();break;
+    case 'shoot':shoot();break;
+    case 'open':if(curSheet===b.dataset.s)closeSheet();else openSheet(b.dataset.s);break;
+    case 'shx':closeSheet();break;
+    case 'craft':craft(b.dataset.id);break;
+    case 'use':useItem(b.dataset.id);break;
+    case 'test':setTest(!S.test);openSheet('set');break;
+    case 'reset':
+      if(!confirmReset){confirmReset=true;openSheet('set');}
+      else{try{localStorage.removeItem(KEY);}catch(e){}location.reload();}
+      break;
+    case 'loc':follow=true;$('#loc').classList.remove('off');if(P)map.setView([P.lat,P.lon],Math.max(map.getZoom(),17));break;
+  }
+});
+
+/* ---------- Takt ---------- */
+let tc=0;
+setInterval(()=>{
+  const now=Date.now(),dt=(now-S.last)/1000;S.last=now;
+  regen(dt);hud();tc++;
+  if(tc%10===0)refreshWorld();
+  if(sel)renderCard();
+  if(tc%5===0)save();
+},1000);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)save();});
+window.addEventListener('pagehide',save);
+
+hud();
+if(S.test){/* Testmodus war aktiv: Start-Dialog bleibt, damit man wählen kann */}
+})();
+</script>
+</body>
+</html>
