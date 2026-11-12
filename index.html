@@ -213,8 +213,8 @@ body.cbt #react:not(.boss) [data-a=potion]{left:0;bottom:0}
 <script src="sprites_chars.js?v=4"></script>
 <script src="sprites_figs.js?v=1"></script>
 <script src="figs/manifest.js?v=3"></script>
-<script src="items/manifest.js?v=5"></script>
-<script src="pxdom.js?v=48"></script>
+<script src="items/manifest.js?v=6"></script>
+<script src="pxdom.js?v=49"></script>
 <script>
 (()=>{
 'use strict';
@@ -367,16 +367,35 @@ const QM=[1,1.25,1.6,2,2.6];
 const GT=[null,{lv:1,s:1,r:'I'},{lv:10,s:2.2,r:'II'},{lv:25,s:4,r:'III'}];
 const WPN={wanderer:'schleuder',krieger:'schwert',bogen:'bogen',magier:'stab',heiler:'heilstab'};
 const OFF={krieger:'schild',bogen:'koecher',magier:'buch',heiler:'talisman'};
+/* Waffe + Nebenhand je Klasse (Stufe). null = Zweihand, keine Nebenhand */
+const CW={wanderer:['schleuder',null],krieger:['schwert','schild'],ritter:['schwert','schild'],paladin:['schwert','schild'],sonnenwaechter:['schwert','schild'],
+ berserker:['zweihandaxt',null],kriegsherr:['zweihandaxt',null],weltenbrecher:['hammer',null],
+ duellant:['rapier','parierdolch'],klingentaenzer:['sichel','zweitsichel'],phantomklinge:['geisterklinge','geisterdolch'],
+ bogen:['bogen','koecher'],scharfschuetze:['bogen','koecher'],meisterschuetze:['bogen','koecher'],falkenauge:['bogen','koecher'],
+ jaeger:['bogen','koecher'],bestienmeister:['beil','jagdhorn'],herr:['bogen','koecher'],
+ fallensteller:['messer','baerenfalle'],schattenjaeger:['armbrust','bolzenkoecher'],nachtpirscher:['dolch','wurfdolch'],
+ magier:['stab','buch'],feuermagier:['feuerstab','feuerbuch'],pyromant:['feuerstab','feuerbuch'],phoenixweber:['feuerstab','feuerbuch'],
+ frostmagier:['eisstab','eisbuch'],eisweber:['eisstab','eisbuch'],winterherrscher:['eisstab','eisbuch'],
+ sturmmagier:['blitzstab','sturmbuch'],sturmrufer:['blitzstab','sturmbuch'],himmelsspalter:['blitzstab','sturmbuch'],
+ heiler:['heilstab','talisman'],priester:['heilstab','talisman'],hohepriester:['heilstab','talisman'],lichtgesandter:['heilstab','talisman'],
+ moench:['faust','gebetskette'],grossmeister:['faust','gebetskette'],erleuchteter:['faust','gebetskette'],
+ naturheiler:['naturstab','kraeuterkorb'],druide:['naturstab','kraeuterkorb'],weltenbaumhueter:['naturstab','kraeuterkorb']};
+function clsKey(){if(S.path&&S.tier&&PATHS[S.path]){const st=PATHS[S.path].st[S.tier-1],m=st&&/^:st_(\w+):$/.exec(st.i);if(m)return m[1];}return S.cls;}
+const stageK=(path,tier)=>{const st=PATHS[path].st[tier-1],m=/^:st_(\w+):$/.exec(st.i);return m?m[1]:PATHS[path].b;};
+const wK=()=>(CW[clsKey()]||[WPN[S.cls],OFF[S.cls]])[0];
+const oK=()=>{const c=CW[clsKey()];return c?c[1]:OFF[S.cls];};
+const ALLW=['schleuder','schwert','bogen','stab','heilstab','zweihandaxt','hammer','rapier','sichel','geisterklinge','beil','messer','armbrust','dolch','faust','feuerstab','eisstab','blitzstab','naturstab'];
 const ARMT={wanderer:['mittel','leicht'],krieger:['schwer'],bogen:['mittel'],magier:['leicht'],heiler:['leicht']};
 const ARMN={schwer:'Schwere Rüstung',mittel:'Mittlere Rüstung',leicht:'Leichte Rüstung'};
-const WTN={schleuder:'Schleuder',schwert:'Schwert',bogen:'Bogen',stab:'Zauberstab',heilstab:'Heilstab',schild:'Schild',koecher:'Köcher',buch:'Zauberbuch',talisman:'Talisman'};
+const WTN={zweihandaxt:'Zweihandaxt',hammer:'Kriegshammer',rapier:'Rapier',sichel:'Sichel',geisterklinge:'Geisterklinge',beil:'Beil',messer:'Messer',armbrust:'Armbrust',dolch:'Dolch',faust:'Faustwaffe',feuerstab:'Feuerstab',eisstab:'Eisstab',blitzstab:'Blitzstab',naturstab:'Naturstab',parierdolch:'Parierdolch',zweitsichel:'Zweitsichel',geisterdolch:'Geisterdolch',jagdhorn:'Jagdhorn',baerenfalle:'Bärenfalle',bolzenkoecher:'Bolzenköcher',wurfdolch:'Wurfdolch',gebetskette:'Gebetskette',kraeuterkorb:'Kräuterkorb',feuerbuch:'Feuerbuch',eisbuch:'Eisbuch',sturmbuch:'Sturmbuch',schleuder:'Schleuder',schwert:'Schwert',bogen:'Bogen',stab:'Zauberstab',heilstab:'Heilstab',schild:'Schild',koecher:'Köcher',buch:'Zauberbuch',talisman:'Talisman'};
 const ARM={kopf:{d:2,w:2,n:['helm','kappe','kapuze']},brust:{d:4,w:3,n:['harnisch','wams','robe']},beine:{d:3,w:2,n:['beinschienen','hose','beinkleid']},haende:{d:1.5,w:1,n:['handschuhe','handschuhe','handschuhe']},fuesse:{d:1.5,w:1,n:['stiefel','stiefel','schuhe']}};
 const ATYPES=['schwer','mittel','leicht'];
 const APFX={schwer:['','Eisen','Stahl','Drachenstahl'],mittel:['','Leder','Silberleder','Tyrannenleder'],leicht:['','Stoff','Kristallstoff','Mondseide']};
-const WNM={schleuder:['','Astschleuder','Lederschleuder','Meisterschleuder'],schwert:['','Eisenschwert','Stahlschwert','Drachenklinge'],bogen:['','Kurzbogen','Langbogen','Falkenbogen'],stab:['','Holzstab','Kristallstab','Sturmstab'],heilstab:['','Lichtzweig','Silberstab','Sonnenstab']};
+const WNM={zweihandaxt:['','Holzfälleraxt','Kriegsaxt','Weltenspalter'],hammer:['','Schmiedehammer','Kriegshammer','Erdbebenbrecher'],rapier:['','Degen','Silberrapier','Phantomrapier'],sichel:['','Rostsichel','Stahlsichel','Mondsichel'],geisterklinge:['','Geisterklinge','Schemenklinge','Phantomschneide'],beil:['','Wurfbeil','Jagdbeil','Rudelspalter'],messer:['','Jagdmesser','Fangmesser','Schattenmesser'],armbrust:['','Leichte Armbrust','Schwere Armbrust','Nachtbolzen-Armbrust'],dolch:['','Dolch','Stahldolch','Nachtdolch'],faust:['','Lederbandagen','Eisenfäuste','Sternenfäuste'],feuerstab:['','Glutstab','Flammenstab','Phönixstab'],eisstab:['','Frostzweig','Eiskristallstab','Winterstab'],blitzstab:['','Blitzstab','Donnerstab','Himmelsstab'],naturstab:['','Wurzelstab','Rindenstab','Weltenbaumstab'],schleuder:['','Astschleuder','Lederschleuder','Meisterschleuder'],schwert:['','Eisenschwert','Stahlschwert','Drachenklinge'],bogen:['','Kurzbogen','Langbogen','Falkenbogen'],stab:['','Holzstab','Kristallstab','Sturmstab'],heilstab:['','Lichtzweig','Silberstab','Sonnenstab']};
 const WIC={schleuder:':g_w_schleuder_1:',schwert:':g_w_schwert_1:',bogen:':g_w_bogen_1:',stab:':g_w_stab_1:',heilstab:':g_w_heilstab_1:',schild:':g_o_schild_1:',koecher:':g_o_koecher_1:',buch:':g_o_buch_1:',talisman:':g_o_talisman_1:'};
-const ONM={schild:['','Holzschild','Stahlschild','Drachenschild'],koecher:['','Lederköcher','Silberköcher','Falkenköcher'],buch:['','Notizbuch','Runenbuch','Arkanum'],talisman:['','Kräutertalisman','Silbertalisman','Sonnentalisman']};
+const ONM={parierdolch:['','Parierdolch','Stahl-Parierdolch','Seelenparierer'],zweitsichel:['','Rost-Zweitsichel','Stahl-Zweitsichel','Mond-Zweitsichel'],geisterdolch:['','Geisterdolch','Schemendolch','Phantomdolch'],jagdhorn:['','Knochenhorn','Jagdhorn','Rudelhorn'],baerenfalle:['','Fangeisen','Bärenfalle','Dornenfalle'],bolzenkoecher:['','Bolzentasche','Silberbolzen-Köcher','Nachtbolzen-Köcher'],wurfdolch:['','Wurfdolch','Stahlwurfdolch','Schattenwurfdolch'],gebetskette:['','Holzperlenkette','Silberkette','Sternenkette'],kraeuterkorb:['','Kräuterkorb','Silberkorb','Lebensschale'],feuerbuch:['','Glutfibel','Flammenfibel','Phönixgrimoire'],eisbuch:['','Frostfibel','Eiskristallbuch','Wintergrimoire'],sturmbuch:['','Sturmfibel','Donnerbuch','Himmelsgrimoire'],schild:['','Holzschild','Stahlschild','Drachenschild'],koecher:['','Lederköcher','Silberköcher','Falkenköcher'],buch:['','Notizbuch','Runenbuch','Arkanum'],talisman:['','Kräutertalisman','Silbertalisman','Sonnentalisman']};
 const UNM=['','Wollumhang','Silbermantel','Drachenmantel'],RNM=['','Eisenring','Silberring','Drachenring'],MNM=['','Steinamulett','Kristallamulett','Herzamulett'];
+for(const k of ALLW)WIC[k]=':g_w_'+k+'_1:';for(const k of Object.keys(ONM))WIC[k]=':g_o_'+k+'_1:';
 const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
 /* ---------- Sets ---------- */
 const SETS=[
@@ -410,14 +429,16 @@ function getBase(id){
     if(ty==='schwer')st.hp=Math.round(a.w*s*2);if(ty==='mittel')st.crit=.01*t;if(ty==='leicht')st.atk=Math.max(1,Math.round(a.w*s*.8));
     b={n:cap(APFX[ty][t]+a.n[ATYPES.indexOf(ty)]),i:':g_'+slot+'_'+ty+'_'+t+':',slot,type:ty,t,st};}
   else if(k==='w'){const ty=p[1],t=+p[2],s=GT[t].s;const st={atk:Math.round(3*s)};if(ty==='bogen')st.crit=.01*t;if(ty==='heilstab')st.hp=Math.round(5*s);
+    const WX={zweihandaxt:{atk:4.2},hammer:{atk:4.4},rapier:{atk:3,crit:.015},sichel:{atk:2.4,crit:.01},geisterklinge:{atk:3.2},beil:{atk:3.4},messer:{atk:2.6,crit:.01},armbrust:{atk:3.6,crit:.015},dolch:{atk:2.4,crit:.02},faust:{atk:3.2,hp:3},feuerstab:{atk:3.2},eisstab:{atk:3.2},blitzstab:{atk:3.2},naturstab:{atk:2.4,hp:4}}[ty];
+    if(WX){delete st.crit;delete st.hp;st.atk=Math.round(WX.atk*s);if(WX.crit)st.crit=WX.crit*t;if(WX.hp)st.hp=Math.round(WX.hp*s);}
     b={n:WNM[ty][t],i:':g_w_'+ty+'_'+t+':',slot:'waffe',type:ty,t,st};}
-  else if(k==='o'){const ty=p[1],t=+p[2],s=GT[t].s;const st={schild:{def:Math.round(3*s),hp:Math.round(4*s)},koecher:{crit:.02*t,atk:Math.round(s)},buch:{atk:Math.round(2.5*s)},talisman:{hp:Math.round(10*s),def:Math.round(s)}}[ty];
+  else if(k==='o'){const ty=p[1],t=+p[2],s=GT[t].s;const st={schild:{def:Math.round(3*s),hp:Math.round(4*s)},koecher:{crit:.02*t,atk:Math.round(s)},buch:{atk:Math.round(2.5*s)},talisman:{hp:Math.round(10*s),def:Math.round(s)},parierdolch:{atk:Math.round(1.5*s),crit:.01*t},zweitsichel:{atk:Math.round(1.8*s)},geisterdolch:{atk:Math.round(1.5*s),crit:.01*t},jagdhorn:{hp:Math.round(8*s),atk:Math.round(s)},baerenfalle:{def:Math.round(2*s),atk:Math.round(1.5*s)},bolzenkoecher:{crit:.02*t,atk:Math.round(s)},wurfdolch:{crit:.02*t,atk:Math.round(s)},gebetskette:{hp:Math.round(8*s),def:Math.round(s)},kraeuterkorb:{hp:Math.round(10*s),def:Math.round(s)},feuerbuch:{atk:Math.round(2.5*s)},eisbuch:{atk:Math.round(2.5*s)},sturmbuch:{atk:Math.round(2.5*s)}}[ty];
     b={n:ONM[ty][t],i:':g_o_'+ty+'_'+t+':',slot:'nebenhand',type:ty,t,st};}
   else if(k==='u'){const t=+p[1],s=GT[t].s;b={n:UNM[t],i:':g_umhang_'+t+':',slot:'umhang',type:'',t,st:{def:Math.round(s),hp:Math.round(3*s)}};}
   else if(k==='r'){const t=+p[1],s=GT[t].s;b={n:RNM[t],i:':i_ring_'+t+':',slot:'ring',type:'',t,st:{atk:Math.round(1.2*s),crit:.01*t}};}
   else if(k==='m'){const t=+p[1],s=GT[t].s;b={n:MNM[t],i:':i_amulett_'+t+':',slot:'amulett',type:'',t,st:{hp:Math.round(6*s)}};}
-  else if(k==='q'){const pa=PATHS[p[1]],t=+p[2],st=pa.st[t-1],ty=WPN[pa.b],s=GT[Math.min(3,t+1)].s;
-    const stt={atk:Math.round(3.5*s)};if(ty==='bogen')stt.crit=.02*t;if(ty==='heilstab')stt.hp=Math.round(6*s);
+  else if(k==='q'){const pa=PATHS[p[1]],t=+p[2],st=pa.st[t-1],ty=(CW[stageK(p[1],t)]||[WPN[pa.b]])[0],s=GT[Math.min(3,t+1)].s;
+    const stt={atk:Math.round(3.5*s)};if(ty==='bogen')stt.crit=.02*t;if(ty==='heilstab')stt.hp=Math.round(6*s);const ex=getBase('w|'+ty+'|'+Math.min(3,t+1)).st;if(!['schwert','bogen','heilstab','stab','schleuder'].includes(ty)){for(const k in ex)stt[k]=k==='crit'?Math.round(ex[k]*1.2*1000)/1000:Math.round(ex[k]*1.17);}
     b={n:st.n.replace(/ /g,'-')+'-'+WTN[ty],i:':g_w_'+ty+'_'+Math.min(3,t+1)+':',slot:'waffe',type:ty,t:Math.min(3,t+1),st:stt,fixedQ:[2,3,4][t-1],lvReq:UP_LV[t-1]};}
   b.id=id;b.lv=b.lvReq||GT[b.t].lv;
   return _gb[id]=b;
@@ -460,11 +481,14 @@ function gs(k){let v=0;for(const sl in S.eq){const g=gearOf(S.eq[sl]);if(g)v+=gS
 function canEquip(g){
   const b=getBase(g.b);
   if(S.lv<b.lv)return 'Ab Level '+b.lv;
-  if(b.slot==='waffe'&&b.type!==WPN[S.cls])return 'Falsche Waffenart';
-  if(b.slot==='nebenhand'&&b.type!==OFF[S.cls])return OFF[S.cls]?'Passt nicht zu deiner Klasse':'Erst mit einer Klasse';
+  const setOk=b.set&&SETD[b.set].cls===S.cls;
+  if(b.slot==='waffe'&&b.type!==wK()&&!(setOk&&b.type===WPN[S.cls]))return 'Falsche Waffenart';
+  if(b.slot==='nebenhand'&&b.type!==oK()&&!(setOk&&b.type===OFF[S.cls]&&oK()))return oK()?'Passt nicht zu deiner Klasse':(S.cls?'Zweihandwaffe: keine Nebenhand':'Erst mit einer Klasse');
   if(ARM[b.slot]&&!ARMT[S.cls].includes(b.type))return ARMN[b.type]+' nicht erlaubt';
   return '';
 }
+function fixEq(){for(const sl of['waffe','nebenhand']){const g=gearOf(S.eq[sl]);if(!g)continue;const b=getBase(g.b),setOk=b.set&&SETD[b.set].cls===S.cls;
+  const ok=sl==='waffe'?(b.type===wK()||(setOk&&b.type===WPN[S.cls])):(oK()&&(b.type===oK()||(setOk&&b.type===OFF[S.cls])));if(!ok)S.eq[sl]=null;}}
 function equip(uid,quiet){
   const g=gearOf(uid);if(!g)return false;
   const why=canEquip(g);if(why){if(!quiet)toast(why);return false;}
@@ -489,11 +513,11 @@ const DROPT={normal:[1],rare:[1,1,2],elite:[2],boss:[2,3],area:[3]};
 function rollGear(tier){
   if(Math.random()>=(DROPCH[tier]||0))return null;
   const t=DROPT[tier][rnd(0,DROPT[tier].length-1)],q=rollQ(DROPQ[tier]);
-  const slots=['waffe','waffe',...(OFF[S.cls]?['nebenhand']:[]),'kopf','brust','beine','haende','fuesse','umhang','ring','amulett'];
+  const slots=['waffe','waffe',...(oK()?['nebenhand']:[]),'kopf','brust','beine','haende','fuesse','umhang','ring','amulett'];
   const sl=slots[rnd(0,slots.length-1)];
   let id;
-  if(sl==='waffe')id='w|'+(Math.random()<.8?WPN[S.cls]:Object.values(WPN)[rnd(0,4)])+'|'+t;
-  else if(sl==='nebenhand')id='o|'+OFF[S.cls]+'|'+t;
+  if(sl==='waffe')id='w|'+(Math.random()<.8?wK():ALLW[rnd(0,ALLW.length-1)])+'|'+t;
+  else if(sl==='nebenhand')id='o|'+oK()+'|'+t;
   else if(sl==='umhang')id='u|'+t;else if(sl==='ring')id='r|'+t;else if(sl==='amulett')id='m|'+t;
   else{const types=ARMT[S.cls];const ty=Math.random()<.7?types[rnd(0,types.length-1)]:ATYPES[rnd(0,2)];id='a|'+sl+'|'+ty+'|'+t;}
   return addGear(id,q);
@@ -517,8 +541,8 @@ const GR=[];
   }
 })();
 function grUsable(r){const b=getBase(r.id);
-  if(b.slot==='waffe')return b.type===WPN[S.cls];
-  if(b.slot==='nebenhand')return b.type===OFF[S.cls];
+  if(b.slot==='waffe')return b.type===wK();
+  if(b.slot==='nebenhand')return !!oK()&&b.type===oK();
   if(ARM[b.slot])return ARMT[S.cls].includes(b.type);
   return true;}
 function craftGear(bid){
@@ -589,7 +613,7 @@ function shopInfo(e){
   const pool=SHOP_POOL.slice(),items=['trank'];
   while(items.length<4)items.push(pool.splice(Math.floor(r()*pool.length),1)[0]);
   const sl=['kopf','brust','beine','haende','fuesse'];
-  const gear=['w|'+WPN[S.cls]+'|1','a|'+sl[Math.floor(r()*5)]+'|'+ARMT[S.cls][0]+'|1'];
+  const gear=['w|'+wK()+'|1','a|'+sl[Math.floor(r()*5)]+'|'+ARMT[S.cls][0]+'|1'];
   return {n:SHOP_NAMES[Math.floor(r()*SHOP_NAMES.length)],items,gear};
 }
 const gBuyPrice=bid=>gVal({b:bid,q:0,p:0});
@@ -735,6 +759,7 @@ try{
 }catch(e){}
 if(!CLASSES[S.cls])S.cls='wanderer';
 if(S.path&&!PATHS[S.path]){S.path='';S.tier=0;}
+try{fixEq();}catch(e){}
 if(S.cls!=='wanderer'&&!S.qb)S.qb=cnt();
 if(!S.gv){ // alte Rüstungen in das neue System übernehmen
   S.gv=1;
@@ -1632,7 +1657,7 @@ function openSheet(s){
   }
   if(s==='char'){
     const need=S.lv*40;
-    const pd=k=>{const sl0=SLOTS.find(x=>x[0]===k),g=gearOf(S.eq[k]);return '<button class="pd p-'+k+(g?'':' em')+'" data-a="gearopen" data-slot="'+k+'" aria-label="'+sl0[1]+(g?': '+getBase(g.b).n:' leer')+'"><span class="pc"'+(g?' style="border-color:'+QC[g.q]+';box-shadow:0 0 12px '+QC[g.q]+'66"':'')+'><span class="pi">'+(g?getBase(g.b).i:SLOTIC[k])+'</span>'+(g&&g.p?'<i class="pp" style="background:'+QC[g.q]+'">+'+g.p+'</i>':'')+'</span><small>'+sl0[1]+'</small></button>';};
+    const pd=k=>{const sl0=SLOTS.find(x=>x[0]===k),g=gearOf(S.eq[k]);if(k==='nebenhand'&&!oK())return '<button class="pd p-nebenhand em" disabled aria-label="Zweihandwaffe: keine Nebenhand"><span class="pc" style="opacity:.35"><span class="pi">🔒</span></span><small>Zweihand</small></button>';return '<button class="pd p-'+k+(g?'':' em')+'" data-a="gearopen" data-slot="'+k+'" aria-label="'+sl0[1]+(g?': '+getBase(g.b).n:' leer')+'"><span class="pc"'+(g?' style="border-color:'+QC[g.q]+';box-shadow:0 0 12px '+QC[g.q]+'66"':'')+'><span class="pi">'+(g?getBase(g.b).i:(k==='waffe'&&WIC[wK()]?WIC[wK()]:k==='nebenhand'&&WIC[oK()]?WIC[oK()]:SLOTIC[k]))+'</span>'+(g&&g.p?'<i class="pp" style="background:'+QC[g.q]+'">+'+g.p+'</i>':'')+'</span><small>'+sl0[1]+'</small></button>';};
     const tile=(n,v,sm,hot)=>'<div class="st"><small>'+n+'</small><b style="'+(sm?'font-size:15px;':'')+(hot?'color:var(--acc)':'')+'">'+v+'</b></div>';
     h+='<div style="font-size:12px;letter-spacing:.14em;color:var(--acc);font-weight:800;text-transform:uppercase;margin:2px 0 8px">'+C0().n+(S.lv>=LV_CAP?' · Höchststufe':' · Erfahrung '+Math.floor(S.xp)+' / '+need)+'</div>'
       +'<div class="sts">'+tile('Level',S.lv,0,1)+tile('Leben',Math.floor(S.hp)+' / '+maxHP(),1)+tile('Angriff',atk())+tile('Verteidigung',defense())+'</div>'
@@ -1744,7 +1769,7 @@ document.addEventListener('click',ev=>{
       if(S.tier===2&&S.lv>=UP_LV[2]&&upQuestDone()&&!SECRET[S.path].ok()){toast('❓ Etwas fehlt noch… die Hinweise verraten mehr.');break;}
       if(!canUp())break;
       if(S.tier===0){if(!pickPath||PATHS[pickPath].b!==S.cls)break;S.path=pickPath;}
-      S.tier++;S.qb=cnt();S.scd={};S.shield=0;S.stun=0;
+      S.tier++;S.qb=cnt();S.scd={};S.shield=0;S.stun=0;fixEq();
       const st=PATHS[S.path].st[S.tier-1];
       closeSheet();buildSkillBar();S.hp=maxHP();
       const qw=addGear('q|'+S.path+'|'+S.tier,0);
@@ -1753,7 +1778,7 @@ document.addEventListener('click',ev=>{
       break;}
     case 'opendev':openSheet('dev');break;
     case 'devset':{
-      S.cls=b.dataset.cls;S.path=b.dataset.path;S.tier=+b.dataset.tier;S.qb=cnt();S.scd={};S.shield=0;S.stun=0;
+      S.cls=b.dataset.cls;S.path=b.dataset.path;S.tier=+b.dataset.tier;S.qb=cnt();S.scd={};S.shield=0;S.stun=0;fixEq();
       pickPath='';buildSkillBar();S.hp=Math.min(S.hp,maxHP());save();hud();toast('Klasse: '+C0().n);openSheet('dev');break;}
     case 'cheatmat':{
       const M={eisenerz:2000,stein:500,kristall:30,steinherz:15,tyrannenzahn:5,moorperle:5,gebietsherz:5,drachenschuppe:10,rune0:10,rune1:10,rune2:10,rune3:10,rune4:10};

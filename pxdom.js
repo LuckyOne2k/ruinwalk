@@ -2,12 +2,12 @@
 const PX_NORM=s=>s.replace(/️/g,'');
 let PX_KEYS={},PX_RE=null;
 function pxBuild(){PX_KEYS={};for(const k of Object.keys(PX_SPR).concat(Object.keys(PX_ALIAS),Object.keys(PX_SPR32),Object.keys(PX_ALIAS32)))PX_KEYS[PX_NORM(k)]=k;
-if(typeof PX_ITEMS!=='undefined')for(const n of PX_ITEMS)if(/^(set_|ring_|amulett_)/.test(n))PX_KEYS[':i_'+n+':']=':i_'+n+':';
+if(typeof PX_ITEMS!=='undefined')for(const n of PX_ITEMS)if(/^(set_|ring_|amulett_)/.test(n))PX_KEYS[':i_'+n+':']=':i_'+n+':';else if(/^[wo]_/.test(n))PX_KEYS[':g_'+n+':']=':g_'+n+':';
 PX_RE=new RegExp(Object.keys(PX_KEYS).sort((a,b)=>b.length-a.length).map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\uFE0F?').join('|'),'g');}
 const PX_URL={};
 function pxUrl(emo){
   const k=PX_KEYS[PX_NORM(emo)];if(!k)return null;
-  if(typeof PX_ITEMS!=='undefined'){const m=/^:[ing]_(\w+):$/.exec(k);if(m&&PX_ITEMS.indexOf(m[1])>=0&&(k[1]==='i'||k[1]==='g'||['stock','stein','ranke','kraut'].indexOf(m[1])>=0))return 'items/'+m[1]+'.png?v=2';}
+  if(typeof PX_ITEMS!=='undefined'){const m=/^:[ing]_(\w+):$/.exec(k);if(m&&PX_ITEMS.indexOf(m[1])>=0&&(k[1]==='i'||k[1]==='g'||['stock','stein','ranke','kraut'].indexOf(m[1])>=0))return 'items/'+m[1]+'.png?v=3';}
   if(typeof PX_PNG!=='undefined'){const m=/^:ch_(\w+):$/.exec(k);if(m&&PX_PNG.indexOf(m[1])>=0)return 'figs/'+m[1]+'.png?v=38';}
   if(PX_URL[k])return PX_URL[k];
   const d=pxDef(k);if(!d)return null;
