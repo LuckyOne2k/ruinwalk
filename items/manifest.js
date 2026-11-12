@@ -1,0 +1,2 @@
+/* Eigene PNG-Item-Bilder (48x48): Datei in items/<name>.png */
+const PX_ITEMS=['alphafell', 'drachenschuppe', 'eisenerz', 'feder', 'fell', 'gebietsherz', 'geist', 'gift', 'gold', 'hauer', 'haut', 'holz', 'horn', 'kaefer', 'knochen', 'kraut', 'kristall', 'kupfer', 'moorperle', 'nachtfeder', 'ranke', 'rune0', 'rune1', 'rune2', 'rune3', 'rune4', 'silber', 'silberfell', 'stein', 'steinherz', 'stock', 'trank', 'tyrannenzahn'];
