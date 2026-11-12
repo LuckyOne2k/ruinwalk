@@ -8,7 +8,7 @@ const PX_URL={};
 function pxUrl(emo){
   const k=PX_KEYS[PX_NORM(emo)];if(!k)return null;
   if(typeof PX_ITEMS!=='undefined'){const m=/^:[ing]_(\w+):$/.exec(k);if(m&&PX_ITEMS.indexOf(m[1])>=0&&(k[1]==='i'||k[1]==='g'||['stock','stein','ranke','kraut'].indexOf(m[1])>=0))return 'items/'+m[1]+'.png?v=2';}
-  if(typeof PX_PNG!=='undefined'){const m=/^:ch_(\w+):$/.exec(k);if(m&&PX_PNG.indexOf(m[1])>=0)return 'figs/'+m[1]+'.png?v=21';}
+  if(typeof PX_PNG!=='undefined'){const m=/^:ch_(\w+):$/.exec(k);if(m&&PX_PNG.indexOf(m[1])>=0)return 'figs/'+m[1]+'.png?v=22';}
   if(PX_URL[k])return PX_URL[k];
   const d=pxDef(k);if(!d)return null;
   const cv=document.createElement('canvas');const NN=pxSizeOf(d[0],32);cv.width=cv.height=NN;
