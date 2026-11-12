@@ -1,2 +1,2 @@
-/* Eigene PNG-Figuren (64x64, blicken nach rechts). Dateiname ohne .png hier eintragen, Datei liegt in figs/ */
-const PX_PNG=['wanderer'];
+/* Eigene PNG-Figuren (64x64, blicken nach rechts). Datei liegt in figs/, Name hier eintragen */
+const PX_PNG=['berserker', 'bestienmeister', 'bogen', 'druide', 'duellant', 'eisweber', 'erleuchteter', 'falkenauge', 'fallensteller', 'feuermagier', 'frostmagier', 'grossmeister', 'heiler', 'herr', 'himmelsspalter', 'hohepriester', 'jaeger', 'klingentaenzer', 'krieger', 'kriegsherr', 'lichtgesandter', 'magier', 'meisterschuetze', 'moench', 'nachtpirscher', 'naturheiler', 'paladin', 'phantomklinge', 'phoenixweber', 'priester', 'pyromant', 'ritter', 'scharfschuetze', 'schattenjaeger', 'sonnenwaechter', 'sturmmagier', 'sturmrufer', 'wanderer', 'weltenbaumhueter', 'weltenbrecher', 'winterherrscher'];
