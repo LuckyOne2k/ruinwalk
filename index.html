@@ -160,7 +160,8 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 <script src="sprites_items.js?v=3"></script>
 <script src="sprites_mobs.js?v=3"></script>
 <script src="sprites_chars.js?v=4"></script>
-<script src="pxdom.js?v=4"></script>
+<script src="sprites_figs.js?v=1"></script>
+<script src="pxdom.js?v=5"></script>
 <script>
 (()=>{
 'use strict';
@@ -810,7 +811,7 @@ pruneCd();
 const map=L.map('map',{zoomControl:false,attributionControl:false,maxZoom:19,minZoom:13}).setView(START_POS,16);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
 
-let meK='';const meTok=()=>':ch_'+S.cls+':',meIcon=()=>L.divIcon({className:'',html:'<div class="mech">'+meTok()+'</div>',iconSize:[52,52],iconAnchor:[26,38]});
+let meK='';const figTok=()=>{if(S.path&&S.tier&&PATHS[S.path]){const st=PATHS[S.path].st[S.tier-1];const m=st&&/^:st_(\w+):$/.exec(st.i);if(m)return ':ch_'+m[1]+':';}return ':ch_'+S.cls+':';},meTok=figTok,meIcon=()=>L.divIcon({className:'',html:'<div class="mech">'+meTok()+'</div>',iconSize:[52,52],iconAnchor:[26,38]});
 function updMe(){if(pm&&meK!==meTok()&&pm.setIcon){meK=meTok();pm.setIcon(meIcon());}}
 let P=null,acc=null,pm=null,pc=null,pr=null,follow=true,watchId=null,lastGps=null,lastCell='';
 const ents=new Map();
@@ -1399,7 +1400,7 @@ function openSheet(s){
   }
   if(s==='char'){
     const need=S.lv*40;
-    h+='<div style="text-align:center;font-size:96px;line-height:1.1;margin:4px 0 6px">:ch_'+S.cls+':</div><div style="text-align:center;font-weight:bold;margin-bottom:6px">'+C0().n+'</div>'
+    h+='<div style="text-align:center;font-size:96px;line-height:1.1;margin:4px 0 6px">'+figTok()+'</div><div style="text-align:center;font-weight:bold;margin-bottom:6px">'+C0().n+'</div>'
       +'<div class="kv"><span>Level</span><b>'+S.lv+'</b></div>'
       +'<div class="kv"><span>Erfahrung</span><b>'+Math.floor(S.xp)+' / '+need+'</b></div>'
       +'<div class="kv"><span>Leben</span><b>'+Math.floor(S.hp)+' / '+maxHP()+'</b></div>'

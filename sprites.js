@@ -1,7 +1,7 @@
 /* Ruin Walk – Pixel-Grafiken (16x16), komplett als Code gezeichnet.
    Jedes Bild ist eine Liste von Formen: e=Ellipse cx,cy,rx,ry · r=Rechteck x,y,b,h · l=Linie x1,y1,x2,y2 · t=Dreieck x1,y1,x2,y2,x3,y3 · p=Punkt x,y
    jeweils gefolgt von einem Farbbuchstaben (_ = radieren). Kontur und Licht/Schatten kommen automatisch. */
-const PX_PAL={w:'#f4f1e8',g:'#a3a9b3',G:'#5b6270',k:'#1b1420',b:'#a8723f',B:'#5e3b20',t:'#dcc08e',r:'#d9413f',R:'#8c2230',o:'#ef8d2c',y:'#f4d03f',Y:'#b8902a',l:'#6fd354',L:'#2f7d3b',c:'#59d8e3',C:'#2a8c9c',u:'#4585e6',U:'#26428f',p:'#a65fdc',P:'#5c3190',m:'#f48fbc',s:'#cdd7e3',S:'#7b8999',n:'#ebc9a2',e:'#4a9a63',d:'#7d5532',h:'#ffffff',a:'#9aa0a8',A:'#5b6270',z:'#c9a43a'};
+const PX_PAL={w:'#f4f1e8',g:'#a3a9b3',G:'#5b6270',k:'#1b1420',b:'#a8723f',B:'#5e3b20',t:'#dcc08e',r:'#d9413f',R:'#8c2230',o:'#ef8d2c',y:'#f4d03f',Y:'#b8902a',l:'#6fd354',L:'#2f7d3b',c:'#59d8e3',C:'#2a8c9c',u:'#4585e6',U:'#26428f',p:'#a65fdc',P:'#5c3190',m:'#f48fbc',s:'#cdd7e3',S:'#7b8999',n:'#ebc9a2',e:'#4a9a63',d:'#7d5532',h:'#ffffff',a:'#9aa0a8',A:'#5b6270',z:'#c9a43a',q:'#a8723f',Q:'#5e3b20',v:'#5e3b20',V:'#6b4a2b',x:'#d9413f',T:'#8c5a34',X:'#8c2230'};
 const PX_SPR={
 /* ---- Monster ---- */
 '🐺':'e9,9,5,3g;e4,7,3,2g;t3,6,5,6,4,3G;r1,8,3,1g;p1,8k;p4,7y;r5,11,1,3G;r7,11,1,3G;r11,11,1,3G;r13,11,1,3G;l14,8,15,5g;e8,9,3,1G',
