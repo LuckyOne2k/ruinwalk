@@ -214,7 +214,7 @@ body.cbt #react:not(.boss) [data-a=potion]{left:0;bottom:0}
 <script src="sprites_figs.js?v=1"></script>
 <script src="figs/manifest.js?v=3"></script>
 <script src="items/manifest.js?v=7"></script>
-<script src="pxdom.js?v=49"></script>
+<script src="pxdom.js?v=50"></script>
 <script>
 (()=>{
 'use strict';
@@ -967,7 +967,10 @@ pruneCd();
 const map=L.map('map',{zoomControl:false,attributionControl:false,maxZoom:19,minZoom:13}).setView(START_POS,16);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
 
-let meK='',meFlip=false;const figTok=()=>{if(S.path&&S.tier&&PATHS[S.path]){const st=PATHS[S.path].st[S.tier-1];const m=st&&/^:st_(\w+):$/.exec(st.i);if(m)return ':ch_'+m[1]+':';}return ':ch_'+S.cls+':';},meTok=figTok,meIcon=()=>L.divIcon({className:'',html:'<div class="mech'+(meFlip?' mflip':'')+'">'+meTok()+'</div>',iconSize:[52,52],iconAnchor:[26,38]});
+const lkOf=sl=>{const g=gearOf(S.eq[sl]);if(!g)return '';const b=getBase(g.b);return b.set?'s':String(Math.min(3,Math.max(1,b.t)));};
+const eqLook=()=>lkOf('waffe')+'|'+lkOf('nebenhand');
+window.PX_EQ=slug=>{if(slug!==clsKey())return null;return{w:lkOf('waffe'),o:lkOf('nebenhand')};};
+let meK='',meFlip=false;const figTok=()=>{if(S.path&&S.tier&&PATHS[S.path]){const st=PATHS[S.path].st[S.tier-1];const m=st&&/^:st_(\w+):$/.exec(st.i);if(m)return ':ch_'+m[1]+':';}return ':ch_'+S.cls+':';},meTok=()=>figTok()+eqLook(),meIcon=()=>L.divIcon({className:'',html:'<div class="mech'+(meFlip?' mflip':'')+'">'+figTok()+'</div>',iconSize:[52,52],iconAnchor:[26,38]});
 function updMe(){if(pm&&meK!==meTok()&&pm.setIcon){meK=meTok();pm.setIcon(meIcon());}}
 let P=null,acc=null,pm=null,pc=null,pr=null,follow=true,watchId=null,lastGps=null,lastCell='';
 const ents=new Map();
