@@ -1356,11 +1356,11 @@ function useSkill(i){
 function skBtn(i){return '<button class="sk" data-a="skill" data-i="'+i+'" data-sk="'+i+'"><span class="si">'+C0().sk[i].i+'</span><small class="sc"></small></button>';}
 function skPot(){return '<button class="sk" data-a="potion" data-pot="1"><span class="si">:i_trank:</span><small class="sc"></small></button>';}
 function skRow(){const C=C0();return (C.sk&&C.sk.length)?'<div class="skrow">'+C.sk.map((x,i)=>skBtn(i)).join('')+'</div>':'';}
-function buildSkillBar(){const C=C0();$('#skills').classList.toggle('many',(C.sk||[]).length>3);$('#skills').innerHTML=(C.sk||[]).map((x,i)=>skBtn(i)).join('');updateSkillUI();}
+function buildSkillBar(){const C=C0();const sf=(C.sk||[]).filter(x=>x.self);$('#skills').classList.toggle('many',sf.length>3);$('#skills').innerHTML=(C.sk||[]).map((x,i)=>x.self?skBtn(i):'').join('');updateSkillUI();}
 function updateSkillUI(){
   const C=C0(),sk=C.sk||[],now=Date.now();
   const cardShown=$('#card').style.display==='block';
-  $('#skills').style.display='none';
+  $('#skills').style.display=(sk.some(x=>x.self)&&!cardShown)?'flex':'none';
   for(const el of document.querySelectorAll('[data-pot]')){const cd=Math.ceil((potCd-now)/1000),n=have('trank');const sc=el.querySelector('.sc');if(sc)sc.textContent=cd>0?cd+' s':'×'+n;el.classList.toggle('off',n<=0||cd>0);}
   const list=document.querySelectorAll?document.querySelectorAll('[data-sk]'):[];
   for(const el of list){
