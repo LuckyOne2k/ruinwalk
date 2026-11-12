@@ -509,7 +509,9 @@ function addGear(bid,q,quiet){
   let auto=false;if(!S.eq[b.slot]&&!canEquip(g)){S.eq[b.slot]=g.u;auto=true;}
   return {g,auto};
 }
-const gName=g=>{const b=getBase(g.b);return '<span style="color:'+QC[g.q]+';font-weight:bold">'+b.i+' '+b.n+(g.p?' +'+g.p:'')+'</span>';};
+const SETC='#13c2b0';
+const gC=g=>getBase(g.b).set?SETC:QC[g.q];
+const gName=g=>{const b=getBase(g.b);return '<span style="color:'+gC(g)+';font-weight:bold">'+b.i+' '+b.n+(g.p?' +'+g.p:'')+'</span>';};
 const gNameT=g=>{const b=getBase(g.b);return '['+QN[g.q]+'] '+b.n+(g.p?' +'+g.p:'');};
 function gStr(o){const a=[];if(o.def)a.push('🛡️ '+o.def);if(o.atk)a.push('⚔️ '+o.atk);if(o.hp)a.push('❤️ '+o.hp);if(o.crit)a.push('🎯 '+Math.round(o.crit*100)+'%');return a.join(' · ')||'–';}
 function rollQ(w){let r=Math.random()*w.reduce((a,b)=>a+b,0);for(let i=0;i<w.length;i++){r-=w[i];if(r<0)return i;}return 0;}
@@ -1618,7 +1620,7 @@ function openSheet(s){
       h+='<h3>Material</h3>'+(mats.length?mats.map(k=>'<div class="rec" style="padding:8px"><div class="t">'+ITEMS[k].i+' '+ITEMS[k].n+' ×'+S.inv[k]+'</div><div class="c">je '+fmtM(SELL[k])+'</div><button class="btn sec" data-a="ssell" data-id="'+k+'" data-n="1">1 verkaufen</button> <button class="btn" data-a="ssell" data-id="'+k+'" data-n="all">Alle ('+fmtM(SELL[k]*S.inv[k])+')</button></div>').join(''):'<p style="font-size:14px">Kein verkäufliches Material.</p>');
       const eqIds=Object.values(S.eq);
       const gl=S.gear.filter(g=>!eqIds.includes(g.u));
-      h+='<h3>Ausrüstung im Beutel</h3>'+(gl.length?gl.sort((a,b)=>gSell(b)-gSell(a)).map(g=>'<div class="rec" style="border-color:'+QC[g.q]+';padding:8px"><div class="t">'+gName(g)+'</div><div class="c">'+gStr(gStats(g))+'<br>Verkaufspreis '+fmtM(gSell(g))+'</div><button class="btn'+(sellOk===g.u?'':' sec')+'" data-a="ssellg" data-id="'+g.u+'">'+(sellOk===g.u?'Wirklich verkaufen?':'Verkaufen')+'</button></div>').join(''):'<p style="font-size:14px">Nichts zu verkaufen. Angelegte Ausrüstung wird nicht angeboten.</p>');
+      h+='<h3>Ausrüstung im Beutel</h3>'+(gl.length?gl.sort((a,b)=>gSell(b)-gSell(a)).map(g=>'<div class="rec" style="border-color:'+gC(g)+';padding:8px"><div class="t">'+gName(g)+'</div><div class="c">'+gStr(gStats(g))+'<br>Verkaufspreis '+fmtM(gSell(g))+'</div><button class="btn'+(sellOk===g.u?'':' sec')+'" data-a="ssellg" data-id="'+g.u+'">'+(sellOk===g.u?'Wirklich verkaufen?':'Verkaufen')+'</button></div>').join(''):'<p style="font-size:14px">Nichts zu verkaufen. Angelegte Ausrüstung wird nicht angeboten.</p>');
     }
     if(stab==='rep'){
       const mx=id=>(RECIPES.find(r=>r.id===id)||{dur:15}).dur;
@@ -1630,7 +1632,7 @@ function openSheet(s){
     const sl=gSlot,eqg=gearOf(S.eq[sl]);
     h+='<div class="kv"><span>⚔️ Angriff '+atk()+'</span><span>🛡️ Verteidigung '+defense()+'</span></div><div class="kv"><span>❤️ Max. Leben '+maxHP()+'</span><span>🎯 Krit '+Math.round(critCh()*100)+'%</span></div>';
     h+='<div class="grid" style="grid-template-columns:repeat(5,1fr);margin:8px 0">'+SLOTS.map(([k,l])=>{const g=gearOf(S.eq[k]);
-      return '<button class="it" data-a="gslot" data-slot="'+k+'" style="border:2px solid '+(k===sl?'var(--acc)':(g?QC[g.q]:'var(--line)'))+(k===sl?';background:#4a2d1a':'')+'"><span>'+(g?getBase(g.b).i:SLOTIC[k])+'</span><small>'+l+'</small></button>';}).join('')+'</div>';
+      return '<button class="it" data-a="gslot" data-slot="'+k+'" style="border:2px solid '+(k===sl?'var(--acc)':(g?gC(g):'var(--line)'))+(k===sl?';background:#4a2d1a':'')+'"><span>'+(g?getBase(g.b).i:SLOTIC[k])+'</span><small>'+l+'</small></button>';}).join('')+'</div>';
     h+=setInfo();
     h+='<h3>'+SLOTS.find(x=>x[0]===sl)[1]+'</h3>';
     const owned=[0,1,2,3,4].filter(q=>have('rune'+q)>0);
@@ -1645,8 +1647,8 @@ function openSheet(s){
       const c=g.p<UPMAX?UPCOST(g.p,b.t):null,okU=c&&Object.keys(c).every(k=>have(k)>=c[k])&&(S.cu||0)>=Math.round(UPFEE(g.p)*[1,1.5,2][b.t-1]);
       const fee=c?Math.round(UPFEE(g.p)*[1,1.5,2][b.t-1]):0;
       const cs=c?Object.keys(c).map(k=>'<span class="'+(have(k)>=c[k]?'good':'bad')+'">'+ITEMS[k].i+' '+have(k)+'/'+c[k]+'</span>').join(' ')+' <span class="'+((S.cu||0)>=fee?'good':'bad')+'">'+fmtM(fee)+'</span>':'';
-      return '<div class="rec" style="border-color:'+QC[g.q]+(on?';background:#4a2d1a':'')+'"><div class="t">'+gName(g)+(on?' <small>(angelegt)</small>':'')+'</div>'
-        +'<div class="c"><small style="color:'+QC[g.q]+'">'+(b.set?'✨ '+SETD[b.set].n+' · ':'')+QN[g.q]+(b.type&&WTN[b.type]?' · '+WTN[b.type]:(ARMN[b.type]?' · '+ARMN[b.type]:''))+' · ab Lv '+b.lv+'</small><br>'+gStr(st)+(dif?'<br>'+dif:'')+'</div>'
+      return '<div class="rec" style="border-color:'+gC(g)+(on?';background:#4a2d1a':'')+'"><div class="t">'+gName(g)+(on?' <small>(angelegt)</small>':'')+'</div>'
+        +'<div class="c"><small style="color:'+QC[g.q]+'">'+(b.set?'<span style="color:'+SETC+'">✨ '+SETD[b.set].n+'</span> · ':'')+QN[g.q]+(b.type&&WTN[b.type]?' · '+WTN[b.type]:(ARMN[b.type]?' · '+ARMN[b.type]:''))+' · ab Lv '+b.lv+'</small><br>'+gStr(st)+(dif?'<br>'+dif:'')+'</div>'
         +(on?'<button class="btn sec" data-a="gunequip" data-slot="'+sl+'">Ablegen</button> ':'<button class="btn" data-a="gequip" data-id="'+g.u+'"'+(why?' disabled':'')+'>'+(why||'Anlegen')+'</button> ')
         +(c?'<div style="margin-top:6px;font-size:13px">⬆️ Auf +'+(g.p+1)+' · Chance <b>'+Math.round(upChance(g)*100)+' %</b></div><div style="font-size:13px;margin:3px 0">'+cs+'</div><button class="btn sec" data-a="gup" data-id="'+g.u+'"'+(okU?'':' disabled')+'>Verbessern versuchen</button>':'<small>Maximal verbessert (+'+UPMAX+')</small>')+'</div>';
     }).join('');
@@ -1676,7 +1678,7 @@ function openSheet(s){
   }
   if(s==='char'){
     const need=S.lv*40;
-    const pd=k=>{const sl0=SLOTS.find(x=>x[0]===k),g=gearOf(S.eq[k]);if(k==='nebenhand'&&!oK())return '<button class="pd p-nebenhand em" disabled aria-label="Zweihandwaffe: keine Nebenhand"><span class="pc" style="opacity:.35"><span class="pi">🔒</span></span><small>Zweihand</small></button>';return '<button class="pd p-'+k+(g?'':' em')+'" data-a="gearopen" data-slot="'+k+'" aria-label="'+sl0[1]+(g?': '+getBase(g.b).n:' leer')+'"><span class="pc"'+(g?' style="border-color:'+QC[g.q]+';box-shadow:0 0 12px '+QC[g.q]+'66"':'')+'><span class="pi">'+(g?getBase(g.b).i:(k==='waffe'&&WIC[wK()]?WIC[wK()]:k==='nebenhand'&&WIC[oK()]?WIC[oK()]:SLOTIC[k]))+'</span>'+(g&&g.p?'<i class="pp" style="background:'+QC[g.q]+'">+'+g.p+'</i>':'')+'</span><small>'+sl0[1]+'</small></button>';};
+    const pd=k=>{const sl0=SLOTS.find(x=>x[0]===k),g=gearOf(S.eq[k]);if(k==='nebenhand'&&!oK())return '<button class="pd p-nebenhand em" disabled aria-label="Zweihandwaffe: keine Nebenhand"><span class="pc" style="opacity:.35"><span class="pi">🔒</span></span><small>Zweihand</small></button>';return '<button class="pd p-'+k+(g?'':' em')+'" data-a="gearopen" data-slot="'+k+'" aria-label="'+sl0[1]+(g?': '+getBase(g.b).n:' leer')+'"><span class="pc"'+(g?' style="border-color:'+gC(g)+';box-shadow:0 0 12px '+gC(g)+'66"':'')+'><span class="pi">'+(g?getBase(g.b).i:(k==='waffe'&&WIC[wK()]?WIC[wK()]:k==='nebenhand'&&WIC[oK()]?WIC[oK()]:SLOTIC[k]))+'</span>'+(g&&g.p?'<i class="pp" style="background:'+gC(g)+'">+'+g.p+'</i>':'')+'</span><small>'+sl0[1]+'</small></button>';};
     const tile=(n,v,sm,hot)=>'<div class="st"><small>'+n+'</small><b style="'+(sm?'font-size:15px;':'')+(hot?'color:var(--acc)':'')+'">'+v+'</b></div>';
     h+='<div style="font-size:12px;letter-spacing:.14em;color:var(--acc);font-weight:800;text-transform:uppercase;margin:2px 0 8px">'+C0().n+(S.lv>=LV_CAP?' · Höchststufe':' · Erfahrung '+Math.floor(S.xp)+' / '+need)+'</div>'
       +'<div class="sts">'+tile('Level',S.lv,0,1)+tile('Leben',Math.floor(S.hp)+' / '+maxHP(),1)+tile('Angriff',atk())+tile('Verteidigung',defense())+'</div>'
