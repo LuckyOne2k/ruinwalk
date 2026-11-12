@@ -162,8 +162,8 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 <script src="sprites_chars.js?v=4"></script>
 <script src="sprites_figs.js?v=1"></script>
 <script src="figs/manifest.js?v=3"></script>
-<script src="items/manifest.js?v=2"></script>
-<script src="pxdom.js?v=18"></script>
+<script src="items/manifest.js?v=3"></script>
+<script src="pxdom.js?v=19"></script>
 <script>
 (()=>{
 'use strict';
@@ -352,7 +352,7 @@ function getBase(id){
     if(ix<6)r=ix<5?getBase('a|'+SSLOTS[ix]+'|'+sd.ty+'|3'):getBase('u|3');
     else if(ix===6)r=getBase('w|'+WPN[sd.cls]+'|3');else r=getBase('o|'+OFF[sd.cls]+'|3');
     const st={};for(const q in r.st)st[q]=q==='crit'?Math.round(r.st[q]*sd.mul*1000)/1000:Math.round(r.st[q]*sd.mul);
-    b={n:ix<6?sd.p[ix]:(ix===6?sd.w:sd.o),i:r.i,slot:r.slot,type:r.type,t:3,st,set:sd.id,lvReq:sd.lv};}
+    b={n:ix<6?sd.p[ix]:(ix===6?sd.w:sd.o),i:':i_set_'+sd.id+'_'+ix+':',slot:r.slot,type:r.type,t:3,st,set:sd.id,lvReq:sd.lv};}
   else if(k==='a'){const slot=p[1],ty=p[2],t=+p[3],a=ARM[slot],s=GT[t].s,tm={schwer:1.4,mittel:1,leicht:.6}[ty];
     const st={def:Math.max(1,Math.round(a.d*s*tm))};
     if(ty==='schwer')st.hp=Math.round(a.w*s*2);if(ty==='mittel')st.crit=.01*t;if(ty==='leicht')st.atk=Math.max(1,Math.round(a.w*s*.8));
