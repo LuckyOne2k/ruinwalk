@@ -68,6 +68,11 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 .tab.on{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:bold}
 .badge{position:absolute;top:-2px;right:18%;min-width:18px;height:18px;padding:0 4px;background:#e5534b;color:#fff;border-radius:9px;font-size:11px;font-style:normal;font-weight:bold;display:none;align-items:center;justify-content:center}
 .q .btn{width:100%;margin-top:8px;padding:11px;font-size:15px}
+#skills{position:absolute;right:12px;bottom:calc(136px + var(--sb));z-index:500;display:none;flex-direction:column-reverse;gap:8px}
+.sk{width:54px;height:54px;border-radius:50%;border:2px solid var(--acc);background:var(--card);box-shadow:0 2px 8px rgba(0,0,0,.3);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0;line-height:1}
+.sk .si{font-size:22px}.sk .sc{font-size:10px;margin-top:3px;font-weight:bold}
+.sk.off{opacity:.45;border-color:#b9a78f}
+.skrow{display:flex;gap:12px;justify-content:center;margin-top:10px}
 /* Entities */
 .ent{width:44px;height:44px;border-radius:50%;background:rgba(255,250,244,.96);border:2px solid #d9c3a5;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 2px 6px rgba(0,0,0,.3);position:relative;transition:.15s}
 .ent.near{border-color:var(--ok);box-shadow:0 0 0 4px rgba(58,167,109,.35),0 2px 6px rgba(0,0,0,.3)}
@@ -99,6 +104,7 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 <div id="toast"></div>
 <button id="loc" data-a="loc" aria-label="Zentrieren">◎</button>
 <div id="attr">© OpenStreetMap-Mitwirkende</div>
+<div id="skills"></div>
 <div id="card"></div>
 
 <nav id="nav">
@@ -186,12 +192,28 @@ const CLASSES={
     blurb:'Weniger Schaden, dafür heilt jeder Angriff dich um 3 Leben. Ideal für lange Wege.'}
 };
 const PICK=['krieger','bogen','magier','heiler'];
+CLASSES.krieger.sk=[
+  {id:'wucht',n:'Wuchtschlag',i:'💥',lv:5,en:6,cd:20,mult:2.2,d:'Mächtiger Hieb mit 2,2-fachem Schaden.'},
+  {id:'schildwall',n:'Schildwall',i:'🛡️',lv:8,en:5,cd:40,shield:3,d:'Die nächsten 3 Treffer eines Monsters richten 70 % weniger Schaden an.'},
+  {id:'kampfgeist',n:'Kampfgeist',i:'🔥',lv:12,en:8,cd:90,healPct:.25,d:'Heilt 25 % deines maximalen Lebens.'}];
+CLASSES.bogen.sk=[
+  {id:'zielschuss',n:'Zielschuss',i:'🎯',lv:5,en:5,cd:15,mult:1,crit:true,d:'Ein sicherer kritischer Treffer.'},
+  {id:'weitschuss',n:'Weitschuss',i:'🦅',lv:8,en:4,cd:25,mult:1.3,rangeBonus:30,d:'Trifft bis zu 30 m weiter, 1,3-facher Schaden.'},
+  {id:'pfeilhagel',n:'Pfeilhagel',i:'🌧️',lv:12,en:8,cd:45,mult:.7,hits:3,d:'Drei Pfeile mit je 0,7-fachem Schaden.'}];
+CLASSES.magier.sk=[
+  {id:'feuerball',n:'Feuerball',i:'☄️',lv:5,en:7,cd:15,mult:2,d:'Feuerzauber mit 2-fachem Schaden.'},
+  {id:'frostnova',n:'Frostnova',i:'❄️',lv:8,en:6,cd:30,mult:1,stun:2,d:'Normaler Schaden, das Monster verfehlt seine nächsten 2 Angriffe.'},
+  {id:'blitzschlag',n:'Blitzschlag',i:'⚡',lv:12,en:10,cd:45,mult:2.8,d:'Gewaltiger Blitz mit 2,8-fachem Schaden.'}];
+CLASSES.heiler.sk=[
+  {id:'heillicht',n:'Heilendes Licht',i:'💚',lv:5,en:5,cd:10,heal:30,perLv:3,self:true,d:'Heilt dich um 30 Leben plus 3 pro Level.'},
+  {id:'schutzsegen',n:'Schutzsegen',i:'🕊️',lv:8,en:5,cd:40,shield:3,self:true,d:'Die nächsten 3 Treffer eines Monsters richten 70 % weniger Schaden an.'},
+  {id:'urteil',n:'Strahlendes Urteil',i:'🌞',lv:12,en:8,cd:30,mult:2,heal:20,d:'2-facher Schaden und heilt dich um 20.'}];
 const C0=()=>CLASSES[S.cls]||CLASSES.wanderer;
 const atkRange=()=>C0().range;
 
 /* ---------- Spielstand ---------- */
 const def=()=>({lv:1,xp:0,hp:100,en:100,inv:{},tools:[],skills:{holz:0,berg:0,sammeln:0},cd:{},mh:{},
-  stats:{col:{},nodes:{},kills:0,crafted:{}},qdone:[],qready:[],def:0,cls:'wanderer',last:Date.now(),test:false});
+  stats:{col:{},nodes:{},kills:0,crafted:{}},qdone:[],qready:[],def:0,cls:'wanderer',scd:{},shield:0,stun:0,last:Date.now(),test:false});
 let S=def();
 try{
   const raw=localStorage.getItem(KEY);
@@ -210,7 +232,10 @@ const have=k=>S.inv[k]||0;
 const findTool=t=>S.tools.find(x=>x.type===t&&x.dur>0);
 function addXP(n){
   S.xp+=n;
-  while(S.xp>=S.lv*40){S.xp-=S.lv*40;S.lv++;S.hp=maxHP();toast('⭐ Level '+S.lv+' erreicht!'+(S.lv===CLASS_LV&&S.cls==='wanderer'?' Du kannst jetzt eine Klasse wählen (Charakter)!':''));}
+  while(S.xp>=S.lv*40){S.xp-=S.lv*40;S.lv++;S.hp=maxHP();let msg='⭐ Level '+S.lv+' erreicht!';
+    if(S.lv===CLASS_LV&&S.cls==='wanderer')msg+=' Du kannst jetzt eine Klasse wählen (Charakter)!';
+    const ns=(C0().sk||[]).find(k=>k.lv===S.lv);if(ns)msg+=' Neue Fähigkeit: '+ns.n+'!';
+    toast(msg);}
 }
 function regen(dt){
   S.hp=Math.min(maxHP(),S.hp+dt/5);
@@ -337,12 +362,12 @@ function updateNear(){
   }
 }
 function select(id){const o=ents.get(id);if(!o)return;sel=o.e;renderCard();updateNear();}
-function deselect(){sel=null;$('#card').style.display='none';updateNear();}
+function deselect(){sel=null;$('#card').style.display='none';updateNear();updateSkillUI();}
 
 /* ---------- Karte unten (Details) ---------- */
 function renderCard(){
   const c=$('#card');
-  if(!sel){c.style.display='none';return;}
+  if(!sel){c.style.display='none';updateSkillUI();return;}
   const e=sel,d=def2(e),isMob=e.kind==='mob';
   let sub,body='',label,dis=true,action='';
   if(!P){sub='Warte auf Position…';label='Kein GPS';}
@@ -351,7 +376,7 @@ function renderCard(){
     sub=(isMob?'Monster · schwach':'Ressource')+' · '+Math.round(ds)+' m entfernt';
     if(isMob){
       const mx=d.hp,hp=S.mh[e.id]??mx;
-      body='<div class="row">❤️ '+hp+' / '+mx+'<div class="hpbar"><i style="width:'+(100*hp/mx)+'%"></i></div>'+C0().w+' · Reichweite '+atkRange()+' m · Energie '+C0().en+'</div>';
+      body='<div class="row">❤️ '+hp+' / '+mx+'<div class="hpbar"><i style="width:'+(100*hp/mx)+'%"></i></div>'+C0().w+' · Reichweite '+atkRange()+' m · Energie '+C0().en+'</div>'+skRow();
       action='shoot';label=C0().i+' '+C0().act;
       if(ds>atkRange())label='Zu weit – noch '+Math.ceil(ds-atkRange())+' m';
       else if(S.en<C0().en)label='Zu erschöpft';
@@ -368,9 +393,10 @@ function renderCard(){
       else dis=false;
     }
   }
-  c.innerHTML='<div class="ch"><div class="ci">'+d.i+'</div><div><b>'+d.n+'</b><small>'+sub+'</small></div><button class="x" data-a="close">✕</button></div>'
+  const html='<div class="ch"><div class="ci">'+d.i+'</div><div><b>'+d.n+'</b><small>'+sub+'</small></div><button class="x" data-a="close">✕</button></div>'
     +body+'<button class="act" data-a="'+(action||'close')+'" '+(dis?'disabled':'')+'>'+label+'</button>';
-  c.style.display='block';
+  if(c._h!==html){c.innerHTML=html;c._h=html;}
+  c.style.display='block';updateSkillUI();
 }
 
 /* ---------- Aktionen ---------- */
@@ -395,41 +421,87 @@ function collect(){
   toast('+'+q+' '+ITEMS[t.drop].n+broke);
   deselect();refreshWorld();checkQuests();save();hud();
 }
-function shoot(){
-  const e=sel;if(!e||e.kind!=='mob'||!P)return;
+function strike(o){
+  const e=sel;if(!e||e.kind!=='mob'||!P)return false;
   const m=MOBS[e.type],C=C0();
-  if(dist(P,e)>C.range){toast('Zu weit weg');return;}
-  if(S.en<C.en){toast('Zu erschöpft');return;}
-  S.en-=C.en;
+  if(dist(P,e)>(C.range+(o.rangeBonus||0))){toast('Zu weit weg');return false;}
+  if(S.en<o.en){toast('Zu erschöpft');return false;}
+  S.en-=o.en;
   let dmg=0,crit=false;
-  for(let i=0;i<(C.hits||1);i++){
-    let d=Math.max(1,Math.round((atk()+rnd(0,8))*C.dmg));
-    if(Math.random()<C.crit){d*=2;crit=true;}
+  for(let i=0;i<(o.hits||1);i++){
+    let d=Math.max(1,Math.round((atk()+rnd(0,8))*o.mult));
+    if(o.crit||Math.random()<C.crit){d*=2;crit=true;}
     dmg+=d;
   }
   let heal='';
-  if(C.heal){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+C.heal);if(S.hp>b0)heal=' · +'+C.heal+' ❤️';}
+  if(o.heal){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+o.heal);if(S.hp>b0)heal=' · +'+Math.round(S.hp-b0)+' ❤️';}
+  if(o.shield)S.shield=o.shield;
+  if(o.stun)S.stun=o.stun;
   const hp=(S.mh[e.id]??m.hp)-dmg;
   if(hp<=0){
-    delete S.mh[e.id];S.cd[e.id]=Date.now();S.stats.kills++;
+    delete S.mh[e.id];S.cd[e.id]=Date.now();S.stats.kills++;S.stun=0;
     const q=rnd(m.dmin,m.dmax);add(m.drop,q);S.stats.col[m.drop]=(S.stats.col[m.drop]||0)+q;
     addXP(m.xp);
     toast('💥 '+m.n+' besiegt! +'+q+' '+ITEMS[m.drop].n);
     deselect();refreshWorld();checkQuests();
   }else{
     S.mh[e.id]=hp;
-    let msg=(crit?'💥 Kritisch! ':C.i+' ')+dmg+' Schaden'+heal;
-    if(Math.random()<.6){
-      const h=Math.max(1,rnd(m.min,m.max)-defense());S.hp-=h;msg+=' · '+m.n+' trifft dich: -'+h;
+    let msg=(crit?'💥 Kritisch! ':(o.icon||C.i)+' ')+dmg+' Schaden'+heal;
+    if(S.stun>0){S.stun--;msg+=' · '+m.n+' ist gelähmt';}
+    else if(Math.random()<.6){
+      let h=Math.max(1,rnd(m.min,m.max)-defense());
+      if(S.shield>0){S.shield--;h=Math.max(1,Math.round(h*.3));}
+      S.hp-=h;msg+=' · '+m.n+' trifft dich: -'+h;
     }
     if(S.hp<=0){
-      S.hp=Math.round(maxHP()*.3);S.mh[e.id]=m.hp;
+      S.hp=Math.round(maxHP()*.3);S.mh[e.id]=m.hp;S.shield=0;S.stun=0;
       msg='😵 Du bist zusammengebrochen. Der Rohling erholt sich.';
       deselect();
     }
     toast(msg);refreshWorld();
   }
   save();hud();renderCard();
+  return true;
+}
+function shoot(){
+  const C=C0();
+  strike({mult:C.dmg,hits:C.hits,en:C.en,heal:C.heal});
+}
+function useSkill(i){
+  const C=C0(),sk=(C.sk||[])[i];if(!sk)return;
+  if(S.lv<sk.lv){toast('Diese Fähigkeit gibt es ab Stufe '+sk.lv);return;}
+  const now=Date.now(),rd=S.scd[sk.id]||0;
+  if(now<rd){toast('Noch '+Math.ceil((rd-now)/1000)+' s Abklingzeit');return;}
+  if(S.en<sk.en){toast('Zu erschöpft');return;}
+  if(sk.mult){
+    if(!strike({mult:sk.mult,hits:sk.hits,crit:sk.crit,en:sk.en,rangeBonus:sk.rangeBonus,heal:sk.heal,stun:sk.stun,shield:sk.shield,icon:sk.i}))return;
+  }else{
+    S.en-=sk.en;
+    if(sk.heal){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+sk.heal+(sk.perLv||0)*S.lv);toast(sk.i+' '+sk.n+': +'+Math.round(S.hp-b0)+' Leben');}
+    if(sk.healPct){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+maxHP()*sk.healPct);toast(sk.i+' '+sk.n+': +'+Math.round(S.hp-b0)+' Leben');}
+    if(sk.shield){S.shield=sk.shield;toast(sk.i+' '+sk.n+': Schutz für '+sk.shield+' Treffer');}
+  }
+  S.scd[sk.id]=now+sk.cd*1000;
+  save();hud();updateSkillUI();
+}
+function skBtn(i){return '<button class="sk" data-a="skill" data-i="'+i+'" data-sk="'+i+'"><span class="si">'+C0().sk[i].i+'</span><small class="sc"></small></button>';}
+function skRow(){const C=C0();return (C.sk&&C.sk.length)?'<div class="skrow">'+C.sk.map((x,i)=>skBtn(i)).join('')+'</div>':'';}
+function buildSkillBar(){const C=C0();$('#skills').innerHTML=(C.sk||[]).map((x,i)=>skBtn(i)).join('');updateSkillUI();}
+function updateSkillUI(){
+  const C=C0(),sk=C.sk||[],now=Date.now();
+  const cardShown=$('#card').style.display==='block';
+  $('#skills').style.display=(sk.length&&!cardShown)?'flex':'none';
+  const list=document.querySelectorAll?document.querySelectorAll('[data-sk]'):[];
+  for(const el of list){
+    const x=sk[+el.dataset.sk];if(!x)continue;
+    const cd=Math.ceil(((S.scd[x.id]||0)-now)/1000);
+    let txt,off=false;
+    if(S.lv<x.lv){txt='Lv'+x.lv;off=true;}
+    else if(cd>0){txt=cd+' s';off=true;}
+    else{txt=x.en+'⚡';off=S.en<x.en;}
+    const sc=el.querySelector('.sc');if(sc)sc.textContent=txt;
+    el.classList.toggle('off',off);
+  }
 }
 function craft(id){
   const r=RECIPES.find(x=>x.id===id);if(!r)return;
@@ -554,6 +626,7 @@ function openSheet(s){
         ?'<button class="btn" data-a="open" data-s="class" style="margin-top:10px;width:100%;padding:13px;font-size:16px">🌟 Klasse wählen</button>'
         :'<p style="font-size:13px">Ab Stufe '+CLASS_LV+' kannst du eine Klasse wählen (noch '+(CLASS_LV-S.lv)+' Stufen).</p>';
     }else h+='<p style="font-size:13px">'+C.blurb+'</p>';
+    if(C.sk&&C.sk.length)h+='<h3>Fähigkeiten</h3>'+C.sk.map(x=>'<div class="rec"'+(S.lv<x.lv?' style="opacity:.5"':'')+'><div class="t">'+x.i+' '+x.n+' <small>'+(S.lv<x.lv?'ab Stufe '+x.lv:'freigeschaltet')+'</small></div><div class="c">'+x.d+'</div><small>Energie '+x.en+' · Abklingzeit '+x.cd+' s</small></div>').join('');
   }
   if(s==='set'){
     h+='<h3>Testmodus</h3><p style="font-size:14px">Im Testmodus ignoriert das Spiel dein GPS. Tippe auf die Karte, um dich dorthin zu bewegen, zum Beispiel drinnen oder am Schreibtisch.</p>'
@@ -593,6 +666,7 @@ document.addEventListener('click',ev=>{
     case 'close':deselect();break;
     case 'collect':collect();break;
     case 'shoot':shoot();break;
+    case 'skill':useSkill(parseInt(b.dataset.i,10));break;
     case 'open':if(curSheet===b.dataset.s)closeSheet();else openSheet(b.dataset.s);break;
     case 'shx':closeSheet();break;
     case 'craft':craft(b.dataset.id);break;
@@ -605,8 +679,8 @@ document.addEventListener('click',ev=>{
     case 'clspick':pickCls=b.dataset.id;openSheet('class');break;
     case 'clsok':
       if(pickCls&&CLASSES[pickCls]&&S.lv>=CLASS_LV&&S.cls==='wanderer'){
-        const c=CLASSES[pickCls];S.cls=pickCls;closeSheet();
-        S.hp=maxHP();toast(c.i+' Du bist jetzt '+c.n+'!');
+        const c=CLASSES[pickCls];S.cls=pickCls;S.scd={};S.shield=0;S.stun=0;closeSheet();buildSkillBar();
+        S.hp=maxHP();toast(c.i+' Du bist jetzt '+c.n+'! Neue Fähigkeit: '+c.sk[0].n);
         save();hud();renderCard();updateNear();
       }
       break;
@@ -623,12 +697,13 @@ setInterval(()=>{
   regen(dt);hud();tc++;
   if(tc%10===0)refreshWorld();
   if(sel)renderCard();
+  updateSkillUI();
   if(tc%5===0)save();
 },1000);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)save();});
 window.addEventListener('pagehide',save);
 
-hud();
+hud();buildSkillBar();
 if(S.test){/* Testmodus war aktiv: Start-Dialog bleibt, damit man wählen kann */}
 })();
 </script>
