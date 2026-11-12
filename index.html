@@ -73,7 +73,8 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 #tele{position:absolute;left:50%;top:calc(128px + var(--st));transform:translateX(-50%);z-index:600;background:rgba(60,28,28,.94);color:#fff;padding:8px 14px;border-radius:14px;font-size:14px;text-align:center;min-width:220px;max-width:90%;display:none;pointer-events:none}
 #tele .tb{height:6px;background:rgba(255,255,255,.25);border-radius:3px;margin-top:5px;overflow:hidden}#tele .tb i{display:block;height:100%;background:#ff6a4a}
 #tele small{display:block;font-size:12px;opacity:.85;margin-top:3px}
-#react{position:absolute;left:12px;top:46%;z-index:600;display:none;flex-direction:column;gap:10px}
+#react{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100px + var(--sb));z-index:600;display:none;flex-direction:row;gap:14px}
+#react:not(.boss) .bonly{display:none}
 .rb{width:60px;height:60px;border-radius:50%;border:2px solid #c0392b;background:var(--card);box-shadow:0 2px 8px rgba(0,0,0,.3);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0;line-height:1;font-size:22px}.rb small{font-size:9px;margin-top:2px}.rb.hot{background:#ffd9a8;border-color:#ff6a00;animation:pulse .5s infinite alternate}
 @keyframes pulse{to{transform:scale(1.12)}}
 #skills.many .sk{width:46px;height:46px}
@@ -134,7 +135,7 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 <div id="attr">© OpenStreetMap-Mitwirkende</div>
 <div id="exh" data-a="skipexh"></div>
 <div id="tele"></div>
-<div id="react"><button class="rb" data-a="guard"><span>🛡️</span><small>Abwehr</small></button><button class="rb" data-a="intr"><span>⚡</span><small>Stören</small></button></div>
+<div id="react"><button class="rb bonly" data-a="guard"><span>🛡️</span><small>Abwehr</small></button><button class="rb" data-a="potion" data-pot="1" style="border-color:var(--acc)"><span class="si">:i_trank:</span><small class="sc"></small></button><button class="rb bonly" data-a="intr"><span>⚡</span><small>Stören</small></button></div>
 <div id="skills"></div>
 <div id="card"></div>
 
@@ -1192,16 +1193,18 @@ function reactDo(kind){
   hud();bossUI(bf);
 }
 function bossUI(bf){
-  const tl=$('#tele'),rc=$('#react');
-  if(!bf){tl.style.display='none';rc.style.display='none';return;}
-  rc.style.display='flex';
+  const tl=$('#tele'),rc=$('#react'),cd=$('#card'),cs=cd.style.display==='block'&&sel&&sel.kind==='mob';
+  rc.classList.toggle('boss',!!bf);
+  rc.style.display=(bf||cs)?'flex':'none';
+  if(cs){rc.style.bottom='auto';rc.style.top=Math.max(60,cd.offsetTop-rc.offsetHeight-10)+'px';}else{rc.style.top='auto';rc.style.bottom='';}
+  if(!bf){tl.style.display='none';return;}
   const ch=[];if(bf.adds>0)ch.push('🌱 Sprösslinge: '+bf.adds+' (angreifen!)');if(bf.haut)ch.push('🪨 Harte Haut: Krit-Treffer bricht sie');if(bf.fly>Date.now())ch.push('🐲 Flugphase: nur Fernkämpfer treffen');
   let h='';
   if(bf.tele){const t=bf.tele,left=Math.max(0,(t.at-Date.now())/t.dur);
     h='<b>'+t.a.n+'</b> · '+(t.a.t==='wucht'?'Wucht → 🛡️ Abwehr':'Zauber → ⚡ Unterbrechen')+(t.ok?' ✅':'')+'<div class="tb"><i style="width:'+Math.round(100*left)+'%"></i></div>';}
   if(ch.length)h+='<small>'+ch.join(' · ')+'</small>';
   tl.innerHTML=h;tl.style.display=h?'block':'none';
-  const rb=rc.querySelectorAll('.rb');rb[0].classList.toggle('hot',!!(bf.tele&&bf.tele.a.t==='wucht'&&!bf.tele.ok));rb[1].classList.toggle('hot',!!(bf.tele&&bf.tele.a.t==='zauber'&&!bf.tele.ok));
+  rc.querySelector('[data-a=guard]').classList.toggle('hot',!!(bf.tele&&bf.tele.a.t==='wucht'&&!bf.tele.ok));rc.querySelector('[data-a=intr]').classList.toggle('hot',!!(bf.tele&&bf.tele.a.t==='zauber'&&!bf.tele.ok));
 }
 function bossTick(){
   const now=Date.now(),dtr=(now-lastBt)/1000;lastBt=now;
@@ -1352,12 +1355,12 @@ function useSkill(i){
 }
 function skBtn(i){return '<button class="sk" data-a="skill" data-i="'+i+'" data-sk="'+i+'"><span class="si">'+C0().sk[i].i+'</span><small class="sc"></small></button>';}
 function skPot(){return '<button class="sk" data-a="potion" data-pot="1"><span class="si">:i_trank:</span><small class="sc"></small></button>';}
-function skRow(){const C=C0();return '<div class="skrow">'+(C.sk||[]).map((x,i)=>skBtn(i)).join('')+skPot()+'</div>';}
-function buildSkillBar(){const C=C0();$('#skills').classList.toggle('many',(C.sk||[]).length>3);$('#skills').innerHTML=(C.sk||[]).map((x,i)=>skBtn(i)).join('')+skPot();updateSkillUI();}
+function skRow(){const C=C0();return (C.sk&&C.sk.length)?'<div class="skrow">'+C.sk.map((x,i)=>skBtn(i)).join('')+'</div>':'';}
+function buildSkillBar(){const C=C0();$('#skills').classList.toggle('many',(C.sk||[]).length>3);$('#skills').innerHTML=(C.sk||[]).map((x,i)=>skBtn(i)).join('');updateSkillUI();}
 function updateSkillUI(){
   const C=C0(),sk=C.sk||[],now=Date.now();
   const cardShown=$('#card').style.display==='block';
-  $('#skills').style.display=(!cardShown)?'flex':'none';
+  $('#skills').style.display='none';
   for(const el of document.querySelectorAll('[data-pot]')){const cd=Math.ceil((potCd-now)/1000),n=have('trank');const sc=el.querySelector('.sc');if(sc)sc.textContent=cd>0?cd+' s':'×'+n;el.classList.toggle('off',n<=0||cd>0);}
   const list=document.querySelectorAll?document.querySelectorAll('[data-sk]'):[];
   for(const el of list){
