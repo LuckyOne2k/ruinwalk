@@ -578,8 +578,11 @@ function strike(o){
   save();hud();renderCard();
   return true;
 }
+function othersInFight(e){return 0;}
 function faint(m,e){
-  S.hp=Math.round(maxHP()*.3);S.mh[e.id]=m.hp;S.shield=0;S.stun=0;eng.delete(e.id);
+  S.hp=Math.round(maxHP()*.3);S.shield=0;S.stun=0;eng.delete(e.id);
+  /* Monster erholt sich nur, wenn kein anderer Spieler im Kampf ist; sonst behält es Leben und kämpft weiter (Mehrspieler: Server liefert die Zahl) */
+  if(othersInFight(e)===0){delete S.mh[e.id];}
   const lines=[];
   if(S.cls==='wanderer'&&S.lv<CLASS_LV){
     lines.push('Anfängerschutz: Als Wanderer bleibst du ohne Strafe.');
