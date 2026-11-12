@@ -247,6 +247,9 @@ const CLASSES={
     blurb:'Weniger Schaden, dafür heilt jeder Angriff dich um 3 Leben. Ideal für lange Wege.'}
 };
 const PICK=['krieger','bogen','magier','heiler'];
+CLASSES.wanderer.sk=[
+  {id:'steinwurf',n:'Steinwurf',i:'🪨',lv:2,en:4,cd:15,mult:1.7,d:'Kräftiger Wurf mit 1,7-fachem Schaden.'},
+  {id:'durchatmen',n:'Durchatmen',i:'🌬️',lv:4,en:4,cd:30,heal:25,perLv:3,self:true,d:'Heilt dich um 25 Leben plus 3 pro Level.'}];
 CLASSES.krieger.sk=[
   {id:'wucht',n:'Wuchtschlag',i:'💥',lv:5,en:6,cd:20,mult:2.2,d:'Mächtiger Hieb mit 2,2-fachem Schaden.'},
   {id:'schildwall',n:'Schildwall',i:'🛡️',lv:8,en:5,cd:40,shield:3,d:'Die nächsten 3 Treffer eines Monsters richten 70 % weniger Schaden an.'},
