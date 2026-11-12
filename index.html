@@ -320,7 +320,7 @@ const GR=[];
                mittel:[{fell:w*2,ranke:1},{fell:w,silberfell:w},{tyrannenzahn:w,alphafell:w}][t-1],
                leicht:[{ranke:w*2,kraut:w},{ranke:w*2,nachtfeder:w},{moorperle:w,kristall:w*2}][t-1]};
       for(const ty of ATYPES)GR.push({id:'a|'+sl+'|'+ty+'|'+t,cost:c[ty]});}
-    const W={schleuder:[{stock:2,ranke:2,stein:1},{fell:3,ranke:3,stein:3},null],schwert:[{eisenerz:4,holz:2},{eisenerz:6,steinherz:2},null],bogen:[{holz:3,ranke:3},{holz:4,silberfell:2,nachtfeder:2},null],stab:[{holz:3,stein:2},{holz:3,kristall:3},null],heilstab:[{holz:3,kraut:2},{holz:3,kristall:2,kraut:4},null]};
+    const W={schleuder:[{stock:2,ranke:2,stein:1},null,null],schwert:[{eisenerz:4,holz:2},{eisenerz:6,steinherz:2},null],bogen:[{holz:3,ranke:3},{holz:4,silberfell:2,nachtfeder:2},null],stab:[{holz:3,stein:2},{holz:3,kristall:3},null],heilstab:[{holz:3,kraut:2},{holz:3,kristall:2,kraut:4},null]};
     for(const ty in W)if(W[ty][t-1])GR.push({id:'w|'+ty+'|'+t,cost:W[ty][t-1]});
     const O={schild:[{holz:3,eisenerz:2},{eisenerz:5,steinherz:1},{drachenschuppe:2,steinherz:2}],koecher:[{fell:3,ranke:2},{silberfell:2,fell:2},{tyrannenzahn:1,alphafell:2}],buch:[{fell:2,ranke:2,stock:2},{kristall:3,ranke:2},{moorperle:1,kristall:3}],talisman:[{kraut:3,stein:2},{kristall:2,kraut:4},{moorperle:1,kraut:6}]};
     for(const ty in O)GR.push({id:'o|'+ty+'|'+t,cost:O[ty][t-1]});
