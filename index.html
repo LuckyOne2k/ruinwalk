@@ -154,7 +154,9 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="sprites.js?v=1"></script>
+<script src="sprites.js?v=2"></script>
+<script src="sprites_skills.js?v=2"></script>
+<script src="pxdom.js?v=2"></script>
 <script>
 (()=>{
 'use strict';
@@ -484,89 +486,89 @@ const gBuyPrice=bid=>gVal({b:bid,q:0,p:0});
 function earn(c){S.cu=(S.cu||0)+c;}
 /* ---------- Klassen ---------- */
 const CLASSES={
-  wanderer:{cd:1.8,n:'Wanderer',i:'🧭',w:'Schleuder',wi:'🪃',act:'Schleuder abfeuern',range:30,dmg:.8,en:2,crit:.1,blurb:'Noch keine Klasse.'},
-  krieger:{cd:1.4,n:'Krieger',i:'⚔️',w:'Schwert & Schild',wi:'⚔️',act:'Zuschlagen',range:20,dmg:1.3,en:2,crit:.1,hpb:.2,def:2,
+  wanderer:{cd:1.8,n:'Wanderer',i:':cl_wanderer:',w:'Schleuder',wi:'🪃',act:'Schleuder abfeuern',range:30,dmg:.8,en:2,crit:.1,blurb:'Noch keine Klasse.'},
+  krieger:{cd:1.4,n:'Krieger',i:':cl_krieger:',w:'Schwert & Schild',wi:'⚔️',act:'Zuschlagen',range:20,dmg:1.3,en:2,crit:.1,hpb:.2,def:2,
     blurb:'Robust und stark im Nahkampf. +20 % Leben, +2 Verteidigung, hoher Schaden. Du musst nah ran.'},
-  bogen:{cd:1.6,n:'Bogenschütze',i:'🏹',w:'Bogen',wi:'🏹',act:'Pfeil abschießen',range:60,dmg:1,en:2,crit:.2,
+  bogen:{cd:1.6,n:'Bogenschütze',i:':cl_bogen:',w:'Bogen',wi:'🏹',act:'Pfeil abschießen',range:60,dmg:1,en:2,crit:.2,
     blurb:'Größte Reichweite und hohe Chance auf kritische Treffer. Bleibt auf Abstand.'},
-  magier:{cd:2.0,n:'Elementarmagier',i:'🔮',w:'Zauberstab',wi:'🪄',act:'Zauber wirken',range:45,dmg:1.25,en:3,crit:.1,
+  magier:{cd:2.0,n:'Elementarmagier',i:':cl_magier:',w:'Zauberstab',wi:'🪄',act:'Zauber wirken',range:45,dmg:1.25,en:3,crit:.1,
     blurb:'Mächtige Elementarzauber mit hohem Schaden, kostet aber mehr Energie.'},
-  heiler:{cd:1.8,n:'Heiler',i:'✨',w:'Stab des Lichts',wi:'🌟',act:'Lichtstrahl wirken',range:45,dmg:.8,en:2,crit:.1,heal:3,
+  heiler:{cd:1.8,n:'Heiler',i:':cl_heiler:',w:'Stab des Lichts',wi:'🌟',act:'Lichtstrahl wirken',range:45,dmg:.8,en:2,crit:.1,heal:3,
     blurb:'Weniger Schaden, dafür heilt jeder Angriff dich um 3 Leben. Ideal für lange Wege.'}
 };
 const PICK=['krieger','bogen','magier','heiler'];
 CLASSES.wanderer.sk=[
-  {id:'steinwurf',n:'Steinwurf',i:'🪨',lv:2,en:4,cd:15,mult:1.7,d:'Kräftiger Wurf mit 1,7-fachem Schaden.'},
-  {id:'durchatmen',n:'Durchatmen',i:'🌬️',lv:4,en:4,cd:30,heal:25,perLv:3,self:true,d:'Heilt dich um 25 Leben plus 3 pro Level.'}];
+  {id:'steinwurf',n:'Steinwurf',i:':sk_steinwurf:',lv:2,en:4,cd:15,mult:1.7,d:'Kräftiger Wurf mit 1,7-fachem Schaden.'},
+  {id:'durchatmen',n:'Durchatmen',i:':sk_durchatmen:',lv:4,en:4,cd:30,heal:25,perLv:3,self:true,d:'Heilt dich um 25 Leben plus 3 pro Level.'}];
 CLASSES.krieger.sk=[
-  {id:'wucht',n:'Wuchtschlag',i:'💥',lv:5,en:6,cd:20,mult:2.2,d:'Mächtiger Hieb mit 2,2-fachem Schaden.'},
-  {id:'schildwall',n:'Schildwall',i:'🛡️',lv:8,en:5,cd:40,shield:3,d:'Die nächsten 3 Treffer eines Monsters richten 70 % weniger Schaden an.'},
-  {id:'kampfgeist',n:'Kampfgeist',i:'🔥',lv:12,en:8,cd:90,healPct:.25,d:'Heilt 25 % deines maximalen Lebens.'}];
+  {id:'wucht',n:'Wuchtschlag',i:':sk_wucht:',lv:5,en:6,cd:20,mult:2.2,d:'Mächtiger Hieb mit 2,2-fachem Schaden.'},
+  {id:'schildwall',n:'Schildwall',i:':sk_schildwall:',lv:8,en:5,cd:40,shield:3,d:'Die nächsten 3 Treffer eines Monsters richten 70 % weniger Schaden an.'},
+  {id:'kampfgeist',n:'Kampfgeist',i:':sk_kampfgeist:',lv:12,en:8,cd:90,healPct:.25,d:'Heilt 25 % deines maximalen Lebens.'}];
 CLASSES.bogen.sk=[
-  {id:'zielschuss',n:'Zielschuss',i:'🎯',lv:5,en:5,cd:15,mult:1,crit:true,d:'Ein sicherer kritischer Treffer.'},
-  {id:'weitschuss',n:'Weitschuss',i:'🦅',lv:8,en:4,cd:25,mult:1.3,rangeBonus:30,d:'Trifft bis zu 30 m weiter, 1,3-facher Schaden.'},
-  {id:'pfeilhagel',n:'Pfeilhagel',i:'🌧️',lv:12,en:8,cd:45,mult:.7,hits:3,d:'Drei Pfeile mit je 0,7-fachem Schaden.'}];
+  {id:'zielschuss',n:'Zielschuss',i:':sk_zielschuss:',lv:5,en:5,cd:15,mult:1,crit:true,d:'Ein sicherer kritischer Treffer.'},
+  {id:'weitschuss',n:'Weitschuss',i:':sk_weitschuss:',lv:8,en:4,cd:25,mult:1.3,rangeBonus:30,d:'Trifft bis zu 30 m weiter, 1,3-facher Schaden.'},
+  {id:'pfeilhagel',n:'Pfeilhagel',i:':sk_pfeilhagel:',lv:12,en:8,cd:45,mult:.7,hits:3,d:'Drei Pfeile mit je 0,7-fachem Schaden.'}];
 CLASSES.magier.sk=[
-  {id:'feuerball',n:'Feuerball',i:'☄️',lv:5,en:7,cd:15,mult:2,d:'Feuerzauber mit 2-fachem Schaden.'},
-  {id:'frostnova',n:'Frostnova',i:'❄️',lv:8,en:6,cd:30,mult:1,stun:2,d:'Normaler Schaden, das Monster verfehlt seine nächsten 2 Angriffe.'},
-  {id:'blitzschlag',n:'Blitzschlag',i:'⚡',lv:12,en:10,cd:45,mult:2.8,d:'Gewaltiger Blitz mit 2,8-fachem Schaden.'}];
+  {id:'feuerball',n:'Feuerball',i:':sk_feuerball:',lv:5,en:7,cd:15,mult:2,d:'Feuerzauber mit 2-fachem Schaden.'},
+  {id:'frostnova',n:'Frostnova',i:':sk_frostnova:',lv:8,en:6,cd:30,mult:1,stun:2,d:'Normaler Schaden, das Monster verfehlt seine nächsten 2 Angriffe.'},
+  {id:'blitzschlag',n:'Blitzschlag',i:':sk_blitzschlag:',lv:12,en:10,cd:45,mult:2.8,d:'Gewaltiger Blitz mit 2,8-fachem Schaden.'}];
 CLASSES.heiler.sk=[
-  {id:'heillicht',n:'Heilendes Licht',i:'💚',lv:5,en:5,cd:10,heal:30,perLv:3,self:true,d:'Heilt dich um 30 Leben plus 3 pro Level.'},
-  {id:'schutzsegen',n:'Schutzsegen',i:'🕊️',lv:8,en:5,cd:40,shield:3,self:true,d:'Die nächsten 3 Treffer eines Monsters richten 70 % weniger Schaden an.'},
-  {id:'urteil',n:'Strahlendes Urteil',i:'🌞',lv:12,en:8,cd:30,mult:2,heal:20,d:'2-facher Schaden und heilt dich um 20.'}];
+  {id:'heillicht',n:'Heilendes Licht',i:':sk_heillicht:',lv:5,en:5,cd:10,heal:30,perLv:3,self:true,d:'Heilt dich um 30 Leben plus 3 pro Level.'},
+  {id:'schutzsegen',n:'Schutzsegen',i:':sk_schutzsegen:',lv:8,en:5,cd:40,shield:3,self:true,d:'Die nächsten 3 Treffer eines Monsters richten 70 % weniger Schaden an.'},
+  {id:'urteil',n:'Strahlendes Urteil',i:':sk_urteil:',lv:12,en:8,cd:30,mult:2,heal:20,d:'2-facher Schaden und heilt dich um 20.'}];
 
 /* ---------- Klassen-Pfade (Stufe 15 / 30 / 50 verborgen) ---------- */
 const UP_LV=[15,30,50];
 /* m = Werte der Stufe gegenüber der Grundklasse (gesamt): dm=Schadensfaktor, crit=+Krit, hpb=Leben-Bonus (ersetzt), def=Verteidigung (ersetzt), heal=Heilung pro Angriff, range=Reichweite, hits=Treffer pro Angriff, enreg=Energie-Regeneration */
 const PATHS={
  ritter:{b:'krieger',t:'Tank mit Schild',st:[
-  {n:'Ritter',i:'🛡️',m:{hpb:.35,def:4,dm:1.1},sk:{id:'bollwerk',n:'Bollwerk',i:'🏰',en:6,cd:45,shield:5,self:true,d:'Die nächsten 5 Treffer eines Monsters richten 70 % weniger Schaden an.'}},
-  {n:'Paladin',i:'⚜️',m:{hpb:.45,def:6,dm:1.2,heal:2},sk:{id:'heilhand',n:'Heilige Hand',i:'🙌',en:10,cd:90,healPct:.4,self:true,d:'Heilt 40 % deines maximalen Lebens.'}},
-  {n:'Sonnenwächter',i:'☀️',m:{hpb:.6,def:9,dm:1.4,heal:4},sk:{id:'sonnenzorn',n:'Sonnenzorn',i:'🌞',en:12,cd:40,mult:3.2,heal:40,d:'3,2-facher Schaden und heilt dich um 40.'}}]},
+  {n:'Ritter',i:':st_ritter:',m:{hpb:.35,def:4,dm:1.1},sk:{id:'bollwerk',n:'Bollwerk',i:':sk_bollwerk:',en:6,cd:45,shield:5,self:true,d:'Die nächsten 5 Treffer eines Monsters richten 70 % weniger Schaden an.'}},
+  {n:'Paladin',i:':st_paladin:',m:{hpb:.45,def:6,dm:1.2,heal:2},sk:{id:'heilhand',n:'Heilige Hand',i:':sk_heilhand:',en:10,cd:90,healPct:.4,self:true,d:'Heilt 40 % deines maximalen Lebens.'}},
+  {n:'Sonnenwächter',i:':st_sonnenwaechter:',m:{hpb:.6,def:9,dm:1.4,heal:4},sk:{id:'sonnenzorn',n:'Sonnenzorn',i:':sk_sonnenzorn:',en:12,cd:40,mult:3.2,heal:40,d:'3,2-facher Schaden und heilt dich um 40.'}}]},
  berserker:{b:'krieger',t:'Schaden und Raserei',st:[
-  {n:'Berserker',i:'🪓',m:{hpb:.15,def:1,dm:1.5,crit:.15},sk:{id:'raserei',n:'Raserei',i:'😡',en:9,cd:25,mult:2.8,d:'Wilder Hieb mit 2,8-fachem Schaden.'}},
-  {n:'Kriegsherr',i:'👑',m:{hpb:.25,def:3,dm:1.7,crit:.2},sk:{id:'kriegsschrei',n:'Kriegsschrei',i:'📯',en:8,cd:35,mult:2.2,shield:2,d:'2,2-facher Schaden, danach schwächen die nächsten 2 Treffer ab.'}},
-  {n:'Weltenbrecher',i:'🌋',m:{hpb:.3,def:4,dm:2.1,crit:.25},sk:{id:'erdbeben',n:'Erdbeben',i:'💢',en:14,cd:50,mult:4,stun:2,d:'4-facher Schaden, das Monster verfehlt 2 Angriffe.'}}]},
+  {n:'Berserker',i:':st_berserker:',m:{hpb:.15,def:1,dm:1.5,crit:.15},sk:{id:'raserei',n:'Raserei',i:':sk_raserei:',en:9,cd:25,mult:2.8,d:'Wilder Hieb mit 2,8-fachem Schaden.'}},
+  {n:'Kriegsherr',i:':st_kriegsherr:',m:{hpb:.25,def:3,dm:1.7,crit:.2},sk:{id:'kriegsschrei',n:'Kriegsschrei',i:':sk_kriegsschrei:',en:8,cd:35,mult:2.2,shield:2,d:'2,2-facher Schaden, danach schwächen die nächsten 2 Treffer ab.'}},
+  {n:'Weltenbrecher',i:':st_weltenbrecher:',m:{hpb:.3,def:4,dm:2.1,crit:.25},sk:{id:'erdbeben',n:'Erdbeben',i:':sk_erdbeben:',en:14,cd:50,mult:4,stun:2,d:'4-facher Schaden, das Monster verfehlt 2 Angriffe.'}}]},
  duellant:{b:'krieger',t:'Schnell und kritisch',st:[
-  {n:'Duellant',i:'🤺',m:{dm:1.2,crit:.3},sk:{id:'riposte',n:'Doppelstich',i:'🗡️',en:5,cd:15,mult:1.2,hits:2,d:'Zwei schnelle Stiche mit je 1,2-fachem Schaden.'}},
-  {n:'Klingentänzer',i:'💃',m:{dm:1.35,crit:.4},sk:{id:'klingenwirbel',n:'Klingenwirbel',i:'🌀',en:9,cd:30,mult:.8,hits:4,d:'Vier Hiebe mit je 0,8-fachem Schaden.'}},
-  {n:'Phantomklinge',i:'👻',m:{dm:1.6,crit:.5,enreg:1.5},sk:{id:'schattenschnitt',n:'Schattenschnitt',i:'🌑',en:12,cd:35,mult:1.3,hits:3,crit:true,d:'Drei sichere kritische Treffer.'}}]},
+  {n:'Duellant',i:':st_duellant:',m:{dm:1.2,crit:.3},sk:{id:'riposte',n:'Doppelstich',i:':sk_riposte:',en:5,cd:15,mult:1.2,hits:2,d:'Zwei schnelle Stiche mit je 1,2-fachem Schaden.'}},
+  {n:'Klingentänzer',i:':st_klingentaenzer:',m:{dm:1.35,crit:.4},sk:{id:'klingenwirbel',n:'Klingenwirbel',i:':sk_klingenwirbel:',en:9,cd:30,mult:.8,hits:4,d:'Vier Hiebe mit je 0,8-fachem Schaden.'}},
+  {n:'Phantomklinge',i:':st_phantomklinge:',m:{dm:1.6,crit:.5,enreg:1.5},sk:{id:'schattenschnitt',n:'Schattenschnitt',i:':sk_schattenschnitt:',en:12,cd:35,mult:1.3,hits:3,crit:true,d:'Drei sichere kritische Treffer.'}}]},
  scharf:{b:'bogen',t:'Reichweite und Krit',st:[
-  {n:'Scharfschütze',i:'🎯',m:{range:80,crit:.3,dm:1.1},sk:{id:'durchschlag',n:'Durchschlag',i:'➰',en:7,cd:20,mult:2.4,rangeBonus:20,d:'2,4-facher Schaden, 20 m mehr Reichweite.'}},
-  {n:'Meisterschütze',i:'🏅',m:{range:90,crit:.4,dm:1.25},sk:{id:'todesschuss',n:'Todesschuss',i:'☠️',en:10,cd:30,mult:2.2,crit:true,d:'Sicherer kritischer Treffer mit 2,2-fachem Schaden.'}},
-  {n:'Falkenauge',i:'🦅',m:{range:110,crit:.55,dm:1.5},sk:{id:'falkenpfeil',n:'Falkenpfeil',i:'🪶',en:12,cd:35,mult:3.5,crit:true,d:'Sicherer kritischer Treffer mit 3,5-fachem Schaden.'}}]},
+  {n:'Scharfschütze',i:':st_scharfschuetze:',m:{range:80,crit:.3,dm:1.1},sk:{id:'durchschlag',n:'Durchschlag',i:':sk_durchschlag:',en:7,cd:20,mult:2.4,rangeBonus:20,d:'2,4-facher Schaden, 20 m mehr Reichweite.'}},
+  {n:'Meisterschütze',i:':st_meisterschuetze:',m:{range:90,crit:.4,dm:1.25},sk:{id:'todesschuss',n:'Todesschuss',i:':sk_todesschuss:',en:10,cd:30,mult:2.2,crit:true,d:'Sicherer kritischer Treffer mit 2,2-fachem Schaden.'}},
+  {n:'Falkenauge',i:':st_falkenauge:',m:{range:110,crit:.55,dm:1.5},sk:{id:'falkenpfeil',n:'Falkenpfeil',i:':sk_falkenpfeil:',en:12,cd:35,mult:3.5,crit:true,d:'Sicherer kritischer Treffer mit 3,5-fachem Schaden.'}}]},
  jaeger:{b:'bogen',t:'Tiergefährte',st:[
-  {n:'Jäger',i:'🐺',m:{dm:.75,hits:2},sk:{id:'wolffass',n:'Wolf, fass!',i:'🐾',en:7,cd:20,mult:1.2,hits:3,d:'Dein Wolf greift mit an: 3 Treffer à 1,2-fach.'}},
-  {n:'Bestienmeister',i:'🐻',m:{dm:.8,hits:2,hpb:.1},sk:{id:'rudel',n:'Rudelangriff',i:'🐕',en:10,cd:30,mult:.9,hits:4,d:'Dein Rudel greift an: 4 Treffer à 0,9-fach.'}},
-  {n:'Herr der Wildnis',i:'🦌',m:{dm:.9,hits:2,hpb:.25,crit:.25},sk:{id:'wildnisruf',n:'Ruf der Wildnis',i:'🌲',en:14,cd:40,mult:1,hits:5,stun:1,d:'5 Treffer der Wildnis, das Monster verfehlt 1 Angriff.'}}]},
+  {n:'Jäger',i:':st_jaeger:',m:{dm:.75,hits:2},sk:{id:'wolffass',n:'Wolf, fass!',i:':sk_wolffass:',en:7,cd:20,mult:1.2,hits:3,d:'Dein Wolf greift mit an: 3 Treffer à 1,2-fach.'}},
+  {n:'Bestienmeister',i:':st_bestienmeister:',m:{dm:.8,hits:2,hpb:.1},sk:{id:'rudel',n:'Rudelangriff',i:':sk_rudel:',en:10,cd:30,mult:.9,hits:4,d:'Dein Rudel greift an: 4 Treffer à 0,9-fach.'}},
+  {n:'Herr der Wildnis',i:':st_herr:',m:{dm:.9,hits:2,hpb:.25,crit:.25},sk:{id:'wildnisruf',n:'Ruf der Wildnis',i:':sk_wildnisruf:',en:14,cd:40,mult:1,hits:5,stun:1,d:'5 Treffer der Wildnis, das Monster verfehlt 1 Angriff.'}}]},
  falle:{b:'bogen',t:'Fallen und Kontrolle',st:[
-  {n:'Fallensteller',i:'🪤',m:{crit:.25,dm:1.05},sk:{id:'baerenfalle',n:'Bärenfalle',i:'🪤',en:6,cd:25,mult:1.5,stun:2,d:'1,5-facher Schaden, das Monster verfehlt 2 Angriffe.'}},
-  {n:'Schattenjäger',i:'🌑',m:{crit:.3,dm:1.2},sk:{id:'schattenfalle',n:'Schattenfalle',i:'🕸️',en:9,cd:35,mult:2,stun:3,d:'2-facher Schaden, das Monster verfehlt 3 Angriffe.'}},
-  {n:'Nachtpirscher',i:'🦉',m:{crit:.45,dm:1.5,enreg:1.4},sk:{id:'nachtschuss',n:'Nachtschuss',i:'🌙',en:12,cd:35,mult:3,crit:true,stun:2,d:'Sicherer Krit mit 3-fachem Schaden, 2 Angriffe verfehlt.'}}]},
+  {n:'Fallensteller',i:':st_fallensteller:',m:{crit:.25,dm:1.05},sk:{id:'baerenfalle',n:'Bärenfalle',i:':sk_baerenfalle:',en:6,cd:25,mult:1.5,stun:2,d:'1,5-facher Schaden, das Monster verfehlt 2 Angriffe.'}},
+  {n:'Schattenjäger',i:':st_schattenjaeger:',m:{crit:.3,dm:1.2},sk:{id:'schattenfalle',n:'Schattenfalle',i:':sk_schattenfalle:',en:9,cd:35,mult:2,stun:3,d:'2-facher Schaden, das Monster verfehlt 3 Angriffe.'}},
+  {n:'Nachtpirscher',i:':st_nachtpirscher:',m:{crit:.45,dm:1.5,enreg:1.4},sk:{id:'nachtschuss',n:'Nachtschuss',i:':sk_nachtschuss:',en:12,cd:35,mult:3,crit:true,stun:2,d:'Sicherer Krit mit 3-fachem Schaden, 2 Angriffe verfehlt.'}}]},
  feuer:{b:'magier',t:'Brand und Schaden',st:[
-  {n:'Feuermagier',i:'🔥',m:{dm:1.45},sk:{id:'flammenwelle',n:'Flammenwelle',i:'🌊',en:9,cd:20,mult:2.6,d:'Feuerwelle mit 2,6-fachem Schaden.'}},
-  {n:'Pyromant',i:'☄️',m:{dm:1.7,crit:.1},sk:{id:'inferno',n:'Inferno',i:'🌋',en:12,cd:30,mult:3.2,d:'Flammenmeer mit 3,2-fachem Schaden.'}},
-  {n:'Phönixweber',i:'🪶',m:{dm:2.1,crit:.2,heal:2},sk:{id:'phoenixfeuer',n:'Phönixfeuer',i:'🔥',en:14,cd:40,mult:3.4,heal:30,d:'3,4-facher Schaden und heilt dich um 30.'}}]},
+  {n:'Feuermagier',i:':st_feuermagier:',m:{dm:1.45},sk:{id:'flammenwelle',n:'Flammenwelle',i:':sk_flammenwelle:',en:9,cd:20,mult:2.6,d:'Feuerwelle mit 2,6-fachem Schaden.'}},
+  {n:'Pyromant',i:':st_pyromant:',m:{dm:1.7,crit:.1},sk:{id:'inferno',n:'Inferno',i:':sk_inferno:',en:12,cd:30,mult:3.2,d:'Flammenmeer mit 3,2-fachem Schaden.'}},
+  {n:'Phönixweber',i:':st_phoenixweber:',m:{dm:2.1,crit:.2,heal:2},sk:{id:'phoenixfeuer',n:'Phönixfeuer',i:':sk_phoenixfeuer:',en:14,cd:40,mult:3.4,heal:30,d:'3,4-facher Schaden und heilt dich um 30.'}}]},
  frost:{b:'magier',t:'Verlangsamung',st:[
-  {n:'Frostmagier',i:'❄️',m:{dm:1.3},sk:{id:'eissplitter',n:'Eissplitter',i:'🧊',en:6,cd:15,mult:1.5,stun:1,d:'1,5-facher Schaden, das Monster verfehlt 1 Angriff.'}},
-  {n:'Eisweber',i:'🧊',m:{dm:1.45,crit:.1},sk:{id:'eiskerker',n:'Eiskerker',i:'⛓️',en:10,cd:35,mult:1.4,stun:3,d:'1,4-facher Schaden, das Monster verfehlt 3 Angriffe.'}},
-  {n:'Winterherrscher',i:'🌨️',m:{dm:1.7,crit:.15,hpb:.2},sk:{id:'ewigwinter',n:'Ewiger Winter',i:'🥶',en:14,cd:50,mult:2.6,stun:4,d:'2,6-facher Schaden, das Monster verfehlt 4 Angriffe.'}}]},
+  {n:'Frostmagier',i:':st_frostmagier:',m:{dm:1.3},sk:{id:'eissplitter',n:'Eissplitter',i:':sk_eissplitter:',en:6,cd:15,mult:1.5,stun:1,d:'1,5-facher Schaden, das Monster verfehlt 1 Angriff.'}},
+  {n:'Eisweber',i:':st_eisweber:',m:{dm:1.45,crit:.1},sk:{id:'eiskerker',n:'Eiskerker',i:':sk_eiskerker:',en:10,cd:35,mult:1.4,stun:3,d:'1,4-facher Schaden, das Monster verfehlt 3 Angriffe.'}},
+  {n:'Winterherrscher',i:':st_winterherrscher:',m:{dm:1.7,crit:.15,hpb:.2},sk:{id:'ewigwinter',n:'Ewiger Winter',i:':sk_ewigwinter:',en:14,cd:50,mult:2.6,stun:4,d:'2,6-facher Schaden, das Monster verfehlt 4 Angriffe.'}}]},
  sturm:{b:'magier',t:'Blitz, mehrere Treffer',st:[
-  {n:'Sturmmagier',i:'⚡',m:{dm:.8,hits:2},sk:{id:'kettenblitz',n:'Kettenblitz',i:'🔗',en:9,cd:20,mult:.9,hits:3,d:'Drei Blitze mit je 0,9-fachem Schaden.'}},
-  {n:'Sturmrufer',i:'🌩️',m:{dm:.9,hits:2,crit:.1},sk:{id:'gewitter',n:'Gewittersturm',i:'⛈️',en:12,cd:30,mult:.9,hits:5,d:'Fünf Blitze mit je 0,9-fachem Schaden.'}},
-  {n:'Himmelsspalter',i:'🌪️',m:{dm:1.1,hits:2,crit:.2},sk:{id:'himmelsblitz',n:'Himmelsblitz',i:'🌠',en:15,cd:40,mult:4.2,d:'Gewaltiger Blitz mit 4,2-fachem Schaden.'}}]},
+  {n:'Sturmmagier',i:':st_sturmmagier:',m:{dm:.8,hits:2},sk:{id:'kettenblitz',n:'Kettenblitz',i:':sk_kettenblitz:',en:9,cd:20,mult:.9,hits:3,d:'Drei Blitze mit je 0,9-fachem Schaden.'}},
+  {n:'Sturmrufer',i:':st_sturmrufer:',m:{dm:.9,hits:2,crit:.1},sk:{id:'gewitter',n:'Gewittersturm',i:':sk_gewitter:',en:12,cd:30,mult:.9,hits:5,d:'Fünf Blitze mit je 0,9-fachem Schaden.'}},
+  {n:'Himmelsspalter',i:':st_himmelsspalter:',m:{dm:1.1,hits:2,crit:.2},sk:{id:'himmelsblitz',n:'Himmelsblitz',i:':sk_himmelsblitz:',en:15,cd:40,mult:4.2,d:'Gewaltiger Blitz mit 4,2-fachem Schaden.'}}]},
  priester:{b:'heiler',t:'Heilzauber und Schutz',st:[
-  {n:'Priester',i:'🙏',m:{heal:5,def:1},sk:{id:'gebet',n:'Gebet',i:'📿',en:8,cd:45,healPct:.3,self:true,d:'Heilt 30 % deines maximalen Lebens.'}},
-  {n:'Hohepriester',i:'⛪',m:{heal:7,def:2,hpb:.15},sk:{id:'heilschild',n:'Heiliger Schild',i:'🛡️',en:9,cd:45,heal:40,shield:5,self:true,d:'Heilt 40 Leben und schützt vor 5 Treffern.'}},
-  {n:'Lichtgesandter',i:'😇',m:{heal:10,def:4,hpb:.3,dm:1.1},sk:{id:'himmelslicht',n:'Himmelslicht',i:'🌅',en:14,cd:90,healPct:.6,shield:3,self:true,d:'Heilt 60 % deines max. Lebens, Schutz vor 3 Treffern.'}}]},
+  {n:'Priester',i:':st_priester:',m:{heal:5,def:1},sk:{id:'gebet',n:'Gebet',i:':sk_gebet:',en:8,cd:45,healPct:.3,self:true,d:'Heilt 30 % deines maximalen Lebens.'}},
+  {n:'Hohepriester',i:':st_hohepriester:',m:{heal:7,def:2,hpb:.15},sk:{id:'heilschild',n:'Heiliger Schild',i:':sk_heilschild:',en:9,cd:45,heal:40,shield:5,self:true,d:'Heilt 40 Leben und schützt vor 5 Treffern.'}},
+  {n:'Lichtgesandter',i:':st_lichtgesandter:',m:{heal:10,def:4,hpb:.3,dm:1.1},sk:{id:'himmelslicht',n:'Himmelslicht',i:':sk_himmelslicht:',en:14,cd:90,healPct:.6,shield:3,self:true,d:'Heilt 60 % deines max. Lebens, Schutz vor 3 Treffern.'}}]},
  moench:{b:'heiler',t:'Nahkampf mit Heilkraft',st:[
-  {n:'Mönch',i:'🥋',m:{range:20,dm:1.5,heal:4,hpb:.1},sk:{id:'palmenschlag',n:'Palmenschlag',i:'🖐️',en:6,cd:15,mult:2.2,heal:10,d:'2,2-facher Schaden, heilt dich um 10.'}},
-  {n:'Großmeister',i:'🥇',m:{range:20,dm:1.8,heal:6,hpb:.2,crit:.15},sk:{id:'tausendfaust',n:'Tausend Fäuste',i:'👊',en:10,cd:30,mult:.8,hits:5,heal:15,d:'Fünf Schläge à 0,8-fach, heilt dich um 15.'}},
-  {n:'Erleuchteter',i:'🧘',m:{range:20,dm:2.2,heal:9,hpb:.3,crit:.25},sk:{id:'erleuchtung',n:'Erleuchtung',i:'☯️',en:14,cd:45,mult:3.4,healPct:.25,d:'3,4-facher Schaden und heilt dich um 25 % deines max. Lebens.'}}]},
+  {n:'Mönch',i:':st_moench:',m:{range:20,dm:1.5,heal:4,hpb:.1},sk:{id:'palmenschlag',n:'Palmenschlag',i:':sk_palmenschlag:',en:6,cd:15,mult:2.2,heal:10,d:'2,2-facher Schaden, heilt dich um 10.'}},
+  {n:'Großmeister',i:':st_grossmeister:',m:{range:20,dm:1.8,heal:6,hpb:.2,crit:.15},sk:{id:'tausendfaust',n:'Tausend Fäuste',i:':sk_tausendfaust:',en:10,cd:30,mult:.8,hits:5,heal:15,d:'Fünf Schläge à 0,8-fach, heilt dich um 15.'}},
+  {n:'Erleuchteter',i:':st_erleuchteter:',m:{range:20,dm:2.2,heal:9,hpb:.3,crit:.25},sk:{id:'erleuchtung',n:'Erleuchtung',i:':sk_erleuchtung:',en:14,cd:45,mult:3.4,healPct:.25,d:'3,4-facher Schaden und heilt dich um 25 % deines max. Lebens.'}}]},
  natur:{b:'heiler',t:'Kräuter und Tränke',st:[
-  {n:'Naturheiler',i:'🌿',m:{heal:4,enreg:1.3},sk:{id:'kraeuterbalsam',n:'Kräuterbalsam',i:'🍃',en:5,cd:12,heal:35,perLv:2,self:true,d:'Heilt dich um 35 plus 2 pro Level.'}},
-  {n:'Druide',i:'🌳',m:{heal:6,enreg:1.6,dm:1.2,hpb:.1},sk:{id:'dornenranke',n:'Dornenranken',i:'🥀',en:9,cd:30,mult:1.8,stun:2,d:'1,8-facher Schaden, das Monster verfehlt 2 Angriffe.'}},
-  {n:'Weltenbaum-Hüter',i:'🌲',m:{heal:9,enreg:2,dm:1.5,hpb:.3},sk:{id:'weltenbaum',n:'Segen des Weltenbaums',i:'🌱',en:14,cd:60,mult:2.4,healPct:.35,shield:3,d:'2,4-facher Schaden, heilt 35 % und schützt vor 3 Treffern.'}}]}
+  {n:'Naturheiler',i:':st_naturheiler:',m:{heal:4,enreg:1.3},sk:{id:'kraeuterbalsam',n:'Kräuterbalsam',i:':sk_kraeuterbalsam:',en:5,cd:12,heal:35,perLv:2,self:true,d:'Heilt dich um 35 plus 2 pro Level.'}},
+  {n:'Druide',i:':st_druide:',m:{heal:6,enreg:1.6,dm:1.2,hpb:.1},sk:{id:'dornenranke',n:'Dornenranken',i:':sk_dornenranke:',en:9,cd:30,mult:1.8,stun:2,d:'1,8-facher Schaden, das Monster verfehlt 2 Angriffe.'}},
+  {n:'Weltenbaum-Hüter',i:':st_weltenbaumhueter:',m:{heal:9,enreg:2,dm:1.5,hpb:.3},sk:{id:'weltenbaum',n:'Segen des Weltenbaums',i:':sk_weltenbaum:',en:14,cd:60,mult:2.4,healPct:.35,shield:3,d:'2,4-facher Schaden, heilt 35 % und schützt vor 3 Treffern.'}}]}
 };
 /* Geheime Bedingungen der verborgenen Klassen (Hinweis = rätselhaft, Fortschritt bleibt unsichtbar) */
 const SECRET={

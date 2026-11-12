@@ -1,7 +1,7 @@
 /* Ruin Walk – Pixel-Grafiken (16x16), komplett als Code gezeichnet.
    Jedes Bild ist eine Liste von Formen: e=Ellipse cx,cy,rx,ry · r=Rechteck x,y,b,h · l=Linie x1,y1,x2,y2 · t=Dreieck x1,y1,x2,y2,x3,y3 · p=Punkt x,y
    jeweils gefolgt von einem Farbbuchstaben (_ = radieren). Kontur und Licht/Schatten kommen automatisch. */
-const PX_PAL={w:'#f4f1e8',g:'#a3a9b3',G:'#5b6270',k:'#1b1420',b:'#a8723f',B:'#5e3b20',t:'#dcc08e',r:'#d9413f',R:'#8c2230',o:'#ef8d2c',y:'#f4d03f',Y:'#b8902a',l:'#6fd354',L:'#2f7d3b',c:'#59d8e3',C:'#2a8c9c',u:'#4585e6',U:'#26428f',p:'#a65fdc',P:'#5c3190',m:'#f48fbc',s:'#cdd7e3',S:'#7b8999',n:'#ebc9a2',e:'#4a9a63',d:'#7d5532',h:'#ffffff'};
+const PX_PAL={w:'#f4f1e8',g:'#a3a9b3',G:'#5b6270',k:'#1b1420',b:'#a8723f',B:'#5e3b20',t:'#dcc08e',r:'#d9413f',R:'#8c2230',o:'#ef8d2c',y:'#f4d03f',Y:'#b8902a',l:'#6fd354',L:'#2f7d3b',c:'#59d8e3',C:'#2a8c9c',u:'#4585e6',U:'#26428f',p:'#a65fdc',P:'#5c3190',m:'#f48fbc',s:'#cdd7e3',S:'#7b8999',n:'#ebc9a2',e:'#4a9a63',d:'#7d5532',h:'#ffffff',a:'#9aa0a8',A:'#5b6270',z:'#c9a43a'};
 const PX_SPR={
 /* ---- Monster ---- */
 '🐺':'e9,9,5,3g;e4,7,3,2g;t3,6,5,6,4,3G;r1,8,3,1g;p1,8k;p4,7y;r5,11,1,3G;r7,11,1,3G;r11,11,1,3G;r13,11,1,3G;l14,8,15,5g;e8,9,3,1G',
@@ -161,16 +161,17 @@ const PX_ALIAS={
   '☠️':['💀','w>g'],'🕊️':['🪶',''],'🩸':['💧','c>r'],'📢':['📯',''],'🔗':['⛓️',''],'⚔':['⚔️',''],'🪱x':['🪱','']
 };
 /* ---------- Engine ---------- */
-function pxRaster(def){
-  const N=16,g=new Array(N*N).fill(null),shade=new Array(N*N).fill(1);
+function pxRaster(def,N){
+  N=N||16;const g=new Array(N*N).fill(null),shade=new Array(N*N).fill(1);
   const put=(x,y,c)=>{x=Math.round(x);y=Math.round(y);if(x<0||y<0||x>=N||y>=N)return;g[y*N+x]=c==='_'?null:c;};
   for(const op of def.split(';')){
-    const m=/^([ertlp])([-\d.,]+)([A-Za-z_])$/.exec(op.trim());if(!m)continue;
+    const m=/^([ertlpL])([-\d.,]+)([A-Za-z_])$/.exec(op.trim());if(!m)continue;
     const a=m[2].split(',').map(Number),c=m[3];
     if(m[1]==='e'){const[cx,cy,rx,ry]=a;for(let y=0;y<N;y++)for(let x=0;x<N;x++)if(((x-cx)/(rx+.5))**2+((y-cy)/(ry+.5))**2<=1)put(x,y,c);}
     else if(m[1]==='r'){const[x0,y0,w,h]=a;for(let y=0;y<h;y++)for(let x=0;x<w;x++)put(x0+x,y0+y,c);}
     else if(m[1]==='p'){put(a[0],a[1],c);}
     else if(m[1]==='l'){const[x0,y0,x1,y1]=a,n=Math.max(Math.abs(x1-x0),Math.abs(y1-y0),1);for(let i=0;i<=n;i++)put(x0+(x1-x0)*i/n,y0+(y1-y0)*i/n,c);}
+    else if(m[1]==='L'){const[x0,y0,x1,y1]=a,n=Math.max(Math.abs(x1-x0),Math.abs(y1-y0),1);for(let i=0;i<=n;i++){const x=Math.round(x0+(x1-x0)*i/n),y=Math.round(y0+(y1-y0)*i/n);put(x,y,c);put(x+1,y,c);put(x,y+1,c);put(x+1,y+1,c);}}
     else if(m[1]==='t'){
       const[x0,y0,x1,y1,x2,y2]=a,d=(y1-y2)*(x0-x2)+(x2-x1)*(y0-y2);if(!d)continue;
       for(let y=0;y<N;y++)for(let x=0;x<N;x++){
@@ -184,8 +185,8 @@ function pxRaster(def){
 function pxHex(h,f){const n=parseInt(h.slice(1),16);let r=n>>16,gg=(n>>8)&255,b=n&255;
   if(f>1){r+=(255-r)*(f-1);gg+=(255-gg)*(f-1);b+=(255-b)*(f-1);}else{r*=f;gg*=f;b*=f;}
   return [Math.round(r),Math.round(gg),Math.round(b)];}
-function pxPixels(def,swap){
-  const N=16,g=pxRaster(def),out=new Uint8ClampedArray(N*N*4),at=(x,y)=>x<0||y<0||x>=N||y>=N?null:g[y*N+x];
+function pxPixels(def,swap,N){
+  N=N||16;const g=pxRaster(def,N),out=new Uint8ClampedArray(N*N*4),at=(x,y)=>x<0||y<0||x>=N||y>=N?null:g[y*N+x];
   const K=pxHex(PX_PAL.k,1);
   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
     const c=g[y*N+x],i=(y*N+x)*4;
@@ -198,56 +199,28 @@ function pxPixels(def,swap){
   }
   return out;
 }
+const PX_SPR32={},PX_ALIAS32={};
+function pxScaleDef(def){
+  const out=[];
+  for(const op of def.split(';')){
+    const m=/^([ertlp])([-\d.,]+)([A-Za-z_])$/.exec(op.trim());if(!m){continue;}
+    const a=m[2].split(',').map(Number),c=m[3];
+    if(m[1]==='e')out.push('e'+[2*a[0]+.5,2*a[1]+.5,2*a[2],2*a[3]]+c);
+    else if(m[1]==='r')out.push('r'+a.map(v=>2*v)+c);
+    else if(m[1]==='p')out.push('r'+[2*a[0],2*a[1],2,2]+c);
+    else if(m[1]==='l')out.push('L'+a.map(v=>2*v)+c);
+    else if(m[1]==='t')out.push('t'+a.map(v=>2*v+.5)+c);
+  }
+  return out.join(';');
+}
+function pxSwap(str){const sw={};if(str)for(const p of str.split(','))sw[p[0]]=p[2];return sw;}
 function pxDef(key){
-  if(PX_SPR[key])return [PX_SPR[key],null];
+  if(PX_SPR32[key])return [PX_SPR32[key],null];
+  const a32=PX_ALIAS32[key];
+  if(a32){const d=pxDef(a32[0]);if(d)return [d[0],Object.assign({},d[1]||{},pxSwap(a32[1]))];}
+  if(PX_SPR[key])return [pxScaleDef(PX_SPR[key]),null];
   const a=PX_ALIAS[key];if(!a)return null;
-  const sw={};if(a[1])for(const p of a[1].split(','))sw[p[0]]=p[2];
-  const base=PX_SPR[a[0]];return base?[base,sw]:null;
+  const base=PX_SPR[a[0]];return base?[pxScaleDef(base),pxSwap(a[1])]:null;
 }
-if(typeof module!=='undefined')module.exports={PX_SPR,PX_ALIAS,pxPixels,pxDef,PX_PAL};
+if(typeof module!=='undefined')module.exports={PX_SPR,PX_ALIAS,PX_SPR32,PX_ALIAS32,pxPixels,pxDef,PX_PAL};
 
-/* ---------- Browser: Emojis im Spiel automatisch durch die Pixelbilder ersetzen ---------- */
-const PX_NORM=s=>s.replace(/️/g,'');
-const PX_KEYS=(()=>{const m={};for(const k of Object.keys(PX_SPR).concat(Object.keys(PX_ALIAS)))m[PX_NORM(k)]=k;return m;})();
-const PX_RE=new RegExp(Object.keys(PX_KEYS).sort((a,b)=>b.length-a.length).map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\uFE0F?').join('|'),'g');
-const PX_URL={};
-function pxUrl(emo){
-  const k=PX_KEYS[PX_NORM(emo)];if(!k)return null;
-  if(PX_URL[k])return PX_URL[k];
-  const d=pxDef(k);if(!d)return null;
-  const cv=document.createElement('canvas');cv.width=cv.height=16;
-  const cx=cv.getContext('2d'),im=cx.createImageData(16,16);im.data.set(pxPixels(d[0],d[1]));cx.putImageData(im,0,0);
-  return PX_URL[k]=cv.toDataURL('image/png');
-}
-if(typeof document!=='undefined'&&typeof MutationObserver!=='undefined'){
-  const SKIP={SCRIPT:1,STYLE:1,TEXTAREA:1,TITLE:1,OPTION:1};
-  function pxText(n){
-    const t=n.nodeValue;if(!t||!t.match(PX_RE))return;
-    const p=n.parentNode;if(!p||SKIP[p.nodeName])return;
-    const f=document.createDocumentFragment();let last=0,m;PX_RE.lastIndex=0;
-    while((m=PX_RE.exec(t))){
-      const u=pxUrl(m[0]);if(!u)continue;
-      if(m.index>last)f.appendChild(document.createTextNode(t.slice(last,m.index)));
-      const i=document.createElement('i');i.className='px';i.setAttribute('role','img');i.style.backgroundImage='url('+u+')';f.appendChild(i);
-      last=m.index+m[0].length;
-    }
-    if(!last)return;
-    if(last<t.length)f.appendChild(document.createTextNode(t.slice(last)));
-    p.replaceChild(f,n);
-  }
-  function pxWalk(root){
-    if(root.nodeType===3){pxText(root);return;}
-    if(root.nodeType!==1||SKIP[root.nodeName])return;
-    const w=document.createTreeWalker(root,4),list=[];let n;while((n=w.nextNode()))list.push(n);
-    list.forEach(pxText);
-  }
-  const st=document.createElement('style');
-  st.textContent='.px{display:inline-block;width:1.1em;height:1.1em;vertical-align:-.2em;background-size:100% 100%;background-repeat:no-repeat;image-rendering:pixelated}'
-   +'.ent.t-area::after{content:"";width:24px;height:24px;background:url('+pxUrl('👑')+') center/contain no-repeat;image-rendering:pixelated}'
-   +'.ent.alert::before{content:"";width:20px;height:20px;background:url('+pxUrl('❗')+') center/contain no-repeat;image-rendering:pixelated}';
-  document.head.appendChild(st);
-  const go=()=>{pxWalk(document.body);
-    new MutationObserver(ms=>{for(const m of ms){if(m.type==='characterData')pxText(m.target);else m.addedNodes.forEach(pxWalk);}})
-      .observe(document.body,{childList:true,subtree:true,characterData:true});};
-  if(document.body)go();else document.addEventListener('DOMContentLoaded',go);
-}
