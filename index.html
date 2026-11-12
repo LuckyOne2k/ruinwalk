@@ -23,6 +23,7 @@ button{font-family:inherit;color:inherit}
 .bar.en i{background:linear-gradient(#6aa8ff,#3b82f6)}
 .bar span{position:absolute;inset:0;text-align:center;font-size:11px;line-height:15px;font-weight:bold;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5)}
 #gps{position:absolute;right:10px;top:calc(10px + var(--st));z-index:500;background:rgba(255,250,244,.94);border:1px solid var(--line);border-radius:20px;padding:6px 10px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+#cu{position:absolute;right:10px;top:calc(46px + var(--st));z-index:500;background:rgba(255,250,244,.94);border:1px solid var(--line);border-radius:16px;padding:3px 10px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 #gps.good{color:#1f7a49}#gps.ok{color:#9a6a00}#gps.bad{color:#b3322b}
 #toast{position:absolute;left:50%;top:calc(66px + var(--st));transform:translateX(-50%) translateY(-10px);z-index:900;background:rgba(60,40,28,.92);color:#fff;padding:9px 16px;border-radius:20px;font-size:14px;opacity:0;pointer-events:none;transition:.25s;max-width:90%;text-align:center}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -95,6 +96,8 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 .ent.near{border-color:var(--ok);box-shadow:0 0 0 4px rgba(58,167,109,.35),0 2px 6px rgba(0,0,0,.3)}
 .ent.sel{transform:scale(1.18)}
 .ent.mob{border-color:#e5534b;background:#fde8e5}
+.ent.shop{border-color:#c1892f;background:#fff1c9;font-size:26px}
+#exh{cursor:pointer}
 .ent.mob.near{box-shadow:0 0 0 4px rgba(229,83,75,.35)}
 .mhp{position:absolute;left:4px;right:4px;bottom:-9px;height:5px;background:#5a2a27;border-radius:3px;overflow:hidden}
 .mhp u{display:block;height:100%;background:#ff6b5e;width:100%}
@@ -118,10 +121,11 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
   </div>
 </div>
 <div id="gps" class="bad">GPS: aus</div>
+<div id="cu"></div>
 <div id="toast"></div>
 <button id="loc" data-a="loc" aria-label="Zentrieren">◎</button>
 <div id="attr">© OpenStreetMap-Mitwirkende</div>
-<div id="exh"></div>
+<div id="exh" data-a="skipexh"></div>
 <div id="skills"></div>
 <div id="card"></div>
 
@@ -369,8 +373,10 @@ function upChance(g){
 }
 function upgradeGear(uid){
   const g=gearOf(uid);if(!g)return;if(g.p>=UPMAX){toast('Maximal +'+UPMAX);return;}
-  const c=UPCOST(g.p,getBase(g.b).t);
+  const c=UPCOST(g.p,getBase(g.b).t),fee=Math.round(UPFEE(g.p)*[1,1.5,2][getBase(g.b).t-1]);
   for(const k in c)if(have(k)<c[k]){toast('Material fehlt');return;}
+  if((S.cu||0)<fee){toast('Zu wenig Ruinmünzen ('+fmtM(fee)+')');return;}
+  S.cu-=fee;
   const ch=upChance(g),usedRune=(useRune>=0&&have('rune'+useRune)>0)?useRune:-1;
   for(const k in c)S.inv[k]-=c[k];
   if(usedRune>=0){S.inv['rune'+usedRune]--;if(have('rune'+usedRune)<=0)useRune=-1;}
@@ -379,6 +385,37 @@ function upgradeGear(uid){
   save();hud();openSheet('gear');
 }
 
+/* ---------- Währung & Händler ---------- */
+/* Intern zählt das Spiel nur Ruinkupfer: 100 Kupfer = 1 Silber, 100 Silber = 1 Gold */
+function fmtM(c){
+  c=Math.max(0,Math.floor(c));const g=Math.floor(c/10000),s=Math.floor(c%10000/100),k=c%100,a=[];
+  if(g)a.push('🟡'+g);if(s)a.push('⚪'+s);if(k||!a.length)a.push('🟤'+k);return a.join(' ');
+}
+const SELL={stock:1,stein:1,ranke:2,holz:3,kraut:4,fell:5,eisenerz:6,kaefer:8,hauer:10,silberfell:25,nachtfeder:30,kristall:40,alphafell:60,steinherz:90,tyrannenzahn:200,moorperle:200,drachenschuppe:400,gebietsherz:800,trank:15,rune0:20,rune1:60,rune2:200,rune3:600,rune4:2000};
+const BUY={trank:40,stock:3,stein:3,ranke:5,holz:8,kraut:10,rune0:80};
+const COIN={normal:[3,8],rare:[20,35],elite:[80,130],boss:[300,450],area:[1200,1800]};
+const QV=[1,2,4,8,16];
+function gVal(g){
+  const b=getBase(g.b);let v;
+  if(b.slot==='waffe')v=120;else if(b.slot==='nebenhand')v=100;else if(ARM[b.slot])v=40*ARM[b.slot].w;else v=65;
+  return Math.round(v*[1,4,12][b.t-1]*QV[g.q]*(1+.4*g.p));
+}
+const gSell=g=>Math.max(1,Math.round(gVal(g)*.4));
+const UPFEE=p=>[10,20,40,80,160,320,640,1280,2560,5120][p];
+const REPAIR_PER=3;
+const SHOP_NAMES=['Wanderhändler','Kräuterfrau','Schmied','Krämer','Hausierer','Marktfrau','Trödler'];
+const SHOP_POOL=['stock','stein','ranke','holz','kraut','rune0'];
+const SHOPS={haendler:{n:'Händler',i:'🏪',res:Infinity}};
+function shopInfo(e){
+  const [bx,by]=e.id.slice(1).split('_').map(Number),r=mulberry(hash(bx*7+3,by*13+5));
+  const pool=SHOP_POOL.slice(),items=['trank'];
+  while(items.length<4)items.push(pool.splice(Math.floor(r()*pool.length),1)[0]);
+  const sl=['kopf','brust','beine','haende','fuesse'];
+  const gear=['w|'+WPN[S.cls]+'|1','a|'+sl[Math.floor(r()*5)]+'|'+ARMT[S.cls][0]+'|1'];
+  return {n:SHOP_NAMES[Math.floor(r()*SHOP_NAMES.length)],items,gear};
+}
+const gBuyPrice=bid=>gVal({b:bid,q:0,p:0});
+function earn(c){S.cu=(S.cu||0)+c;}
 /* ---------- Klassen ---------- */
 const CLASSES={
   wanderer:{n:'Wanderer',i:'🧭',w:'Schleuder',wi:'🪃',act:'Schleuder abfeuern',range:30,dmg:.8,en:2,crit:.1,blurb:'Noch keine Klasse.'},
@@ -512,7 +549,7 @@ const atkRange=()=>C0().range;
 
 /* ---------- Spielstand ---------- */
 const def=()=>({lv:1,xp:0,hp:100,en:100,inv:{},tools:[],skills:{holz:0,berg:0,sammeln:0},cd:{},mh:{},
-  stats:{col:{},nodes:{},kills:0,crafted:{},kt:{normal:0,rare:0,elite:0,boss:0,area:0},walk:0,night:0,faints:0},path:'',tier:0,qb:null,gear:[],eq:{},gid:0,gv:0,qdone:[],qready:[],def:0,cls:'wanderer',scd:{},shield:0,stun:0,exh:0,last:Date.now(),test:false});
+  stats:{col:{},nodes:{},kills:0,crafted:{},kt:{normal:0,rare:0,elite:0,boss:0,area:0},walk:0,night:0,faints:0},cu:0,path:'',tier:0,qb:null,gear:[],eq:{},gid:0,gv:0,qdone:[],qready:[],def:0,cls:'wanderer',scd:{},shield:0,stun:0,exh:0,last:Date.now(),test:false});
 let S=def();
 try{
   const raw=localStorage.getItem(KEY);
@@ -590,11 +627,14 @@ function cellEnts(cx,cy){
   for(const [pre,ch,tier] of rareChance){
     if(r()<ch)out.push({id:pre+key,kind:'mob',type:pickW(SPAWN[tier],r()),lat:(cy+.1+r()*.8)*DLAT,lon:(cx+.1+r()*.8)*DLON});
   }
+  {const bx=Math.floor(cx/6),by=Math.floor(cy/6),rr=mulberry(hash(bx*31+1,by*17+2));
+   const sx=bx*6+Math.floor(rr()*6),sy=by*6+Math.floor(rr()*6);
+   if(cx===sx&&cy===sy)out.push({id:'h'+bx+'_'+by,kind:'shop',type:'haendler',lat:(cy+.5)*DLAT,lon:(cx+.5)*DLON});}
   if(cellCache.size>400)cellCache.clear();
   cellCache.set(key,out);
   return out;
 }
-function def2(e){return e.kind==='node'?NODES[e.type]:MOBS[e.type];}
+function def2(e){return e.kind==='node'?NODES[e.type]:e.kind==='shop'?SHOPS[e.type]:MOBS[e.type];}
 function alive(e){const c=S.cd[e.id];return !c||Date.now()-c>=def2(e).res;}
 function pruneCd(){const now=Date.now();for(const k in S.cd){if(now-S.cd[k]>13*3600e3){delete S.cd[k];delete S.mh[k];}}}
 pruneCd();
@@ -735,13 +775,18 @@ function deselect(){sel=null;$('#card').style.display='none';updateNear();update
 function renderCard(){
   const c=$('#card');
   if(!sel){c.style.display='none';updateSkillUI();return;}
-  const e=sel,d=def2(e),isMob=e.kind==='mob';
+  const e=sel,d=def2(e),isMob=e.kind==='mob',isShop=e.kind==='shop';
   let sub,body='',label,dis=true,action='';
+  const dn=isShop?shopInfo(e).n:d.n;
   if(!P){sub='Warte auf Position…';label='Kein GPS';}
   else{
     const ds=dist(P,ep(e));
-    sub=(isMob?TIERS[d.tier].l:'Ressource')+' · '+fmtDist(ds)+' entfernt';
-    if(isMob){
+    sub=(isMob?TIERS[d.tier].l:isShop?'Händler':'Ressource')+' · '+fmtDist(ds)+' entfernt';
+    if(isShop){
+      body='<div class="row">Kauft Material, Ausrüstung und Runen. Verkauft Tränke, einfaches Material und Anfängerausrüstung. Repariert Werkzeug.</div>';
+      action='shop';label='🏪 Handeln';
+      if(ds>RANGE)label='Zu weit – noch '+Math.ceil(ds-RANGE)+' m';else dis=false;
+    }else if(isMob){
       const mx=d.hp,hp=S.mh[e.id]??mx;
       body='<div class="row">❤️ '+hp+' / '+mx+'<div class="hpbar"><i style="width:'+(100*hp/mx)+'%"></i></div>'+C0().w+' · Reichweite '+atkRange()+' m · Energie '+C0().en
         +'<br>Empfohlen: Stufe '+d.rec+(S.lv+2<d.rec?' <span class="bad">⚠️ sehr gefährlich</span>':'')
@@ -764,7 +809,7 @@ function renderCard(){
     }
   }
   const subH='<small id="cSub">'+sub+'</small>',btnTail='>'+label+'</button>';
-  const html='<div class="ch"><div class="ci">'+d.i+'</div><div><b>'+d.n+'</b>'+subH+'</div><button class="x" data-a="close">✕</button></div>'
+  const html='<div class="ch"><div class="ci">'+d.i+'</div><div><b>'+dn+'</b>'+subH+'</div><button class="x" data-a="close">✕</button></div>'
     +body+'<button id="cAct" class="act" data-a="'+(action||'close')+'" '+(dis?'disabled':'')+btnTail;
   const key=html.replace(subH,'').replace(btnTail,'></button>');
   if(c._k!==key){c.innerHTML=html;c._k=key;}
@@ -819,6 +864,7 @@ function strike(o){
     delete S.mh[e.id];S.cd[e.id]=Date.now();S.stats.kills++;S.stats.kt[m.tier]=(S.stats.kt[m.tier]||0)+1;{const hr=new Date().getHours();if(hr>=22||hr<4)S.stats.night++;}S.stun=0;
     const got=[];
     for(const dr of m.drops){if(Math.random()<(dr.c??1)){const q=rnd(dr.min,dr.max);add(dr.i,q);S.stats.col[dr.i]=(S.stats.col[dr.i]||0)+q;got.push('+'+q+' '+ITEMS[dr.i].n);}}
+    {const cr=COIN[m.tier]||[1,3],cc=rnd(cr[0],cr[1]);earn(cc);got.push(fmtM(cc));}
     if(Math.random()<(RDROPCH[m.tier]||0)){const rq=rollQ(RDROPQ[m.tier]);add('rune'+rq,1);got.push('📜 '+ITEMS['rune'+rq].n);}
     const gd=rollGear(m.tier);if(gd)got.push('🎁 '+gNameT(gd.g)+(gd.auto?' (angelegt)':''));
     addXP(m.xp);
@@ -875,7 +921,7 @@ function faint(m,e){
 }
 function exhUI(){
   const r=S.exh-Date.now(),el=$('#exh');
-  if(r>0){el.textContent='😵 Erschöpft '+fmtT(r);el.style.display='block';}else el.style.display='none';
+  if(r>0){el.textContent='😵 Erschöpft '+fmtT(r)+' · tippen: beenden';el.style.display='block';}else el.style.display='none';
 }
 function shoot(){
   const C=C0();
@@ -937,15 +983,15 @@ function useItem(id){
 
 /* ---------- Quests ---------- */
 const QUESTS=[
-  {id:'q1',t:'Erste Schritte',d:'Sammle Material und stelle eine Holzfälleraxt her.',rt:'10 XP',
+  {id:'q1',t:'Erste Schritte',d:'Sammle Material und stelle eine Holzfälleraxt her.',rt:'10 XP · 🟤30',
    goals:()=>[['Stöcke sammeln',S.stats.col.stock||0,3],['Kleine Steine sammeln',S.stats.col.stein||0,2],['Ranken sammeln',S.stats.col.ranke||0,2],['Holzfälleraxt herstellen',S.stats.crafted.axt||0,1]],
-   reward:()=>addXP(10)},
-  {id:'q2',t:'Holzfäller',d:'Fälle ein paar Bäume im Umkreis.',rt:'2 Heiltränke',
-   goals:()=>[['Bäume fällen',S.stats.nodes.baum||0,3]],reward:()=>add('trank',2)},
-  {id:'q3',t:'Jäger',d:'Besiege Rohlinge mit deinem Bogen.',rt:'20 XP',
-   goals:()=>[['Rohlinge besiegen',S.stats.kills||0,2]],reward:()=>addXP(20)},
-  {id:'q4',t:'Bergmann',d:'Stelle eine Spitzhacke her und baue Eisenerz ab.',rt:'30 XP',
-   goals:()=>[['Spitzhacke herstellen',S.stats.crafted.spitzhacke||0,1],['Eisenerz abbauen',S.stats.nodes.erz||0,2]],reward:()=>addXP(30)}
+   reward:()=>{addXP(10);earn(30);}},
+  {id:'q2',t:'Holzfäller',d:'Fälle ein paar Bäume im Umkreis.',rt:'2 Heiltränke · 🟤50',
+   goals:()=>[['Bäume fällen',S.stats.nodes.baum||0,3]],reward:()=>{add('trank',2);earn(50);}},
+  {id:'q3',t:'Jäger',d:'Besiege Rohlinge mit deinem Bogen.',rt:'20 XP · 🟤80',
+   goals:()=>[['Rohlinge besiegen',S.stats.kills||0,2]],reward:()=>{addXP(20);earn(80);}},
+  {id:'q4',t:'Bergmann',d:'Stelle eine Spitzhacke her und baue Eisenerz ab.',rt:'30 XP · ⚪1 🟤50',
+   goals:()=>[['Spitzhacke herstellen',S.stats.crafted.spitzhacke||0,1],['Eisenerz abbauen',S.stats.nodes.erz||0,2]],reward:()=>{addXP(30);earn(150);}}
 ];
 function checkQuests(){
   for(const q of QUESTS){
@@ -967,13 +1013,14 @@ function claimQuest(id){
 }
 
 /* ---------- Menüs ---------- */
-let curSheet=null,confirmReset=false,qtab='cur',pickCls=null,pickPath=null,gSlot='waffe',ctab='tool';
+let curSheet=null,confirmReset=false,qtab='cur',pickCls=null,pickPath=null,gSlot='waffe',ctab='tool',shopE=null,stab='buy',sellOk=0,skipArmed=0;
 function openSheet(s){
   curSheet=s;
-  const titles={inv:'Inventar',craft:'Herstellen',quests:'Quests',char:'Charakter',set:'Mehr',class:'Klasse wählen',up:'Klassenentwicklung',gear:'Ausrüstung'};
+  const titles={inv:'Inventar',craft:'Herstellen',quests:'Quests',char:'Charakter',set:'Mehr',class:'Klasse wählen',up:'Klassenentwicklung',gear:'Ausrüstung',shop:'Händler'};
   $('#shT').textContent=titles[s];
   let h='';
   if(s==='inv'){
+    h+='<div class="kv"><span>🪙 Ruinmünzen</span><b>'+fmtM(S.cu||0)+'</b></div>';
     const it=Object.entries(S.inv).filter(([k,n])=>n>0&&ITEMS[k]);
     h+=it.length?'<div class="grid">'+it.map(([k,n])=>'<div class="it"><span>'+ITEMS[k].i+'</span><b>'+n+'</b><small>'+ITEMS[k].n+'</small></div>').join('')+'</div>':'<p>Noch leer. Geh los und sammle etwas!</p>';
     h+='<h3>Werkzeug</h3>';
@@ -1032,6 +1079,27 @@ function openSheet(s){
     }
   }
 
+  if(s==='shop'&&shopE){
+    const info=shopInfo(shopE);
+    h+='<div class="kv"><span>'+info.n+'</span><b>'+fmtM(S.cu||0)+'</b></div>';
+    h+='<div class="tabs"><button class="tab'+(stab==='buy'?' on':'')+'" data-a="stab" data-t="buy">Kaufen</button><button class="tab'+(stab==='sell'?' on':'')+'" data-a="stab" data-t="sell">Verkaufen</button><button class="tab'+(stab==='rep'?' on':'')+'" data-a="stab" data-t="rep">Reparatur</button></div>';
+    if(stab==='buy'){
+      h+='<h3>Waren</h3>'+info.items.map(k=>'<div class="rec" style="padding:8px"><div class="t">'+ITEMS[k].i+' '+ITEMS[k].n+' <small>(du hast '+have(k)+')</small></div><div class="c">'+fmtM(BUY[k])+'</div><button class="btn" data-a="sbuy" data-id="'+k+'"'+((S.cu||0)>=BUY[k]?'':' disabled')+'>Kaufen</button></div>').join('');
+      h+='<h3>Ausrüstung (Gewöhnlich)</h3>'+info.gear.map(bid=>{const b=getBase(bid),pr=gBuyPrice(bid);return '<div class="rec" style="padding:8px"><div class="t">'+b.i+' '+b.n+'</div><div class="c">'+gStr(Object.assign({def:0,atk:0,hp:0,crit:0},b.st))+'<br>'+fmtM(pr)+'</div><button class="btn" data-a="sbuyg" data-id="'+bid+'"'+((S.cu||0)>=pr?'':' disabled')+'>Kaufen</button></div>';}).join('');
+    }
+    if(stab==='sell'){
+      const mats=Object.keys(S.inv).filter(k=>S.inv[k]>0&&SELL[k]);
+      h+='<h3>Material</h3>'+(mats.length?mats.map(k=>'<div class="rec" style="padding:8px"><div class="t">'+ITEMS[k].i+' '+ITEMS[k].n+' ×'+S.inv[k]+'</div><div class="c">je '+fmtM(SELL[k])+'</div><button class="btn sec" data-a="ssell" data-id="'+k+'" data-n="1">1 verkaufen</button> <button class="btn" data-a="ssell" data-id="'+k+'" data-n="all">Alle ('+fmtM(SELL[k]*S.inv[k])+')</button></div>').join(''):'<p style="font-size:14px">Kein verkäufliches Material.</p>');
+      const eqIds=Object.values(S.eq);
+      const gl=S.gear.filter(g=>!eqIds.includes(g.u));
+      h+='<h3>Ausrüstung im Beutel</h3>'+(gl.length?gl.sort((a,b)=>gSell(b)-gSell(a)).map(g=>'<div class="rec" style="border-color:'+QC[g.q]+';padding:8px"><div class="t">'+gName(g)+'</div><div class="c">'+gStr(gStats(g))+'<br>Verkaufspreis '+fmtM(gSell(g))+'</div><button class="btn'+(sellOk===g.u?'':' sec')+'" data-a="ssellg" data-id="'+g.u+'">'+(sellOk===g.u?'Wirklich verkaufen?':'Verkaufen')+'</button></div>').join(''):'<p style="font-size:14px">Nichts zu verkaufen. Angelegte Ausrüstung wird nicht angeboten.</p>');
+    }
+    if(stab==='rep'){
+      const mx=id=>(RECIPES.find(r=>r.id===id)||{dur:15}).dur;
+      const ts=S.tools.map((t,i)=>({t,i,m:mx(t.id)}));
+      h+='<h3>Werkzeug</h3>'+(ts.length?ts.map(o=>{const miss=o.m-o.t.dur,c=miss*REPAIR_PER;return '<div class="rec" style="padding:8px"><div class="t">'+ITEMS[o.t.id].i+' '+ITEMS[o.t.id].n+'</div><div class="c">Haltbarkeit '+o.t.dur+' / '+o.m+(miss>0?'<br>Reparatur: '+fmtM(c):'')+'</div>'+(miss>0?'<button class="btn" data-a="srep" data-i="'+o.i+'"'+((S.cu||0)>=c?'':' disabled')+'>Reparieren</button>':'<small>Voll belastbar</small>')+'</div>';}).join(''):'<p style="font-size:14px">Du hast kein Werkzeug.</p>');
+    }
+  }
   if(s==='gear'){
     const sl=gSlot,eqg=gearOf(S.eq[sl]);
     h+='<div class="kv"><span>⚔️ Angriff '+atk()+'</span><span>🛡️ Verteidigung '+defense()+'</span></div><div class="kv"><span>❤️ Max. Leben '+maxHP()+'</span><span>🎯 Krit '+Math.round((C0().crit+gs('crit'))*100)+'%</span></div>';
@@ -1047,8 +1115,9 @@ function openSheet(s){
     h+=bag.sort((a,b)=>(b.u===S.eq[sl])-(a.u===S.eq[sl])||b.q-a.q).map(g=>{
       const b=getBase(g.b),st=gStats(g),on=S.eq[sl]===g.u,why=canEquip(g);
       const dif=['def','atk','hp','crit'].filter(k=>st[k]!==cur[k]&&!on).map(k=>{const d=st[k]-cur[k];const lab={def:'🛡️',atk:'⚔️',hp:'❤️',crit:'🎯'}[k];const v=k==='crit'?Math.round(d*100)+'%':Math.round(d);return '<span class="'+(d>0?'good':'bad')+'">'+lab+(d>0?' +':' ')+v+'</span>';}).join(' ');
-      const c=g.p<UPMAX?UPCOST(g.p,b.t):null,okU=c&&Object.keys(c).every(k=>have(k)>=c[k]);
-      const cs=c?Object.keys(c).map(k=>'<span class="'+(have(k)>=c[k]?'good':'bad')+'">'+ITEMS[k].i+' '+have(k)+'/'+c[k]+'</span>').join(' '):'';
+      const c=g.p<UPMAX?UPCOST(g.p,b.t):null,okU=c&&Object.keys(c).every(k=>have(k)>=c[k])&&(S.cu||0)>=Math.round(UPFEE(g.p)*[1,1.5,2][b.t-1]);
+      const fee=c?Math.round(UPFEE(g.p)*[1,1.5,2][b.t-1]):0;
+      const cs=c?Object.keys(c).map(k=>'<span class="'+(have(k)>=c[k]?'good':'bad')+'">'+ITEMS[k].i+' '+have(k)+'/'+c[k]+'</span>').join(' ')+' <span class="'+((S.cu||0)>=fee?'good':'bad')+'">'+fmtM(fee)+'</span>':'';
       return '<div class="rec" style="border-color:'+QC[g.q]+(on?';background:#ffe9c4':'')+'"><div class="t">'+gName(g)+(on?' <small>(angelegt)</small>':'')+'</div>'
         +'<div class="c"><small style="color:'+QC[g.q]+'">'+QN[g.q]+(b.type&&WTN[b.type]?' · '+WTN[b.type]:(ARMN[b.type]?' · '+ARMN[b.type]:''))+' · ab Lv '+b.lv+'</small><br>'+gStr(st)+(dif?'<br>'+dif:'')+'</div>'
         +(on?'<button class="btn sec" data-a="gunequip" data-slot="'+sl+'">Ablegen</button> ':'<button class="btn" data-a="gequip" data-id="'+g.u+'"'+(why?' disabled':'')+'>'+(why||'Anlegen')+'</button> ')
@@ -1113,7 +1182,7 @@ function openSheet(s){
   $('#shB').innerHTML=h;
   $('#sheet').style.display='flex';
 }
-function closeSheet(){$('#sheet').style.display='none';curSheet=null;confirmReset=false;pickCls=null;pickPath=null;}
+function closeSheet(){$('#sheet').style.display='none';curSheet=null;confirmReset=false;pickCls=null;pickPath=null;sellOk=0;}
 
 /* ---------- UI ---------- */
 let tt=null;
@@ -1124,6 +1193,7 @@ function hud(){
   $('#lv').textContent=S.lv;
   $('#hpb').style.width=(100*S.hp/mx)+'%';$('#hpt').textContent=Math.floor(S.hp)+'/'+mx;
   $('#enb').style.width=S.en+'%';$('#en2').textContent=Math.floor(S.en)+'/100';
+  $('#cu').textContent=fmtM(S.cu||0);
   const qb=$('#qb'),n=S.qready.length;qb.textContent=n;qb.style.display=n?'flex':'none';
   $('#cb').style.display=((S.cls==='wanderer'&&S.lv>=CLASS_LV)||canUp())?'flex':'none';
   if(canUp()&&upNote!==S.tier){upNote=S.tier;toast('🌟 Klassenentwicklung bereit! (Charakter)');}
@@ -1154,6 +1224,24 @@ document.addEventListener('click',ev=>{
       if(!confirmReset){confirmReset=true;openSheet('set');}
       else{try{localStorage.removeItem(KEY);}catch(e){}location.reload();}
       break;
+    case 'shop':if(sel&&sel.kind==='shop'){shopE=sel;stab='buy';openSheet('shop');}break;
+    case 'stab':stab=b.dataset.t;sellOk=0;openSheet('shop');break;
+    case 'sbuy':case 'sbuyg':case 'ssell':case 'ssellg':case 'srep':{
+      if(!shopE||!P||dist(P,ep(shopE))>RANGE+15){toast('Du bist zu weit vom Händler weg');closeSheet();break;}
+      const id=b.dataset.id,a=b.dataset.a;
+      if(a==='sbuy'){const pr=BUY[id];if(pr&&(S.cu||0)>=pr){S.cu-=pr;add(id,1);toast('Gekauft: '+ITEMS[id].n);}}
+      if(a==='sbuyg'){const pr=gBuyPrice(id);if((S.cu||0)>=pr){S.cu-=pr;const r2=addGear(id,0);toast('Gekauft: '+gNameT(r2.g)+(r2.auto?' (angelegt)':''));}}
+      if(a==='ssell'){const n=b.dataset.n==='all'?have(id):1,q=Math.min(n,have(id));if(q>0&&SELL[id]){S.inv[id]-=q;earn(SELL[id]*q);toast('Verkauft: '+q+'× '+ITEMS[id].n+' für '+fmtM(SELL[id]*q));}}
+      if(a==='ssellg'){const g=gearOf(+id);if(g&&!Object.values(S.eq).includes(g.u)){if(sellOk===g.u){earn(gSell(g));S.gear=S.gear.filter(x=>x.u!==g.u);sellOk=0;toast('Verkauft: '+gNameT(g)+' für '+fmtM(gSell(g)));}else{sellOk=g.u;openSheet('shop');break;}}}
+      if(a==='srep'){const t=S.tools[+b.dataset.i];if(t){const m=(RECIPES.find(r=>r.id===t.id)||{dur:15}).dur,c=(m-t.dur)*REPAIR_PER;if(c>0&&(S.cu||0)>=c){S.cu-=c;t.dur=m;toast('Repariert: '+ITEMS[t.id].n);}}}
+      save();hud();openSheet('shop');break;}
+    case 'skipexh':{
+      const rr=S.exh-Date.now();if(rr<=0)break;const cost=S.lv*20;
+      if(skipArmed>Date.now()){
+        if((S.cu||0)<cost){toast('Zu wenig Ruinmünzen ('+fmtM(cost)+')');break;}
+        S.cu-=cost;S.exh=0;skipArmed=0;toast('✨ Erschöpfung beendet');save();hud();exhUI();renderCard();updateSkillUI();
+      }else{skipArmed=Date.now()+4000;toast('Nochmal tippen: Erschöpfung beenden für '+fmtM(cost));}
+      break;}
     case 'gearopen':gSlot=b.dataset.slot||'waffe';openSheet('gear');break;
     case 'gslot':gSlot=b.dataset.slot;openSheet('gear');break;
     case 'gequip':if(equip(+b.dataset.id)){save();hud();openSheet('gear');}break;
