@@ -102,7 +102,7 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 .ent.mob.near{box-shadow:0 0 0 4px rgba(229,83,75,.35)}
 .mhp{position:absolute;left:4px;right:4px;bottom:-9px;height:5px;background:#5a2a27;border-radius:3px;overflow:hidden}
 .mhp u{display:block;height:100%;background:#ff6b5e;width:100%}
-.mech{width:52px;height:52px;font-size:50px;line-height:52px;text-align:center;position:relative}.mech::before{content:'';position:absolute;left:10px;right:10px;bottom:2px;height:8px;border-radius:50%;background:rgba(0,0,0,.28)}.mech .px{position:relative}.mech.fl .px{transform:scaleX(-1)}
+.mech{width:52px;height:52px;font-size:50px;line-height:52px;text-align:center;position:relative}.mech::before{content:'';position:absolute;left:10px;right:10px;bottom:2px;height:8px;border-radius:50%;background:rgba(0,0,0,.28)}.mech .px{position:relative}.mech.mflip .px{transform:scaleX(-1)}
 /* Start */
 #start{position:absolute;inset:0;z-index:1000;background:linear-gradient(#ffe7c2,#fdf6ee);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center;gap:12px}
 #start h1{margin:0;font-size:36px}
@@ -812,7 +812,7 @@ pruneCd();
 const map=L.map('map',{zoomControl:false,attributionControl:false,maxZoom:19,minZoom:13}).setView(START_POS,16);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
 
-let meK='',meFlip=false;const figTok=()=>{if(S.path&&S.tier&&PATHS[S.path]){const st=PATHS[S.path].st[S.tier-1];const m=st&&/^:st_(\w+):$/.exec(st.i);if(m)return ':ch_'+m[1]+':';}return ':ch_'+S.cls+':';},meTok=figTok,meIcon=()=>L.divIcon({className:'',html:'<div class="mech'+(meFlip?' fl':'')+'">'+meTok()+'</div>',iconSize:[52,52],iconAnchor:[26,38]});
+let meK='',meFlip=false;const figTok=()=>{if(S.path&&S.tier&&PATHS[S.path]){const st=PATHS[S.path].st[S.tier-1];const m=st&&/^:st_(\w+):$/.exec(st.i);if(m)return ':ch_'+m[1]+':';}return ':ch_'+S.cls+':';},meTok=figTok,meIcon=()=>L.divIcon({className:'',html:'<div class="mech'+(meFlip?' mflip':'')+'">'+meTok()+'</div>',iconSize:[52,52],iconAnchor:[26,38]});
 function updMe(){if(pm&&meK!==meTok()&&pm.setIcon){meK=meTok();pm.setIcon(meIcon());}}
 let P=null,acc=null,pm=null,pc=null,pr=null,follow=true,watchId=null,lastGps=null,lastCell='';
 const ents=new Map();
@@ -825,7 +825,7 @@ let sel=null;
 
 function setPos(lat,lon,a){
   if(P&&!S.test&&(a||99)<=60){const d=dist(P,{lat,lon});if(d>=8&&d<150)S.stats.walk=(S.stats.walk||0)+d;}
-  if(P&&Math.abs(lon-P.lon)>2e-6&&meFlip!==(lon<P.lon)){meFlip=lon<P.lon;const e=pm&&pm.getElement&&pm.getElement();if(e&&e.firstChild)e.firstChild.classList.toggle('fl',meFlip);}
+  if(P&&Math.abs(lon-P.lon)>2e-6&&meFlip!==(lon<P.lon)){meFlip=lon<P.lon;const e=pm&&pm.getElement&&pm.getElement();if(e&&e.firstChild)e.firstChild.classList.toggle('mflip',meFlip);}
   P={lat,lon};acc=a;
   if(!pm){
     meK=meTok();pm=L.marker([lat,lon],{icon:meIcon(),zIndexOffset:1000,interactive:false}).addTo(map);
