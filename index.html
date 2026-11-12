@@ -73,6 +73,11 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 .sk .si{font-size:22px}.sk .sc{font-size:10px;margin-top:3px;font-weight:bold}
 .sk.off{opacity:.45;border-color:#b9a78f}
 .skrow{display:flex;gap:12px;justify-content:center;margin-top:10px}
+#exh{position:absolute;left:10px;top:calc(66px + var(--st));z-index:500;background:rgba(255,235,205,.96);border:1px solid var(--line);border-radius:16px;padding:4px 10px;font-size:12px;display:none;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+#faint{position:absolute;inset:0;z-index:1100;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:22px}
+.fbox{background:var(--card);border-radius:20px;padding:20px;max-width:360px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,.5);text-align:center}
+.fbox h2{margin:0 0 6px;font-size:24px}.fbox p{margin:8px 0;font-size:14px;line-height:1.45}
+.fbox ul{text-align:left;margin:8px 0 12px;padding-left:20px;font-size:14px;line-height:1.5}
 /* Entities */
 .leaflet-map-pane:not(.leaflet-zoom-anim) .leaflet-marker-icon.roam{transition:transform 1s linear}
 .ent.t-rare{border-color:#9b5de5;background:#f1e6ff}
@@ -110,6 +115,7 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 <div id="toast"></div>
 <button id="loc" data-a="loc" aria-label="Zentrieren">◎</button>
 <div id="attr">© OpenStreetMap-Mitwirkende</div>
+<div id="exh"></div>
 <div id="skills"></div>
 <div id="card"></div>
 
@@ -125,6 +131,8 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
   <div class="sh-head"><h2 id="shT"></h2><button class="x" data-a="shx">✕</button></div>
   <div id="shB"></div>
 </div>
+
+<div id="faint"><div class="fbox" id="fbox"></div></div>
 
 <div id="start">
   <h1>🏹 Ruin Walk</h1>
@@ -196,6 +204,8 @@ const MOBS={
   sumpfsaurier:{n:'Sumpfsaurier',i:'🦖',tier:'area',hp:2800,min:30,max:52,xp:1400,rec:24,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'moorperle',min:2,max:3},{i:'trank',min:3,max:3}]}
 };
 const TIERS={normal:{l:'Monster',sz:44},rare:{l:'💜 Seltenes Monster',sz:48},elite:{l:'⭐ Elite',sz:54},boss:{l:'👹 Boss',sz:62},area:{l:'👑 Gebietsboss',sz:74}};
+const EXH_MS=180000;  // Erschöpfung nach Ohnmacht
+function fmtT(ms){const t=Math.ceil(ms/1000);return Math.floor(t/60)+':'+String(t%60).padStart(2,'0');}
 const SPEED={normal:1.0,rare:.7,elite:.4};   // m/s beim Wandern
 const LEASH=60, CHASE_MULT=1.5, CHASE_STOP=10, DISENGAGE_M=150, DISENGAGE_MS=60000;
 const SPAWN={normal:[['rohling',5],['kaefer',3],['keiler',2]],rare:[['silberfuchs',1],['kristallhirsch',1],['nachtkauz',1]],
@@ -253,7 +263,7 @@ const atkRange=()=>C0().range;
 
 /* ---------- Spielstand ---------- */
 const def=()=>({lv:1,xp:0,hp:100,en:100,inv:{},tools:[],skills:{holz:0,berg:0,sammeln:0},cd:{},mh:{},
-  stats:{col:{},nodes:{},kills:0,crafted:{}},qdone:[],qready:[],def:0,cls:'wanderer',scd:{},shield:0,stun:0,last:Date.now(),test:false});
+  stats:{col:{},nodes:{},kills:0,crafted:{}},qdone:[],qready:[],def:0,cls:'wanderer',scd:{},shield:0,stun:0,exh:0,last:Date.now(),test:false});
 let S=def();
 try{
   const raw=localStorage.getItem(KEY);
@@ -480,6 +490,7 @@ function renderCard(){
         +'<br>Beute: '+d.drops.map(x=>ITEMS[x.i].i+(x.c?'?':'')).join(' ')+'</div>'+skRow();
       action='shoot';label=C0().i+' '+C0().act;
       if(ds>atkRange())label='Zu weit – noch '+fmtDist(ds-atkRange());
+      else if(Date.now()<S.exh)label='😵 Erschöpft – noch '+fmtT(S.exh-Date.now());
       else if(S.en<C0().en)label='Zu erschöpft';
       else dis=false;
     }else{
@@ -528,6 +539,7 @@ function collect(){
 function strike(o){
   const e=sel;if(!e||e.kind!=='mob'||!P)return false;
   const m=MOBS[e.type],C=C0();
+  if(Date.now()<S.exh){toast('😵 Du bist noch erschöpft ('+fmtT(S.exh-Date.now())+')');return false;}
   if(dist(P,ep(e))>(C.range+(o.rangeBonus||0))){toast('Zu weit weg');return false;}
   eng.set(e.id,Date.now());
   if(S.en<o.en){toast('Zu erschöpft');return false;}
@@ -559,15 +571,35 @@ function strike(o){
       if(S.shield>0){S.shield--;h=Math.max(1,Math.round(h*.3));}
       S.hp-=h;msg+=' · '+m.n+' trifft dich: -'+h;
     }
-    if(S.hp<=0){
-      S.hp=Math.round(maxHP()*.3);S.mh[e.id]=m.hp;S.shield=0;S.stun=0;
-      msg='😵 Du bist zusammengebrochen. '+m.n+' erholt sich.';eng.delete(e.id);
-      deselect();
-    }
-    toast(msg);refreshWorld();
+    if(S.hp<=0)faint(m,e);
+    else toast(msg);
+    refreshWorld();
   }
   save();hud();renderCard();
   return true;
+}
+function faint(m,e){
+  S.hp=Math.round(maxHP()*.3);S.mh[e.id]=m.hp;S.shield=0;S.stun=0;eng.delete(e.id);
+  const lines=[];
+  if(S.cls==='wanderer'&&S.lv<CLASS_LV){
+    lines.push('Anfängerschutz: Als Wanderer bleibst du ohne Strafe.');
+  }else{
+    const hard=m.tier==='elite'||m.tier==='boss'||m.tier==='area';
+    const need=S.lv*40,lost=Math.min(S.xp,Math.round(need*(hard?.10:.05)));
+    S.xp-=lost;lines.push('−'+lost+' Erfahrung');
+    if(hard){
+      let n=0;for(const t of S.tools){const nd=Math.max(1,Math.floor(t.dur*.8));if(nd<t.dur){t.dur=nd;n++;}}
+      if(n)lines.push('Werkzeug −20 % Haltbarkeit');
+    }
+    S.exh=Date.now()+EXH_MS;lines.push('Erschöpft für '+fmtT(EXH_MS)+' (kein Kampf, Laufen und Sammeln gehen)');
+  }
+  deselect();
+  $('#fbox').innerHTML='<h2>💫 Ohnmächtig!</h2><p>'+m.n+' hat dich besiegt. Das Spiel hat dich an dieser Stelle wiederbelebt. Du hast '+S.hp+' Leben.</p><ul>'+lines.map(x=>'<li>'+x+'</li>').join('')+'</ul><button class="btn" style="width:100%;padding:13px;font-size:16px" data-a="faintok">Weiter</button>';
+  $('#faint').style.display='flex';
+}
+function exhUI(){
+  const r=S.exh-Date.now(),el=$('#exh');
+  if(r>0){el.textContent='😵 Erschöpft '+fmtT(r);el.style.display='block';}else el.style.display='none';
 }
 function shoot(){
   const C=C0();
@@ -604,6 +636,7 @@ function updateSkillUI(){
     let txt,off=false;
     if(S.lv<x.lv){txt='Lv'+x.lv;off=true;}
     else if(cd>0){txt=cd+' s';off=true;}
+    else if(x.mult&&S.exh>now){txt='😵';off=true;}
     else{txt=x.en+'⚡';off=S.en<x.en;}
     const sc=el.querySelector('.sc');if(sc)sc.textContent=txt;
     el.classList.toggle('off',off);
@@ -772,6 +805,7 @@ document.addEventListener('click',ev=>{
     case 'close':deselect();break;
     case 'collect':collect();break;
     case 'shoot':shoot();break;
+    case 'faintok':$('#faint').style.display='none';break;
     case 'skill':useSkill(parseInt(b.dataset.i,10));break;
     case 'open':if(curSheet===b.dataset.s)closeSheet();else openSheet(b.dataset.s);break;
     case 'shx':closeSheet();break;
@@ -805,7 +839,7 @@ setInterval(()=>{
   if(P)updateNear();
   if(tc%10===0)refreshWorld();
   if(sel)renderCard();
-  updateSkillUI();
+  updateSkillUI();exhUI();
   if(tc%5===0)save();
 },1000);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)save();});
