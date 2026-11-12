@@ -178,6 +178,7 @@ const ITEMS={
   steinherz:{n:'Steinherz',i:'💠'}, tyrannenzahn:{n:'Tyrannenzahn',i:'🦴'}, moorperle:{n:'Moorperle',i:'🧿'},
   drachenschuppe:{n:'Drachenschuppe',i:'🔶'}, gebietsherz:{n:'Gebietsherz',i:'💖'},
   kaeferhelm:{n:'Käferpanzer-Helm',i:'⛑️'}, keilerhandschuhe:{n:'Keiler-Handschuhe',i:'🧤'}, silberstiefel:{n:'Silberfell-Stiefel',i:'👢'},
+  rune0:{n:'Gewöhnliche Schmiederune',i:'📜'}, rune1:{n:'Ungewöhnliche Schmiederune',i:'📗'}, rune2:{n:'Seltene Schmiederune',i:'📘'}, rune3:{n:'Epische Schmiederune',i:'📙'}, rune4:{n:'Legendäre Schmiederune',i:'📕'},
   axt:{n:'Holzfälleraxt',i:'🪓'}, spitzhacke:{n:'Spitzhacke',i:'⛏️'}, fellweste:{n:'Fellweste',i:'🦺'}
 };
 const TOOLNAME={holz:'Holzfälleraxt',berg:'Spitzhacke'};
@@ -221,7 +222,9 @@ function fmtDist(d){return d>=1000?(d/1000).toFixed(1).replace('.',',')+' km':Ma
 const RECIPES=[
   {id:'axt',kind:'tool',type:'holz',dur:15,cost:{stock:3,stein:2,ranke:2}},
   {id:'spitzhacke',kind:'tool',type:'berg',dur:15,cost:{holz:2,stein:3,ranke:2}},
-  {id:'trank',kind:'item',cost:{kraut:3}}
+  {id:'trank',kind:'item',cost:{kraut:3},info:'Heilt 40 Leben'},
+  {id:'rune0',kind:'item',cost:{ranke:4,stein:3,kraut:2},info:'Erhöht die Upgrade-Chance um 5 %'},
+  {id:'rune1',kind:'item',cost:{kristall:2,ranke:4,kraut:4},info:'Erhöht die Upgrade-Chance um 10 %'}
 ];
 const SKILLNAME={holz:'Holzfällen',berg:'Bergbau',sammeln:'Sammeln'};
 /* ---------- Ausrüstung ---------- */
@@ -296,6 +299,8 @@ const gName=g=>{const b=getBase(g.b);return '<span style="color:'+QC[g.q]+';font
 const gNameT=g=>{const b=getBase(g.b);return '['+QN[g.q]+'] '+b.n+(g.p?' +'+g.p:'');};
 function gStr(o){const a=[];if(o.def)a.push('🛡️ '+o.def);if(o.atk)a.push('⚔️ '+o.atk);if(o.hp)a.push('❤️ '+o.hp);if(o.crit)a.push('🎯 '+Math.round(o.crit*100)+'%');return a.join(' · ')||'–';}
 function rollQ(w){let r=Math.random()*w.reduce((a,b)=>a+b,0);for(let i=0;i<w.length;i++){r-=w[i];if(r<0)return i;}return 0;}
+const RDROPCH={normal:.01,rare:.06,elite:.2,boss:.45,area:1};
+const RDROPQ={normal:[100,0,0,0,0],rare:[70,30,0,0,0],elite:[20,55,22,3,0],boss:[0,25,50,22,3],area:[0,0,30,50,20]};
 const DROPCH={normal:.015,rare:.05,elite:.28,boss:.65,area:1};
 const DROPQ={normal:[85,14,1,0,0],rare:[50,40,9,1,0],elite:[20,45,28,6,1],boss:[0,25,50,22,3],area:[0,0,35,50,15]};
 const DROPT={normal:[1],rare:[1,1,2],elite:[2],boss:[2,3],area:[3]};
@@ -344,13 +349,33 @@ function craftGear(bid){
   toast('🔨 '+gNameT(res.g)+' hergestellt'+(res.auto?' und angelegt':''));
   save();hud();openSheet('craft');
 }
-const UPCOST=p=>[{eisenerz:2,stein:2},{eisenerz:4,stein:4},{eisenerz:6,stein:6},{eisenerz:8,kristall:2},{eisenerz:10,steinherz:1}][p];
+const UPMAX=10,UPCH=[1,1,1,.9,.75,.6,.45,.3,.15,.05];   // Chance je aktueller Stufe (+0→+1 … +9→+10)
+const UPE=[3,5,8,12,18,26,36,48,64,80],UPS=[4,6,8,12,16,20,0,0,0,0];
+const RUNEB=[.05,.10,.15,.20,.25];
+let useRune=-1;
+function UPCOST(p,t){
+  const m=[1,1.5,2][t-1],c={eisenerz:Math.ceil(UPE[p]*m)};
+  if(UPS[p])c.stein=Math.ceil(UPS[p]*m);
+  if(p>=3&&p<=5)c.kristall=p-2;
+  if(p===6||p===7)c.steinherz=p-5;
+  if(p===8){c.tyrannenzahn=1;c.moorperle=1;}
+  if(p===9){c.gebietsherz=1;c.drachenschuppe=2;}
+  return c;
+}
+function upChance(g){
+  let ch=UPCH[g.p];
+  if(useRune>=0&&have('rune'+useRune)>0)ch=Math.min(1,ch+RUNEB[useRune]);
+  return ch;
+}
 function upgradeGear(uid){
-  const g=gearOf(uid);if(!g)return;if(g.p>=5){toast('Maximal +5');return;}
-  const c=UPCOST(g.p);
+  const g=gearOf(uid);if(!g)return;if(g.p>=UPMAX){toast('Maximal +'+UPMAX);return;}
+  const c=UPCOST(g.p,getBase(g.b).t);
   for(const k in c)if(have(k)<c[k]){toast('Material fehlt');return;}
+  const ch=upChance(g),usedRune=(useRune>=0&&have('rune'+useRune)>0)?useRune:-1;
   for(const k in c)S.inv[k]-=c[k];
-  g.p++;toast('⬆️ '+gNameT(g)+' verbessert');
+  if(usedRune>=0){S.inv['rune'+usedRune]--;if(have('rune'+usedRune)<=0)useRune=-1;}
+  if(Math.random()<ch){g.p++;toast('✅ Verbessert auf +'+g.p+': '+gNameT(g));}
+  else toast('❌ Fehlgeschlagen ('+Math.round(ch*100)+' %). Material'+(usedRune>=0?' und Rune':'')+' sind verbraucht, '+getBase(g.b).n+' bleibt +'+g.p+'.');
   save();hud();openSheet('gear');
 }
 
@@ -794,6 +819,7 @@ function strike(o){
     delete S.mh[e.id];S.cd[e.id]=Date.now();S.stats.kills++;S.stats.kt[m.tier]=(S.stats.kt[m.tier]||0)+1;{const hr=new Date().getHours();if(hr>=22||hr<4)S.stats.night++;}S.stun=0;
     const got=[];
     for(const dr of m.drops){if(Math.random()<(dr.c??1)){const q=rnd(dr.min,dr.max);add(dr.i,q);S.stats.col[dr.i]=(S.stats.col[dr.i]||0)+q;got.push('+'+q+' '+ITEMS[dr.i].n);}}
+    if(Math.random()<(RDROPCH[m.tier]||0)){const rq=rollQ(RDROPQ[m.tier]);add('rune'+rq,1);got.push('📜 '+ITEMS['rune'+rq].n);}
     const gd=rollGear(m.tier);if(gd)got.push('🎁 '+gNameT(gd.g)+(gd.auto?' (angelegt)':''));
     addXP(m.xp);
     toast('💥 '+m.n+' besiegt! '+got.join(', '));
@@ -959,7 +985,7 @@ function openSheet(s){
     if(ctab==='tool')h+=RECIPES.map(r=>{
       const ok=Object.keys(r.cost).every(k=>have(k)>=r.cost[k]);
       const cost=Object.keys(r.cost).map(k=>'<span class="'+(have(k)>=r.cost[k]?'good':'bad')+'">'+ITEMS[k].i+' '+have(k)+'/'+r.cost[k]+'</span>').join(' · ');
-      const info=r.kind==='tool'?'Haltbarkeit '+r.dur:'Heilt 40 Leben';
+      const info=r.kind==='tool'?'Haltbarkeit '+r.dur:(r.info||'');
       return '<div class="rec"><div class="t">'+ITEMS[r.id].i+' '+ITEMS[r.id].n+'</div><div class="c">'+cost+'</div><small>'+info+'</small><br><button class="btn" style="margin-top:6px" data-a="craft" data-id="'+r.id+'" '+(!ok?'disabled':'')+'>Herstellen</button></div>';
     }).join('');
     else{
@@ -1012,18 +1038,21 @@ function openSheet(s){
     h+='<div class="grid" style="grid-template-columns:repeat(5,1fr);margin:8px 0">'+SLOTS.map(([k,l])=>{const g=gearOf(S.eq[k]);
       return '<button class="it" data-a="gslot" data-slot="'+k+'" style="border:2px solid '+(k===sl?'var(--acc)':(g?QC[g.q]:'var(--line)'))+(k===sl?';background:#ffe9c4':'')+'"><span>'+(g?getBase(g.b).i:SLOTIC[k])+'</span><small>'+l+'</small></button>';}).join('')+'</div>';
     h+='<h3>'+SLOTS.find(x=>x[0]===sl)[1]+'</h3>';
+    const owned=[0,1,2,3,4].filter(q=>have('rune'+q)>0);
+    if(useRune>=0&&!owned.includes(useRune))useRune=-1;
+    if(owned.length)h+='<div style="font-size:13px;margin:6px 0 4px">Schmiederune für den nächsten Versuch:</div><div class="tabs" style="flex-wrap:wrap"><button class="tab'+(useRune<0?' on':'')+'" data-a="rune" data-q="-1">Keine</button>'+owned.map(q=>'<button class="tab'+(useRune===q?' on':'')+'" data-a="rune" data-q="'+q+'">'+ITEMS['rune'+q].i+' +'+Math.round(RUNEB[q]*100)+' % ×'+have('rune'+q)+'</button>').join('')+'</div>';
     const bag=S.gear.filter(g=>getBase(g.b).slot===sl);
     if(!bag.length)h+='<p style="font-size:14px">Nichts in diesem Slot. Stelle Ausrüstung her oder besiege stärkere Monster.</p>';
     const cur=eqg?gStats(eqg):{def:0,atk:0,hp:0,crit:0};
     h+=bag.sort((a,b)=>(b.u===S.eq[sl])-(a.u===S.eq[sl])||b.q-a.q).map(g=>{
       const b=getBase(g.b),st=gStats(g),on=S.eq[sl]===g.u,why=canEquip(g);
       const dif=['def','atk','hp','crit'].filter(k=>st[k]!==cur[k]&&!on).map(k=>{const d=st[k]-cur[k];const lab={def:'🛡️',atk:'⚔️',hp:'❤️',crit:'🎯'}[k];const v=k==='crit'?Math.round(d*100)+'%':Math.round(d);return '<span class="'+(d>0?'good':'bad')+'">'+lab+(d>0?' +':' ')+v+'</span>';}).join(' ');
-      const c=g.p<5?UPCOST(g.p):null,okU=c&&Object.keys(c).every(k=>have(k)>=c[k]);
+      const c=g.p<UPMAX?UPCOST(g.p,b.t):null,okU=c&&Object.keys(c).every(k=>have(k)>=c[k]);
       const cs=c?Object.keys(c).map(k=>'<span class="'+(have(k)>=c[k]?'good':'bad')+'">'+ITEMS[k].i+' '+have(k)+'/'+c[k]+'</span>').join(' '):'';
       return '<div class="rec" style="border-color:'+QC[g.q]+(on?';background:#ffe9c4':'')+'"><div class="t">'+gName(g)+(on?' <small>(angelegt)</small>':'')+'</div>'
         +'<div class="c"><small style="color:'+QC[g.q]+'">'+QN[g.q]+(b.type&&WTN[b.type]?' · '+WTN[b.type]:(ARMN[b.type]?' · '+ARMN[b.type]:''))+' · ab Lv '+b.lv+'</small><br>'+gStr(st)+(dif?'<br>'+dif:'')+'</div>'
         +(on?'<button class="btn sec" data-a="gunequip" data-slot="'+sl+'">Ablegen</button> ':'<button class="btn" data-a="gequip" data-id="'+g.u+'"'+(why?' disabled':'')+'>'+(why||'Anlegen')+'</button> ')
-        +(c?'<button class="btn sec" data-a="gup" data-id="'+g.u+'"'+(okU?'':' disabled')+'>⬆️ +'+(g.p+1)+' '+cs+'</button>':'<small>Maximal verbessert</small>')+'</div>';
+        +(c?'<div style="margin-top:6px;font-size:13px">⬆️ Auf +'+(g.p+1)+' · Chance <b>'+Math.round(upChance(g)*100)+' %</b></div><div style="font-size:13px;margin:3px 0">'+cs+'</div><button class="btn sec" data-a="gup" data-id="'+g.u+'"'+(okU?'':' disabled')+'>Verbessern versuchen</button>':'<small>Maximal verbessert (+'+UPMAX+')</small>')+'</div>';
     }).join('');
   }
   if(s==='up'){
@@ -1130,6 +1159,7 @@ document.addEventListener('click',ev=>{
     case 'gequip':if(equip(+b.dataset.id)){save();hud();openSheet('gear');}break;
     case 'gunequip':delete S.eq[b.dataset.slot];save();hud();openSheet('gear');break;
     case 'gup':upgradeGear(+b.dataset.id);break;
+    case 'rune':useRune=+b.dataset.q;openSheet('gear');break;
     case 'ctab':ctab=b.dataset.t;openSheet('craft');break;
     case 'cgear':craftGear(b.dataset.id);break;
     case 'uppath':pickPath=b.dataset.id;openSheet('up');break;
