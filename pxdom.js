@@ -5,7 +5,7 @@ function pxBuild(){PX_KEYS={};for(const k of Object.keys(PX_SPR).concat(Object.k
 if(typeof PX_ITEMS!=='undefined')for(const n of PX_ITEMS)if(/^(set_|ring_|amulett_)/.test(n))PX_KEYS[':i_'+n+':']=':i_'+n+':';else if(/^[wo]_/.test(n))PX_KEYS[':g_'+n+':']=':g_'+n+':';
 PX_RE=new RegExp(Object.keys(PX_KEYS).sort((a,b)=>b.length-a.length).map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\uFE0F?').join('|'),'g');}
 const PX_URL={};
-const PX_LAY={ritter:'wo',krieger:'wo',paladin:'wo',sonnenwaechter:'wo',duellant:'wo',klingentaenzer:'wo',phantomklinge:'wo',berserker:'w',kriegsherr:'w',weltenbrecher:'w'};
+const PX_LAY={ritter:'wo',krieger:'wo',paladin:'wo',sonnenwaechter:'wo',duellant:'wo',klingentaenzer:'wo',phantomklinge:'wo',berserker:'w',kriegsherr:'w',weltenbrecher:'w',bogen:'wo',scharfschuetze:'wo',meisterschuetze:'wo',falkenauge:'wo',jaeger:'wo',bestienmeister:'wo',herr:'wo',fallensteller:'wo',schattenjaeger:'wo',nachtpirscher:'wo'};
 function pxUrl(emo){
   const k=PX_KEYS[PX_NORM(emo)];if(!k)return null;
   if(typeof PX_ITEMS!=='undefined'){const m=/^:[ing]_(\w+):$/.exec(k);if(m&&PX_ITEMS.indexOf(m[1])>=0&&(k[1]==='i'||k[1]==='g'||['stock','stein','ranke','kraut'].indexOf(m[1])>=0))return 'items/'+m[1]+'.png?v=3';}
