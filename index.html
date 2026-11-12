@@ -1401,6 +1401,7 @@ function openSheet(s){
   if(s==='set'){
     h+='<h3>Testmodus</h3><p style="font-size:14px">Im Testmodus ignoriert das Spiel dein GPS. Tippe auf die Karte, um dich dorthin zu bewegen, zum Beispiel drinnen oder am Schreibtisch.</p>'
       +'<button class="btn" data-a="test">Testmodus: '+(S.test?'AN (ausschalten)':'AUS (einschalten)')+'</button>'
+      +'<button class="btn sec" style="margin-top:8px" data-a="cheatmat">🧪 Upgrade-Material ins Inventar</button>'
       +((S.test&&S.cls!=='wanderer'&&S.tier<3)?'<button class="btn sec" style="margin-top:8px" data-a="cheatup">🧪 Nächste Klassenentwicklung freischalten</button>':'')
       +'<h3>Spielstand</h3><p style="font-size:14px">Wird automatisch in diesem Browser gespeichert.</p>'
       +'<button class="btn sec" data-a="reset">'+(confirmReset?'Wirklich alles löschen? Nochmal tippen':'Spielstand löschen')+'</button>'
@@ -1489,6 +1490,10 @@ document.addEventListener('click',ev=>{
       toast((S.tier===3?'🌟 Verborgene Klasse erweckt: ':'⬆️ Aufstieg: ')+st.i+' '+st.n+'! Neue Fähigkeit: '+st.sk.n+' · 🎁 '+gNameT(qw.g));
       save();hud();renderCard();updateNear();
       break;}
+    case 'cheatmat':{
+      const M={eisenerz:2000,stein:500,kristall:30,steinherz:15,tyrannenzahn:5,moorperle:5,gebietsherz:5,drachenschuppe:10,rune0:10,rune1:10,rune2:10,rune3:10,rune4:10};
+      for(const k in M)add(k,M[k]);
+      S.cu=(S.cu||0)+100000;save();hud();toast('🧪 Material + Runen + 10 Gold erhalten');openSheet('set');break;}
     case 'cheatup':{
       const c=cnt();S.lv=Math.max(S.lv,UP_LV[Math.min(S.tier,2)]);
       S.qb={kills:c.kills-300,rare:c.rare-10,elite:c.elite-10,boss:c.boss-10,walk:c.walk-20000};
