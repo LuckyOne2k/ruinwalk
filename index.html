@@ -1254,7 +1254,7 @@ function claimQuest(id){
 let curSheet=null,confirmReset=false,qtab='cur',pickCls=null,pickPath=null,gSlot='waffe',ctab='tool',shopE=null,stab='buy',sellOk=0,skipArmed=0;
 function openSheet(s){
   curSheet=s;
-  const titles={inv:'Inventar',craft:'Herstellen',quests:'Quests',char:'Charakter',set:'Mehr',class:'Klasse wählen',up:'Klassenentwicklung',gear:'Ausrüstung',shop:'Händler'};
+  const titles={inv:'Inventar',craft:'Herstellen',quests:'Quests',char:'Charakter',set:'Mehr',dev:'Klassen-Vorschau',class:'Klasse wählen',up:'Klassenentwicklung',gear:'Ausrüstung',shop:'Händler'};
   $('#shT').textContent=titles[s];
   let h='';
   if(s==='inv'){
@@ -1302,6 +1302,18 @@ function openSheet(s){
     }else{
       h+=doneL.length?doneL.map(q=>'<div class="q done"><b>✓ '+q.t+'</b><div style="font-size:13px;margin:3px 0">'+q.d+'</div><small>Belohnung abgeholt: '+q.rt+'</small></div>').join('')
         :'<p>Noch keine erledigten Quests.</p>';
+    }
+  }
+  if(s==='dev'){
+    h+='<p style="font-size:13px;margin-top:0">Nur zum Ansehen: wechselt Klasse, Pfad und Stufe sofort. Level und Inventar bleiben. Stufe 3 ist die verborgene Klasse.</p>';
+    for(const cid in CLASSES){
+      const c=CLASSES[cid],on=S.cls===cid&&!S.path;
+      h+='<div class="rec"><div style="float:right;font-size:48px;line-height:1">:ch_'+cid+':</div><div class="t">'+c.i+' '+c.n+'</div>'
+        +'<button class="btn'+(on?'':' sec')+'" style="margin:6px 0" data-a="devset" data-cls="'+cid+'" data-path="" data-tier="0">Grundklasse</button>';
+      for(const pid in PATHS){const pa=PATHS[pid];if(pa.b!==cid)continue;
+        h+='<div style="clear:both;font-size:13px;margin-top:6px"><b>'+pa.t+'</b></div><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">'
+          +pa.st.map((st,i)=>'<button class="btn'+(S.cls===cid&&S.path===pid&&S.tier===i+1?'':' sec')+'" style="padding:6px 10px;font-size:13px" data-a="devset" data-cls="'+cid+'" data-path="'+pid+'" data-tier="'+(i+1)+'">'+st.i+' '+st.n+'</button>').join('')+'</div>';}
+      h+='<div style="clear:both"></div></div>';
     }
   }
   if(s==='class'){
@@ -1413,6 +1425,7 @@ function openSheet(s){
   if(s==='set'){
     h+='<h3>Testmodus</h3><p style="font-size:14px">Im Testmodus ignoriert das Spiel dein GPS. Tippe auf die Karte, um dich dorthin zu bewegen, zum Beispiel drinnen oder am Schreibtisch.</p>'
       +'<button class="btn" data-a="test">Testmodus: '+(S.test?'AN (ausschalten)':'AUS (einschalten)')+'</button>'
+      +'<button class="btn sec" style="margin-top:8px" data-a="opendev">🧪 Klasse wechseln (Vorschau)</button>'
       +'<button class="btn sec" style="margin-top:8px" data-a="cheatmat">🧪 Upgrade-Material ins Inventar</button>'
       +((S.test&&S.cls!=='wanderer'&&S.tier<3)?'<button class="btn sec" style="margin-top:8px" data-a="cheatup">🧪 Nächste Klassenentwicklung freischalten</button>':'')
       +'<h3>Spielstand</h3><p style="font-size:14px">Wird automatisch in diesem Browser gespeichert.</p>'
@@ -1503,6 +1516,10 @@ document.addEventListener('click',ev=>{
       toast((S.tier===3?'🌟 Verborgene Klasse erweckt: ':'⬆️ Aufstieg: ')+st.i+' '+st.n+'! Neue Fähigkeit: '+st.sk.n+' · 🎁 '+gNameT(qw.g));
       save();hud();renderCard();updateNear();
       break;}
+    case 'opendev':openSheet('dev');break;
+    case 'devset':{
+      S.cls=b.dataset.cls;S.path=b.dataset.path;S.tier=+b.dataset.tier;S.qb=cnt();S.scd={};S.shield=0;S.stun=0;
+      pickPath='';buildSkillBar();S.hp=Math.min(S.hp,maxHP());save();hud();toast('Klasse: '+C0().n);openSheet('dev');break;}
     case 'cheatmat':{
       const M={eisenerz:2000,stein:500,kristall:30,steinherz:15,tyrannenzahn:5,moorperle:5,gebietsherz:5,drachenschuppe:10,rune0:10,rune1:10,rune2:10,rune3:10,rune4:10};
       for(const k in M)add(k,M[k]);
