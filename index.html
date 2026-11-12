@@ -158,9 +158,15 @@ const RECIPES=[
   {id:'axt',kind:'tool',type:'holz',dur:15,cost:{stock:3,stein:2,ranke:2}},
   {id:'spitzhacke',kind:'tool',type:'berg',dur:15,cost:{holz:2,stein:3,ranke:2}},
   {id:'trank',kind:'item',cost:{kraut:3}},
-  {id:'fellweste',kind:'armor',def:3,cost:{fell:4,ranke:2}}
+  {id:'fellweste',kind:'armor',slot:'brust',def:3,cost:{fell:4,ranke:2}}
 ];
 const SKILLNAME={holz:'Holzfällen',berg:'Bergbau',sammeln:'Sammeln'};
+const SLOTS=[['waffe','Waffe'],['kopf','Kopf'],['brust','Brust'],['haende','Hände'],['fuesse','Füße']];
+function equipped(slot){
+  if(slot==='waffe')return {i:'🏹',n:'Jagdbogen'};
+  const r=RECIPES.find(x=>x.kind==='armor'&&x.slot===slot&&S.stats.crafted[x.id]);
+  return r?ITEMS[r.id]:null;
+}
 
 /* ---------- Spielstand ---------- */
 const def=()=>({lv:1,xp:0,hp:100,en:100,inv:{},tools:[],skills:{holz:0,berg:0,sammeln:0},cd:{},mh:{},
@@ -471,8 +477,10 @@ function openSheet(s){
       +'<div class="kv"><span>Erfahrung</span><b>'+Math.floor(S.xp)+' / '+need+'</b></div>'
       +'<div class="kv"><span>Leben</span><b>'+Math.floor(S.hp)+' / '+maxHP()+'</b></div>'
       +'<div class="kv"><span>Angriff</span><b>'+atk()+'</b></div>'
-      +'<div class="kv"><span>Verteidigung</span><b>'+S.def+'</b></div>'
+      +'<div class="kv"><span>Verteidigung</span><b>'+S.def+' <small>(durch Ausrüstung)</small></b></div>'
       +'<div class="kv"><span>Besiegte Monster</span><b>'+S.stats.kills+'</b></div>'
+      +'<h3>Ausrüstung</h3><div class="grid" style="grid-template-columns:repeat(5,1fr)">'
+      +SLOTS.map(([k,l])=>{const e=equipped(k);return '<div class="it"'+(e?'':' style="opacity:.5"')+'><span>'+(e?e.i:'➕')+'</span><small>'+l+'</small><small>'+(e?e.n:'leer')+'</small></div>';}).join('')+'</div>'
       +'<h3>Lebensfertigkeiten</h3>'
       +Object.keys(SKILLNAME).map(k=>'<div class="kv"><span>'+SKILLNAME[k]+'</span><b>Stufe '+sl(k)+' <small>('+(S.skills[k]%10)+'/10)</small></b></div>').join('')
       +'<h3>Klasse</h3><div class="kv"><span>🏹 Bogenschütze</span><small>Fernkampf bis '+BOW+' m</small></div>';
