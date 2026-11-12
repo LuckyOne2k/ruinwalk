@@ -261,7 +261,7 @@ function getBase(id){
   else if(k==='m'){const t=+p[1],s=GT[t].s;b={n:MNM[t],i:'📿',slot:'amulett',type:'',t,st:{hp:Math.round(6*s)}};}
   else if(k==='q'){const pa=PATHS[p[1]],t=+p[2],st=pa.st[t-1],ty=WPN[pa.b],s=GT[Math.min(3,t+1)].s;
     const stt={atk:Math.round(3.5*s)};if(ty==='bogen')stt.crit=.02*t;if(ty==='heilstab')stt.hp=Math.round(6*s);
-    b={n:cap(WTN[ty])+' des '+(t===3?st.n:st.n),i:WIC[ty],slot:'waffe',type:ty,t:Math.min(3,t+1),st:stt,fixedQ:[2,3,4][t-1],lvReq:UP_LV[t-1]};}
+    b={n:st.n.replace(/ /g,'-')+'-'+WTN[ty],i:WIC[ty],slot:'waffe',type:ty,t:Math.min(3,t+1),st:stt,fixedQ:[2,3,4][t-1],lvReq:UP_LV[t-1]};}
   b.id=id;b.lv=b.lvReq||GT[b.t].lv;
   return _gb[id]=b;
 }
