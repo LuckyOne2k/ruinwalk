@@ -95,6 +95,7 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 .ent{width:44px;height:44px;border-radius:50%;background:rgba(255,250,244,.96);border:2px solid #d9c3a5;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 2px 6px rgba(0,0,0,.3);position:relative;transition:.15s}
 .ent.near{border-color:var(--ok);box-shadow:0 0 0 4px rgba(58,167,109,.35),0 2px 6px rgba(0,0,0,.3)}
 .ent.sel{transform:scale(1.18)}
+.ent.alert::before{content:'❗';position:absolute;top:-16px;font-size:18px}
 .ent.mob{border-color:#e5534b;background:#fde8e5}
 .ent.shop{border-color:#c1892f;background:#fff1c9;font-size:26px}
 #exh{cursor:pointer}
@@ -196,19 +197,24 @@ const NODES={
 };
 const MOBS={
   // normal (häufig)
-  rohling:{n:'Rohling',i:'🐺',tier:'normal',hp:30,min:3,max:8,xp:8,rec:1,res:15*60e3,drops:[{i:'fell',min:1,max:2}]},
-  kaefer:{n:'Riesenkäfer',i:'🪲',tier:'normal',hp:38,min:3,max:7,xp:10,rec:2,res:15*60e3,drops:[{i:'kaefer',min:1,max:2}]},
-  keiler:{n:'Wildkeiler',i:'🐗',tier:'normal',hp:50,min:4,max:9,xp:12,rec:3,res:15*60e3,drops:[{i:'hauer',min:1,max:1},{i:'fell',min:1,max:1,c:.5}]},
+  rohling:{ag:1,n:'Rohling',i:'🐺',tier:'normal',hp:30,min:3,max:8,xp:8,rec:1,res:15*60e3,drops:[{i:'fell',min:1,max:2}]},
+  kaefer:{ag:1,n:'Riesenkäfer',i:'🪲',tier:'normal',hp:38,min:3,max:7,xp:10,rec:2,res:15*60e3,drops:[{i:'kaefer',min:1,max:2}]},
+  keiler:{ag:1,n:'Wildkeiler',i:'🐗',tier:'normal',hp:50,min:4,max:9,xp:12,rec:3,res:15*60e3,drops:[{i:'hauer',min:1,max:1},{i:'fell',min:1,max:1,c:.5}]},
+  hase:{n:'Feldhase',i:'🐇',tier:'normal',hp:15,min:1,max:3,xp:3,rec:1,res:15*60e3,drops:[{i:'fell',min:1,max:1,c:.6}]},
+  goblin:{ag:1,n:'Goblin',i:'👺',tier:'normal',hp:45,min:4,max:9,xp:12,rec:3,res:15*60e3,drops:[{i:'fell',min:1,max:1},{i:'eisenerz',min:1,max:1,c:.3}]},
   // selten
+  goblinfuehrer:{ag:1,n:'Goblin-Anführer',i:'👿',tier:'rare',hp:100,min:6,max:12,xp:34,rec:6,res:30*60e3,drops:[{i:'eisenerz',min:1,max:3},{i:'fell',min:1,max:2},{i:'trank',min:1,max:1,c:.3}]},
   silberfuchs:{n:'Silberfuchs',i:'🦊',tier:'rare',hp:80,min:5,max:11,xp:30,rec:5,res:30*60e3,drops:[{i:'silberfell',min:1,max:2},{i:'fell',min:1,max:2,c:.5}]},
   kristallhirsch:{n:'Kristallhirsch',i:'🦌',tier:'rare',hp:110,min:6,max:12,xp:40,rec:6,res:30*60e3,drops:[{i:'kristall',min:1,max:2}]},
   nachtkauz:{n:'Nachtkauz',i:'🦉',tier:'rare',hp:90,min:6,max:13,xp:35,rec:6,res:30*60e3,drops:[{i:'nachtfeder',min:1,max:3}]},
   // Elite
-  alpharohling:{n:'Alpha-Rohling',i:'🐺',tier:'elite',hp:260,min:10,max:20,xp:90,rec:8,res:60*60e3,drops:[{i:'alphafell',min:1,max:2},{i:'fell',min:2,max:4},{i:'trank',min:1,max:1,c:.3}]},
-  steinwaechter:{n:'Steinwächter',i:'🗿',tier:'elite',hp:320,min:12,max:22,xp:110,rec:10,res:60*60e3,drops:[{i:'steinherz',min:1,max:1},{i:'eisenerz',min:2,max:4}]},
+  alpharohling:{ag:1,n:'Alpha-Rohling',i:'🐺',tier:'elite',hp:260,min:10,max:20,xp:90,rec:8,res:60*60e3,drops:[{i:'alphafell',min:1,max:2},{i:'fell',min:2,max:4},{i:'trank',min:1,max:1,c:.3}]},
+  steinwaechter:{ag:1,n:'Steinwächter',i:'🗿',tier:'elite',hp:320,min:12,max:22,xp:110,rec:10,res:60*60e3,drops:[{i:'steinherz',min:1,max:1},{i:'eisenerz',min:2,max:4}]},
+  urhirsch:{n:'Uralter Hirsch',i:'🦌',tier:'elite',hp:280,min:10,max:18,xp:100,rec:9,res:60*60e3,drops:[{i:'kristall',min:2,max:3},{i:'alphafell',min:1,max:1,c:.5}]},
   // Boss
-  waldtyrann:{n:'Waldtyrann',i:'🐻',tier:'boss',hp:700,min:18,max:32,xp:300,rec:14,res:3*3600e3,drops:[{i:'tyrannenzahn',min:1,max:2},{i:'fell',min:5,max:8},{i:'trank',min:2,max:2}]},
-  moorkoenigin:{n:'Moorkönigin',i:'🐊',tier:'boss',hp:800,min:20,max:34,xp:340,rec:16,res:3*3600e3,drops:[{i:'moorperle',min:1,max:1},{i:'kristall',min:2,max:3},{i:'trank',min:2,max:2}]},
+  schildkroete:{n:'Mooswächter-Schildkröte',i:'🐢',tier:'boss',hp:750,min:14,max:26,xp:320,rec:15,res:3*3600e3,drops:[{i:'moorperle',min:1,max:1},{i:'steinherz',min:1,max:2},{i:'trank',min:2,max:2}]},
+  waldtyrann:{ag:1,n:'Waldtyrann',i:'🐻',tier:'boss',hp:700,min:18,max:32,xp:300,rec:14,res:3*3600e3,drops:[{i:'tyrannenzahn',min:1,max:2},{i:'fell',min:5,max:8},{i:'trank',min:2,max:2}]},
+  moorkoenigin:{ag:1,n:'Moorkönigin',i:'🐊',tier:'boss',hp:800,min:20,max:34,xp:340,rec:16,res:3*3600e3,drops:[{i:'moorperle',min:1,max:1},{i:'kristall',min:2,max:3},{i:'trank',min:2,max:2}]},
   // Gebietsboss (einer pro Gebiet)
   aschedrache:{n:'Aschedrache',i:'🐉',tier:'area',hp:3000,min:30,max:55,xp:1500,rec:25,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'drachenschuppe',min:3,max:5},{i:'trank',min:4,max:4}]},
   bergtroll:{n:'Bergtroll',i:'🧌',tier:'area',hp:2600,min:28,max:50,xp:1300,rec:22,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'steinherz',min:3,max:3},{i:'trank',min:3,max:3}]},
@@ -219,10 +225,11 @@ const EXH_MS=180000;  // Erschöpfung nach Ohnmacht
 function fmtT(ms){const t=Math.ceil(ms/1000);return Math.floor(t/60)+':'+String(t%60).padStart(2,'0');}
 const SPEED={normal:1.6,rare:1.2,elite:.8};   // m/s beim Wandern (nur Normal bis Elite)
 const CHASE_SPD={normal:3.2,rare:2.8,elite:2.2,boss:2.4,area:2.0};   // m/s bei Verfolgung
+const AGGRO_R={normal:20,rare:25,elite:30,boss:40}, NOTICE_S=2;   // Entdeckungsradius (m) und Sekunden bis zum Angriff
 const MELEE=14, ATK_CD={normal:3,rare:3,elite:3.5,boss:4,area:4.5};   // Reichweite / Sekunden zwischen Monsterangriffen
 const LEASH=60, CHASE_MULT=1.5, CHASE_STOP=10, DISENGAGE_M=150, DISENGAGE_MS=60000;
-const SPAWN={normal:[['rohling',5],['kaefer',3],['keiler',2]],rare:[['silberfuchs',1],['kristallhirsch',1],['nachtkauz',1]],
-  elite:[['alpharohling',1],['steinwaechter',1]],boss:[['waldtyrann',1],['moorkoenigin',1]],area:[['aschedrache',1],['bergtroll',1],['sumpfsaurier',1]]};
+const SPAWN={normal:[['rohling',5],['kaefer',3],['keiler',2],['hase',3],['goblin',2]],rare:[['silberfuchs',1],['kristallhirsch',1],['nachtkauz',1],['goblinfuehrer',1]],
+  elite:[['alpharohling',1],['steinwaechter',1],['urhirsch',1]],boss:[['waldtyrann',1],['moorkoenigin',1],['schildkroete',1]],area:[['aschedrache',1],['bergtroll',1],['sumpfsaurier',1]]};
 const REGION=12, AREA_DIST=4000; // Gebiet = 12x12 Zellen (ca. 2 x 3 km)
 function fmtDist(d){return d>=1000?(d/1000).toFixed(1).replace('.',',')+' km':Math.round(d)+' m';}
 const RECIPES=[
@@ -748,6 +755,17 @@ function roamTick(dt){
     r.lon+=dx/d*step/(111320*cosf(r.lat));
     o.m.setLatLng([r.lat,r.lon]);
   }
+  /* Aggressive Monster entdecken dich in ihrem Radius (nur bei brauchbarem GPS, nicht während der Erschöpfung) */
+  if(P&&(acc==null||acc<=50)&&Date.now()>S.exh){
+    for(const [id,o] of ents){
+      if(o.e.kind!=='mob')continue;const m=MOBS[o.e.type];if(!m.ag||eng.has(id))continue;
+      const r=roam.get(id)||o.e;
+      if(dist(P,r)<=AGGRO_R[m.tier]){
+        o.notice=(o.notice||0)+dt;
+        if(o.notice>=NOTICE_S){o.notice=0;eng.set(id,Date.now());toast('❗ '+m.i+' '+m.n+' hat dich entdeckt!');}
+      }else o.notice=0;
+    }
+  }
   /* Monster greifen von selbst an, sobald sie im Kampf sind und nah genug dran */
   if(P){
     for(const [id,o] of ents){
@@ -767,6 +785,7 @@ function monsterHit(m,e){
   if(Math.random()<.15){toast(m.i+' '+m.n+' verfehlt dich');return;}
   let h=Math.max(1,rnd(m.min,m.max)-defense());
   if(S.shield>0){S.shield--;h=Math.max(1,Math.round(h*.3));}
+  eng.set(e.id,Date.now());
   S.hp-=h;fMe('-'+h,'dmg',0);
   if(S.hp<=0)faint(m,e);
   else toast(m.i+' '+m.n+' trifft dich: -'+h);
@@ -796,6 +815,7 @@ function updateNear(){
     const n=el.firstElementChild,r=o.e.kind==='mob'?atkRange():RANGE;
     n.classList.toggle('near',dist(P,ep(o.e))<=r);
     n.classList.toggle('sel',!!sel&&sel.id===id);
+    n.classList.toggle('alert',o.e.kind==='mob'&&eng.has(id));
   }
 }
 function select(id){const o=ents.get(id);if(!o)return;sel=o.e;renderCard();updateNear();}
@@ -820,6 +840,7 @@ function renderCard(){
       const mx=d.hp,hp=S.mh[e.id]??mx;
       body='<div class="row">❤️ '+hp+' / '+mx+'<div class="hpbar"><i style="width:'+(100*hp/mx)+'%"></i></div>'+C0().w+' · Reichweite '+atkRange()+' m · Energie '+C0().en
         +'<br>Empfohlen: Stufe '+d.rec+(S.lv+2<d.rec?' <span class="bad">⚠️ sehr gefährlich</span>':'')
+        +'<br>Verhalten: '+(d.tier==='area'?'<b>Gebietsboss</b> · greift erst an, wenn du ihn angreifst':d.ag?'<b class="bad">😡 Aggressiv</b>':'🕊️ Friedlich, wehrt sich nur')
         +'<br>Beute: '+d.drops.map(x=>ITEMS[x.i].i+(x.c?'?':'')).join(' ')+'</div>'+skRow();
       action='shoot';label=C0().i+' '+C0().act;
       if(ds>atkRange())label='Zu weit – noch '+fmtDist(ds-atkRange());
