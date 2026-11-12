@@ -261,11 +261,11 @@ const MOBS={
   vampirfuerst:{ag:1,hab:'r',ab:'saug',n:'Vampirfürst',i:'🧛',tier:'boss',hp:780,min:19,max:33,xp:330,rec:15,res:3*3600e3,drops:[{i:'geist',min:2,max:3},{i:'tyrannenzahn',min:1,max:1,c:.5},{i:'trank',min:2,max:2}]},
   felswurm:{ag:1,hab:'f',ab:'bruell',n:'Felswurm',i:'🪱',tier:'boss',hp:820,min:20,max:34,xp:340,rec:16,res:3*3600e3,drops:[{i:'steinherz',min:1,max:2},{i:'haut',min:2,max:3},{i:'trank',min:2,max:2}]},
   // Gebietsboss (einer pro Lebensraum-Gebiet, greift erst an wenn du ihn angreifst)
-  baumriese:{hab:'w',ab:'heil',n:'Uralter Baumriese',i:'🌳',tier:'area',hp:2800,min:28,max:50,xp:1350,rec:23,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'tyrannenzahn',min:1,max:2},{i:'trank',min:3,max:3}]},
-  urmammut:{hab:'g',ab:'bruell',n:'Urmammut',i:'🦣',tier:'area',hp:3000,min:30,max:52,xp:1450,rec:24,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'horn',min:3,max:4},{i:'trank',min:3,max:3}]},
-  sumpfsaurier:{hab:'s',ab:'gift',n:'Sumpfsaurier',i:'🦖',tier:'area',hp:2800,min:30,max:52,xp:1400,rec:24,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'moorperle',min:2,max:3},{i:'trank',min:3,max:3}]},
-  bergtroll:{hab:'f',ab:'panzer',n:'Bergtroll',i:'🧌',tier:'area',hp:2600,min:28,max:50,xp:1300,rec:22,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'steinherz',min:3,max:3},{i:'trank',min:3,max:3}]},
-  aschedrache:{hab:'r',ab:'fern',n:'Aschedrache',i:'🐉',tier:'area',hp:3000,min:30,max:55,xp:1500,rec:25,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'drachenschuppe',min:3,max:5},{i:'trank',min:4,max:4}]}
+  baumriese:{hab:'w',ab:'heil',n:'Uralter Baumriese',i:'🌳',tier:'area',hp:11000,min:70,max:120,xp:3400,rec:42,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'tyrannenzahn',min:1,max:2},{i:'trank',min:3,max:3}]},
+  urmammut:{hab:'g',ab:'bruell',n:'Urmammut',i:'🦣',tier:'area',hp:12000,min:75,max:130,xp:3600,rec:44,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'horn',min:3,max:4},{i:'trank',min:3,max:3}]},
+  sumpfsaurier:{hab:'s',ab:'gift',n:'Sumpfsaurier',i:'🦖',tier:'area',hp:11000,min:75,max:130,xp:3500,rec:44,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'moorperle',min:2,max:3},{i:'trank',min:3,max:3}]},
+  bergtroll:{hab:'f',ab:'panzer',n:'Bergtroll',i:'🧌',tier:'area',hp:10000,min:70,max:120,xp:3300,rec:40,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'steinherz',min:3,max:3},{i:'trank',min:3,max:3}]},
+  aschedrache:{hab:'r',ab:'fern',n:'Aschedrache',i:'🐉',tier:'area',hp:12000,min:80,max:140,xp:3800,rec:46,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'drachenschuppe',min:3,max:5},{i:'trank',min:4,max:4}]}
 };
 const TIERS={normal:{l:'Monster',sz:44},rare:{l:'💜 Seltenes Monster',sz:48},elite:{l:'⭐ Elite',sz:54},boss:{l:'👹 Boss',sz:62},area:{l:'👑 Gebietsboss',sz:74}};
 const EXH_MS=180000;  // Erschöpfung nach Ohnmacht
@@ -273,7 +273,7 @@ function fmtT(ms){const t=Math.ceil(ms/1000);return Math.floor(t/60)+':'+String(
 const SPEED={normal:1.6,rare:1.2,elite:.8};   // m/s beim Wandern (nur Normal bis Elite)
 const CHASE_SPD={normal:3.2,rare:2.8,elite:2.2,boss:2.4,area:2.0};   // m/s bei Verfolgung
 const AGGRO_R={normal:20,rare:25,elite:30,boss:40}, NOTICE_S=2;   // Entdeckungsradius (m) und Sekunden bis zum Angriff
-const MELEE=14, ATK_CD={normal:3,rare:3,elite:3.5,boss:4,area:4.5};   // Reichweite / Sekunden zwischen Monsterangriffen
+const MELEE=14, ATK_CD={normal:3,rare:3,elite:3.5,boss:4,area:3.5};   // Reichweite / Sekunden zwischen Monsterangriffen
 const LEASH=60, CHASE_MULT=1.5, CHASE_STOP=10, DISENGAGE_M=150, DISENGAGE_MS=60000;
 const MOBLIST={};
 function pickMob(tier,hab,x){
@@ -634,6 +634,7 @@ function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 const maxHP=()=>Math.round((100+10*(S.lv-1))*(1+(C0().hpb||0)))+gs('hp');
 const defense=()=>S.def+(C0().def||0)+gs('def');
 const atk=()=>10+2*S.lv+gs('atk');
+const critCh=()=>Math.min(.75,C0().crit+gs('crit'));   // Krit-Obergrenze 75 %
 const sl=k=>1+Math.floor(S.skills[k]/10);
 const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
 const add=(k,n)=>{S.inv[k]=(S.inv[k]||0)+n;};
@@ -943,7 +944,8 @@ function monsterHit(m,e){
     fMob(e,'+'+Math.round(m.hp*.08),'heal',0);toast(m.i+' '+m.n+' heilt sich');refreshWorld();return;
   }
   if(Math.random()<.15){toast(m.i+' '+m.n+' verfehlt dich');return;}
-  let h=Math.max(1,rnd(m.min,m.max)-defense());
+  const raw=rnd(m.min,m.max);let h=Math.max(1,Math.ceil(raw*.25),raw-defense());   // Rüstung senkt höchstens 75 %
+  if(m.tier==='area'&&hpNow<m.hp*.35)h=Math.round(h*1.4);   // Gebietsboss: Raserei
   if(m.ab==='wut'&&hpNow<m.hp*.3)h=Math.round(h*1.5);
   if(m.ab==='schwarm')h=Math.max(1,Math.round(h*.6));
   if(S.shield>0){S.shield--;h=Math.max(1,Math.round(h*.3));}
@@ -1078,7 +1080,7 @@ function strike(o){
   let dmg=0,crit=false;
   for(let i=0;i<(o.hits||1);i++){
     let d=Math.max(1,Math.round((atk()+rnd(0,8))*o.mult));
-    if(o.crit||Math.random()<C.crit+gs('crit')){d*=2;crit=true;}
+    if(o.crit||Math.random()<critCh()){d*=2;crit=true;}
     dmg+=d;
   }
   if(m.ab==='panzer')dmg=Math.max(1,Math.round(dmg*.65));
@@ -1329,7 +1331,7 @@ function openSheet(s){
   }
   if(s==='gear'){
     const sl=gSlot,eqg=gearOf(S.eq[sl]);
-    h+='<div class="kv"><span>⚔️ Angriff '+atk()+'</span><span>🛡️ Verteidigung '+defense()+'</span></div><div class="kv"><span>❤️ Max. Leben '+maxHP()+'</span><span>🎯 Krit '+Math.round((C0().crit+gs('crit'))*100)+'%</span></div>';
+    h+='<div class="kv"><span>⚔️ Angriff '+atk()+'</span><span>🛡️ Verteidigung '+defense()+'</span></div><div class="kv"><span>❤️ Max. Leben '+maxHP()+'</span><span>🎯 Krit '+Math.round(critCh()*100)+'%</span></div>';
     h+='<div class="grid" style="grid-template-columns:repeat(5,1fr);margin:8px 0">'+SLOTS.map(([k,l])=>{const g=gearOf(S.eq[k]);
       return '<button class="it" data-a="gslot" data-slot="'+k+'" style="border:2px solid '+(k===sl?'var(--acc)':(g?QC[g.q]:'var(--line)'))+(k===sl?';background:#ffe9c4':'')+'"><span>'+(g?getBase(g.b).i:SLOTIC[k])+'</span><small>'+l+'</small></button>';}).join('')+'</div>';
     h+='<h3>'+SLOTS.find(x=>x[0]===sl)[1]+'</h3>';
