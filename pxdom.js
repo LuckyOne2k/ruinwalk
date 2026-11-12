@@ -6,7 +6,7 @@ PX_RE=new RegExp(Object.keys(PX_KEYS).sort((a,b)=>b.length-a.length).map(k=>k.re
 const PX_URL={};
 function pxUrl(emo){
   const k=PX_KEYS[PX_NORM(emo)];if(!k)return null;
-  if(typeof PX_ITEMS!=='undefined'){const m=/^:[in]_(\w+):$/.exec(k);if(m&&PX_ITEMS.indexOf(m[1])>=0&&(k[1]==='i'||['stock','stein','ranke','kraut'].indexOf(m[1])>=0))return 'items/'+m[1]+'.png?v=1';}
+  if(typeof PX_ITEMS!=='undefined'){const m=/^:[in]_(\w+):$/.exec(k);if(m&&PX_ITEMS.indexOf(m[1])>=0&&(k[1]==='i'||['stock','stein','ranke','kraut'].indexOf(m[1])>=0))return 'items/'+m[1]+'.png?v=2';}
   if(typeof PX_PNG!=='undefined'){const m=/^:ch_(\w+):$/.exec(k);if(m&&PX_PNG.indexOf(m[1])>=0)return 'figs/'+m[1]+'.png?v=11';}
   if(PX_URL[k])return PX_URL[k];
   const d=pxDef(k);if(!d)return null;
