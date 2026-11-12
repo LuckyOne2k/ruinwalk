@@ -31,7 +31,7 @@ button{font-family:inherit;color:inherit}
 #attr{position:absolute;left:8px;bottom:calc(68px + var(--sb));z-index:400;font-size:10px;background:rgba(255,255,255,.7);padding:1px 5px;border-radius:4px}
 /* Nav */
 #nav{position:absolute;left:0;right:0;bottom:0;z-index:600;display:flex;justify-content:space-around;background:var(--card);border-top:1px solid var(--line);padding:6px 4px calc(6px + var(--sb))}
-#nav button{flex:1;border:0;background:none;font-size:11px;padding:2px 0;display:flex;flex-direction:column;align-items:center;gap:1px}
+#nav button{position:relative;flex:1;border:0;background:none;font-size:11px;padding:2px 0;display:flex;flex-direction:column;align-items:center;gap:1px}
 #nav button b{font-size:22px;font-weight:normal}
 /* Card */
 #card{position:absolute;left:10px;right:10px;bottom:calc(70px + var(--sb));z-index:700;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px;box-shadow:0 4px 16px rgba(0,0,0,.3);display:none;max-width:480px;margin:0 auto}
@@ -63,6 +63,11 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 .q{background:#f6ecdd;border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:8px}
 .q.done{opacity:.55}.q.act2{background:#ffe9c4;border-color:var(--acc)}
 .kv{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:15px}
+.tabs{display:flex;gap:8px;margin:6px 0 12px}
+.tab{flex:1;border:1px solid var(--line);background:#f6ecdd;border-radius:12px;padding:10px 4px;font-size:14px}
+.tab.on{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:bold}
+.badge{position:absolute;top:-2px;right:18%;min-width:18px;height:18px;padding:0 4px;background:#e5534b;color:#fff;border-radius:9px;font-size:11px;font-style:normal;font-weight:bold;display:none;align-items:center;justify-content:center}
+.q .btn{width:100%;margin-top:8px;padding:11px;font-size:15px}
 /* Entities */
 .ent{width:44px;height:44px;border-radius:50%;background:rgba(255,250,244,.96);border:2px solid #d9c3a5;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 2px 6px rgba(0,0,0,.3);position:relative;transition:.15s}
 .ent.near{border-color:var(--ok);box-shadow:0 0 0 4px rgba(58,167,109,.35),0 2px 6px rgba(0,0,0,.3)}
@@ -99,7 +104,7 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 <nav id="nav">
   <button data-a="open" data-s="inv"><b>🎒</b>Inventar</button>
   <button data-a="open" data-s="craft"><b>🔨</b>Herstellen</button>
-  <button data-a="open" data-s="quests"><b>📜</b>Quests</button>
+  <button data-a="open" data-s="quests"><b>📜</b>Quests<i class="badge" id="qb"></i></button>
   <button data-a="open" data-s="char"><b>🧙</b>Charakter</button>
   <button data-a="open" data-s="set"><b>⚙️</b>Mehr</button>
 </nav>
@@ -170,7 +175,7 @@ function equipped(slot){
 
 /* ---------- Spielstand ---------- */
 const def=()=>({lv:1,xp:0,hp:100,en:100,inv:{},tools:[],skills:{holz:0,berg:0,sammeln:0},cd:{},mh:{},
-  stats:{col:{},nodes:{},kills:0,crafted:{}},qdone:[],def:0,last:Date.now(),test:false});
+  stats:{col:{},nodes:{},kills:0,crafted:{}},qdone:[],qready:[],def:0,last:Date.now(),test:false});
 let S=def();
 try{
   const raw=localStorage.getItem(KEY);
@@ -434,14 +439,25 @@ const QUESTS=[
 ];
 function checkQuests(){
   for(const q of QUESTS){
-    if(S.qdone.includes(q.id))continue;
-    if(q.goals().every(g=>g[1]>=g[2])){S.qdone.push(q.id);q.reward();toast('📜 Quest abgeschlossen: '+q.t+' (+'+q.rt+')');}
-    break; // immer nur die aktive Quest prüfen
+    if(S.qdone.includes(q.id)||S.qready.includes(q.id))continue;
+    if(q.goals().every(g=>g[1]>=g[2])){
+      S.qready.push(q.id);
+      toast('📜 Quest geschafft: '+q.t+' – Belohnung im Quest-Fenster abholen!');
+    }else break; // spätere Quests bleiben gesperrt
   }
+}
+function claimQuest(id){
+  const q=QUESTS.find(x=>x.id===id);
+  if(!q||!S.qready.includes(id))return;
+  S.qready=S.qready.filter(x=>x!==id);
+  S.qdone.push(id);
+  q.reward();
+  toast('🎁 Belohnung erhalten: '+q.rt);
+  checkQuests();save();hud();openSheet('quests');
 }
 
 /* ---------- Menüs ---------- */
-let curSheet=null,confirmReset=false;
+let curSheet=null,confirmReset=false,qtab='cur';
 function openSheet(s){
   curSheet=s;
   const titles={inv:'Inventar',craft:'Herstellen',quests:'Quests',char:'Charakter',set:'Mehr'};
@@ -463,13 +479,23 @@ function openSheet(s){
     }).join('');
   }
   if(s==='quests'){
-    let activeSet=false;
-    h+=QUESTS.map(q=>{
-      const dn=S.qdone.includes(q.id);let cls='q';
-      if(dn)cls+=' done';else if(!activeSet){cls+=' act2';activeSet=true;}
-      const lines=(dn||cls.includes('act2'))?q.goals().map(g=>'<div>'+(g[1]>=g[2]?'✅':'⬜')+' '+g[0]+' '+Math.min(g[1],g[2])+'/'+g[2]+'</div>').join(''):'<div>🔒 Noch gesperrt</div>';
-      return '<div class="'+cls+'"><b>'+(dn?'✓ ':'')+q.t+'</b><div style="font-size:13px;margin:3px 0">'+q.d+'</div>'+lines+'<small>Belohnung: '+q.rt+'</small></div>';
-    }).join('');
+    const readyL=QUESTS.filter(q=>S.qready.includes(q.id));
+    const doneL=QUESTS.filter(q=>S.qdone.includes(q.id));
+    const curL=QUESTS.filter(q=>!S.qdone.includes(q.id)&&!S.qready.includes(q.id));
+    const goalLines=q=>q.goals().map(g=>'<div>'+(g[1]>=g[2]?'✅':'⬜')+' '+g[0]+' '+Math.min(g[1],g[2])+'/'+g[2]+'</div>').join('');
+    h+='<div class="tabs"><button class="tab'+(qtab==='cur'?' on':'')+'" data-a="qtab" data-t="cur">Aktuelle ('+(readyL.length+curL.length)+')</button>'
+      +'<button class="tab'+(qtab==='done'?' on':'')+'" data-a="qtab" data-t="done">Erledigte ('+doneL.length+')</button></div>';
+    if(qtab==='cur'){
+      h+=readyL.map(q=>'<div class="q act2"><b>🎉 '+q.t+'</b><div style="font-size:13px;margin:3px 0">'+q.d+'</div>'+goalLines(q)
+        +'<button class="btn" data-a="qclaim" data-id="'+q.id+'">🎁 Belohnung abholen: '+q.rt+'</button></div>').join('');
+      h+=curL.map((q,i)=>i===0
+        ?'<div class="q act2"><b>'+q.t+'</b><div style="font-size:13px;margin:3px 0">'+q.d+'</div>'+goalLines(q)+'<small>Belohnung: '+q.rt+'</small></div>'
+        :'<div class="q"><b>'+q.t+'</b><div>🔒 Noch gesperrt</div></div>').join('');
+      if(!readyL.length&&!curL.length)h+='<p>Keine offenen Quests. Neue folgen bald!</p>';
+    }else{
+      h+=doneL.length?doneL.map(q=>'<div class="q done"><b>✓ '+q.t+'</b><div style="font-size:13px;margin:3px 0">'+q.d+'</div><small>Belohnung abgeholt: '+q.rt+'</small></div>').join('')
+        :'<p>Noch keine erledigten Quests.</p>';
+    }
   }
   if(s==='char'){
     const need=S.lv*40;
@@ -505,6 +531,7 @@ function hud(){
   $('#lv').textContent=S.lv;
   $('#hpb').style.width=(100*S.hp/mx)+'%';$('#hpt').textContent=Math.floor(S.hp)+'/'+mx;
   $('#enb').style.width=S.en+'%';$('#en2').textContent=Math.floor(S.en)+'/100';
+  const qb=$('#qb'),n=S.qready.length;qb.textContent=n;qb.style.display=n?'flex':'none';
 }
 function setTest(on){
   S.test=on;
@@ -530,6 +557,8 @@ document.addEventListener('click',ev=>{
       if(!confirmReset){confirmReset=true;openSheet('set');}
       else{try{localStorage.removeItem(KEY);}catch(e){}location.reload();}
       break;
+    case 'qtab':qtab=b.dataset.t;openSheet('quests');break;
+    case 'qclaim':claimQuest(b.dataset.id);break;
     case 'loc':follow=true;$('#loc').classList.remove('off');if(P)map.setView([P.lat,P.lon],Math.max(map.getZoom(),17));break;
   }
 });
