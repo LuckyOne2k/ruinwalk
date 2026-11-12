@@ -70,6 +70,12 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 .tab.on{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:bold}
 .badge{position:absolute;top:-2px;right:18%;min-width:18px;height:18px;padding:0 4px;background:#e5534b;color:#fff;border-radius:9px;font-size:11px;font-style:normal;font-weight:bold;display:none;align-items:center;justify-content:center}
 .q .btn{width:100%;margin-top:8px;padding:11px;font-size:15px}
+#tele{position:absolute;left:50%;top:calc(128px + var(--st));transform:translateX(-50%);z-index:600;background:rgba(60,28,28,.94);color:#fff;padding:8px 14px;border-radius:14px;font-size:14px;text-align:center;min-width:220px;max-width:90%;display:none;pointer-events:none}
+#tele .tb{height:6px;background:rgba(255,255,255,.25);border-radius:3px;margin-top:5px;overflow:hidden}#tele .tb i{display:block;height:100%;background:#ff6a4a}
+#tele small{display:block;font-size:12px;opacity:.85;margin-top:3px}
+#react{position:absolute;left:12px;top:46%;z-index:600;display:none;flex-direction:column;gap:10px}
+.rb{width:60px;height:60px;border-radius:50%;border:2px solid #c0392b;background:var(--card);box-shadow:0 2px 8px rgba(0,0,0,.3);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0;line-height:1;font-size:22px}.rb small{font-size:9px;margin-top:2px}.rb.hot{background:#ffd9a8;border-color:#ff6a00;animation:pulse .5s infinite alternate}
+@keyframes pulse{to{transform:scale(1.12)}}
 #skills.many .sk{width:46px;height:46px}
 #skills{position:absolute;right:12px;bottom:calc(136px + var(--sb));z-index:500;display:none;flex-direction:column-reverse;gap:8px}
 .sk{width:54px;height:54px;border-radius:50%;border:2px solid var(--acc);background:var(--card);box-shadow:0 2px 8px rgba(0,0,0,.3);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0;line-height:1}
@@ -127,6 +133,8 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 <button id="loc" data-a="loc" aria-label="Zentrieren">◎</button>
 <div id="attr">© OpenStreetMap-Mitwirkende</div>
 <div id="exh" data-a="skipexh"></div>
+<div id="tele"></div>
+<div id="react"><button class="rb" data-a="guard"><span>🛡️</span><small>Abwehr</small></button><button class="rb" data-a="intr"><span>⚡</span><small>Stören</small></button></div>
 <div id="skills"></div>
 <div id="card"></div>
 
@@ -277,6 +285,7 @@ const MOBS={
   bergtroll:{hab:'f',ab:'panzer',n:'Bergtroll',i:':m_bergtroll:',tier:'area',hp:10000,min:70,max:120,xp:3300,rec:40,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1,c:.67},{i:'steinherz',min:2,max:4,c:.67},{i:'trank',min:2,max:4,c:.67}]},
   aschedrache:{hab:'r',ab:'fern',n:'Aschedrache',i:':m_aschedrache:',tier:'area',hp:12000,min:80,max:140,xp:3800,rec:46,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1,c:.67},{i:'drachenschuppe',min:3,max:5,c:.67},{i:'trank',min:3,max:5,c:.67}]}
 };
+for(const k in MOBS)if(MOBS[k].tier==='area')MOBS[k].hp=Math.round(MOBS[k].hp*1.4);
 const TIERS={normal:{l:'Monster',sz:44},rare:{l:'💜 Seltenes Monster',sz:48},elite:{l:'⭐ Elite',sz:54},boss:{l:'👹 Boss',sz:62},area:{l:'👑 Gebietsboss',sz:74}};
 const EXH_MS=180000;  // Erschöpfung nach Ohnmacht
 function fmtT(ms){const t=Math.ceil(ms/1000);return Math.floor(t/60)+':'+String(t%60).padStart(2,'0');}
@@ -301,7 +310,7 @@ function fmtDist(d){return d>=1000?(d/1000).toFixed(1).replace('.',',')+' km':Ma
 const RECIPES=[
   {id:'axt',kind:'tool',type:'holz',dur:15,cost:{stock:3,stein:2,ranke:2}},
   {id:'spitzhacke',kind:'tool',type:'berg',dur:15,cost:{holz:2,stein:3,ranke:2}},
-  {id:'trank',kind:'item',cost:{kraut:3},info:'Heilt 40 Leben'},
+  {id:'trank',kind:'item',cost:{kraut:3},info:'Heilt 40 Leben plus 10 % deines max. Lebens, entfernt Gift'},
   {id:'rune0',kind:'item',cost:{ranke:4,stein:3,kraut:2},info:'Erhöht die Upgrade-Chance um 5 %'},
   {id:'rune1',kind:'item',cost:{kristall:2,ranke:4,kraut:4},info:'Erhöht die Upgrade-Chance um 10 %'}
 ];
@@ -1088,6 +1097,7 @@ function renderCard(){
         +'<br>Empfohlen: Stufe '+d.rec+(S.lv+2<d.rec?' <span class="bad">⚠️ sehr gefährlich</span>':'')
         +'<br>Verhalten: '+(d.tier==='area'?'<b>Gebietsboss</b> · greift erst an, wenn du ihn angreifst':d.ag?'<b class="bad">😡 Aggressiv</b>':'🕊️ Friedlich, wehrt sich nur')
         +'<br>'+HAB[d.hab==='*'?'w':d.hab[0]].i+' Lebensraum: '+(d.hab==='*'?'überall':[...d.hab].map(h=>HAB[h].n).join(', '))
+        +(BFX[e.type]?'<br>⚠️ Spezialangriffe: '+BFX[e.type].a.map(x=>x.n).join(', ')+' (🛡️ gegen Wucht, ⚡ gegen Zauber)':'')
         +(d.ab?'<br>'+ABIL[d.ab][0]+' <b>'+ABIL[d.ab][1]+'</b>: '+ABIL[d.ab][2]:'')
         +'<br>Beute: '+d.drops.map(x=>ITEMS[x.i].i+(x.c?'?':'')).join(' ')+'</div>'+skRow();
       action='shoot';label=C0().i+' '+C0().act;
@@ -1139,6 +1149,88 @@ function collect(){
   toast('+'+q+' '+ITEMS[t.drop].n+broke);
   deselect();refreshWorld();checkQuests();save();hud();
 }
+/* ---------- Gebietsboss-Mechaniken (Kampf an Ort und Stelle, ohne Laufen) ---------- */
+const BFX={
+ urmammut:{iv:[15,12,9,7],a:[{t:'wucht',p:.34,n:'🐘 Ansturm',h:'Das Urmammut senkt die Stoßzähne'},{t:'wucht',p:.2,n:'🌋 Erdbeben',h:'Der Boden bebt'}]},
+ baumriese:{iv:[14,12,10,8],a:[{k:'wurzeln',t:'zauber',p:.12,n:'🌿 Wurzeln',h:'Wurzeln brechen aus dem Boden'}]},
+ sumpfsaurier:{iv:[14,12,10,8],a:[{k:'gift',t:'zauber',p:.1,n:'☠️ Giftwolke',h:'Eine Giftwolke zieht auf'},{t:'wucht',p:.2,n:'💦 Säurestrahl',h:'Der Saurier holt aus'}]},
+ bergtroll:{iv:[14,11,9,7],a:[{t:'wucht',p:.27,n:'🪨 Felsbrocken',h:'Der Troll hebt einen Felsbrocken'}]},
+ aschedrache:{iv:[15,12,10,8],a:[{k:'feuer',t:'zauber',p:.28,n:'🔥 Feuerodem',h:'Der Drache holt tief Luft'},{t:'wucht',p:.18,n:'🐉 Schwanzschlag',h:'Der Drache schwingt den Schwanz'}]}
+};
+const bossFx=new Map();let lastBt=Date.now();
+const bPhase=(m,hp)=>{const f=hp/m.hp;return f>.75?0:f>.5?1:f>.25?2:3;};
+const activeBf=()=>{for(const bf of bossFx.values())if(bf.tele)return bf;return null;};
+function bossResolve(m,e,bf){
+  const t=bf.tele,a=t.a;let dmg=Math.round(maxHP()*a.p*(1+bf.ph*.12));
+  if(t.ok==='intr'){toast('⚡ Unterbrochen! '+a.n+' misslingt');S.stun=Math.max(S.stun||0,1);return;}
+  if(t.ok==='guard'){dmg=Math.round(dmg*(S.cls==='krieger'?(S.tier?.15:.25):(S.tier?.28:.4)));toast('🛡️ Abgewehrt! '+a.n+' richtet nur '+dmg+' an');}
+  else if(S.shield>0){S.shield--;dmg=Math.round(dmg*.3);}
+  S.hp-=dmg;fMe('-'+dmg,'dmg',0);
+  if(S.hp<=0){bossFx.delete(e.id);faint(m,e);hud();return;}
+  if(t.ok!=='guard'){
+    if(a.k==='wurzeln'){myStun=Date.now()+3500;toast('🌿 Du hängst in den Wurzeln fest: -'+dmg);}
+    else if(a.k==='gift'){bf.stack=Math.min(5,(bf.stack||0)+1);psn={dps:Math.max(1,Math.round(m.max*.05))*bf.stack,t:14};toast('☠️ Vergiftet (Stufe '+bf.stack+'): -'+dmg+'. Ein Trank entfernt das Gift');}
+    else if(a.k==='feuer'){psn={dps:Math.max(1,Math.round(m.max*.04)),t:6};toast('🔥 Du brennst: -'+dmg);}
+    else toast(a.n+' trifft dich: -'+dmg);
+  }
+  hud();
+}
+function reactDo(kind){
+  const bf=activeBf();if(!bf){toast('Gerade gibt es nichts abzuwehren');return;}
+  const t=bf.tele,a=t.a;if(t.ok){toast('Du hast schon reagiert');return;}
+  if(kind==='guard'){
+    if(a.t!=='wucht'){toast('Gegen Zauber hilft Unterbrechen ⚡');return;}
+    if(S.en<6){toast('Zu erschöpft');return;}
+    S.en-=6;t.ok='guard';toast('🛡️ Du gehst in Deckung');
+  }else{
+    if(a.t!=='zauber'){toast('Gegen Wucht hilft Abwehr 🛡️');return;}
+    const c=S.cls==='magier'?4:8;if(S.en<c){toast('Zu erschöpft');return;}
+    S.en-=c;const ch=Math.min(.95,(S.cls==='magier'?.85:.6)+(S.tier?.1:0));
+    if(Math.random()<ch){t.ok='intr';toast('⚡ Störschlag sitzt!');}else toast('⚡ Der Störschlag geht daneben, versuch es noch einmal');
+  }
+  if(S.cls==='heiler'&&psn){psn=null;toast('✨ Gift gebannt');}
+  hud();bossUI(bf);
+}
+function bossUI(bf){
+  const tl=$('#tele'),rc=$('#react');
+  if(!bf){tl.style.display='none';rc.style.display='none';return;}
+  rc.style.display='flex';
+  const ch=[];if(bf.adds>0)ch.push('🌱 Sprösslinge: '+bf.adds+' (angreifen!)');if(bf.haut)ch.push('🪨 Harte Haut: Krit-Treffer bricht sie');if(bf.fly>Date.now())ch.push('🐲 Flugphase: nur Fernkämpfer treffen');
+  let h='';
+  if(bf.tele){const t=bf.tele,left=Math.max(0,(t.at-Date.now())/t.dur);
+    h='<b>'+t.a.n+'</b> · '+(t.a.t==='wucht'?'Wucht → 🛡️ Abwehr':'Zauber → ⚡ Unterbrechen')+(t.ok?' ✅':'')+'<div class="tb"><i style="width:'+Math.round(100*left)+'%"></i></div>';}
+  if(ch.length)h+='<small>'+ch.join(' · ')+'</small>';
+  tl.innerHTML=h;tl.style.display=h?'block':'none';
+  const rb=rc.querySelectorAll('.rb');rb[0].classList.toggle('hot',!!(bf.tele&&bf.tele.a.t==='wucht'&&!bf.tele.ok));rb[1].classList.toggle('hot',!!(bf.tele&&bf.tele.a.t==='zauber'&&!bf.tele.ok));
+}
+function bossTick(){
+  const now=Date.now(),dtr=(now-lastBt)/1000;lastBt=now;
+  const pause=document.hidden||dtr>1.5;
+  for(const [id] of bossFx){const o=ents.get(id);if(!o||!eng.has(id)||!alive(o.e)||S.hp<=0)bossFx.delete(id);}
+  let any=null;
+  if(P&&now>S.exh)for(const [id,o] of ents){
+    if(o.e.kind!=='mob')continue;const m=MOBS[o.e.type],cfg=BFX[o.e.type];
+    if(!cfg||m.tier!=='area'||!eng.has(id))continue;
+    if(dist(P,roam.get(id)||o.e)>150)continue;
+    let bf=bossFx.get(id);
+    if(!bf){bf={ph:0,next:now+9000,tele:null,i:0,adds:0,haut:false,fly:0,hl:now,stack:0};bossFx.set(id,bf);toast('⚠️ '+m.n+' setzt Spezialangriffe ein: reagiere mit 🛡️ Abwehr und ⚡ Unterbrechen!');}
+    any=bf;
+    if(pause){const ms=dtr*1000;bf.next+=ms;bf.hl+=ms;if(bf.tele)bf.tele.at+=ms;if(bf.fly)bf.fly+=ms;continue;}
+    const hp=S.mh[id]??m.hp,ph=bPhase(m,hp);
+    if(ph>bf.ph){bf.ph=ph;const k=o.e.type;
+      if(k==='baumriese'){bf.adds=3;toast('🌱 Sprösslinge wachsen! Besiege sie, sonst heilen sie den Riesen');}
+      else if(k==='bergtroll'){bf.haut=true;toast('🪨 Die Haut des Trolls wird hart! Ein kritischer Treffer bricht sie');}
+      else if(k==='aschedrache'&&ph%2===1){bf.fly=now+12000;toast('🐲 Der Drache steigt auf! Nur Fernkämpfer treffen ihn');}
+      else if(k==='urmammut')toast('🐘 Das Urmammut wird wütender');
+      else if(k==='sumpfsaurier')toast('☠️ Das Gift wird stärker');}
+    if(bf.adds>0&&now-bf.hl>=4000){bf.hl=now;const g=Math.round(m.hp*.02);S.mh[id]=Math.min(m.hp,hp+g);fMob(o.e,'+'+g,'heal',0);}
+    if(bf.fly&&now>bf.fly){bf.fly=0;toast('🐲 Der Drache landet wieder');}
+    if(!bf.tele&&now>=bf.next){const a=cfg.a[bf.i++%cfg.a.length],dur=ph>=3?2800:3400;bf.tele={a,at:now+dur,dur};toast(a.n+'! '+a.h);}
+    else if(bf.tele&&now>=bf.tele.at){bossResolve(m,o.e,bf);bf.tele=null;bf.next=now+cfg.iv[ph]*1000;if(!bossFx.has(id))any=null;}
+  }
+  bossUI(any);
+}
+setInterval(bossTick,250);
 function strike(o){
   const e=sel;if(!e||e.kind!=='mob'||!P)return false;
   const m=MOBS[e.type],C=C0();
@@ -1146,10 +1238,13 @@ function strike(o){
   if(Date.now()<myStun){toast('😵 Du bist benommen ('+Math.ceil((myStun-Date.now())/1000)+' s)');return false;}
   const dd=dist(P,ep(e));
   if(dd>(atkRange()+(o.rangeBonus||0))){toast('Zu weit weg');return false;}
+  const bf0=bossFx.get(e.id);
+  if(bf0&&bf0.fly>Date.now()&&C.range<45){toast('🐲 Der Drache fliegt, nur Fernkämpfer treffen ihn');return false;}
   const first=!eng.has(e.id),sb=SB();
   eng.set(e.id,Date.now());
   if(S.en<o.en){toast('Zu erschöpft');return false;}
   S.en-=o.en;
+  if(bf0&&bf0.adds>0){bf0.adds--;toast('🌱 Spross besiegt ('+bf0.adds+' übrig)');save();hud();renderCard();return true;}
   let dmg=0,crit=false;
   const fm=1+(sb.dm||0)+(m.ab==='panzer'?sb.dmgPanzer||0:0)+((m.tier==='boss'||m.tier==='area')?sb.dmgBoss||0:0)+(dd>50?sb.dmgFar||0:0)+(first?sb.first||0:0)+(o.icon?sb.skillDm||0:0);
   for(let i=0;i<(o.hits||1);i++){
@@ -1159,6 +1254,7 @@ function strike(o){
   }
   if(m.ab==='panzer')dmg=Math.max(1,Math.round(dmg*.65));
   let sx='';
+  if(bf0&&bf0.haut){if(crit){bf0.haut=false;sx+=' · 💥 Haut zerbrochen';}else dmg=Math.max(1,Math.round(dmg*.3));}
   if(sb.dbl&&++atkCnt%sb.dbl===0){dmg*=2;sx+=' · 🔮 Doppelklang';}
   if(sb.poisonShot&&++psCnt%sb.poisonShot===0){dmg=Math.round(dmg*1.4);sx+=' · ☠️ Gift';}
   if(sb.burn&&crit){dmg=Math.round(dmg*1.3);sx+=' · 🔥 Glut';}
@@ -1172,7 +1268,7 @@ function strike(o){
   if(m.ab==='dorn'){const rf=Math.max(1,Math.round(dmg*.12));S.hp=Math.max(1,S.hp-rf);fMe('-'+rf,'dmg',0);}
   const hp=(S.mh[e.id]??m.hp)-dmg;
   if(hp<=0){
-    delete S.mh[e.id];S.cd[e.id]=Date.now();S.stats.kills++;S.stats.kt[m.tier]=(S.stats.kt[m.tier]||0)+1;{const hr=new Date().getHours();if(hr>=22||hr<4)S.stats.night++;}S.stun=0;
+    bossFx.delete(e.id);delete S.mh[e.id];S.cd[e.id]=Date.now();S.stats.kills++;S.stats.kt[m.tier]=(S.stats.kt[m.tier]||0)+1;{const hr=new Date().getHours();if(hr>=22||hr<4)S.stats.night++;}S.stun=0;
     const got=[];
     for(const dr of m.drops){if(Math.random()<(dr.c??1)){const q=rnd(dr.min,dr.max);add(dr.i,q);S.stats.col[dr.i]=(S.stats.col[dr.i]||0)+q;got.push('+'+q+' '+ITEMS[dr.i].n);}}
     {const cr=COIN[m.tier]||[1,3],cc=rnd(cr[0],cr[1]);earn(cc);got.push(fmtM(cc));}
@@ -1255,12 +1351,14 @@ function useSkill(i){
   save();hud();updateSkillUI();
 }
 function skBtn(i){return '<button class="sk" data-a="skill" data-i="'+i+'" data-sk="'+i+'"><span class="si">'+C0().sk[i].i+'</span><small class="sc"></small></button>';}
-function skRow(){const C=C0();return (C.sk&&C.sk.length)?'<div class="skrow">'+C.sk.map((x,i)=>skBtn(i)).join('')+'</div>':'';}
-function buildSkillBar(){const C=C0();$('#skills').classList.toggle('many',(C.sk||[]).length>4);$('#skills').innerHTML=(C.sk||[]).map((x,i)=>skBtn(i)).join('');updateSkillUI();}
+function skPot(){return '<button class="sk" data-a="potion" data-pot="1"><span class="si">:i_trank:</span><small class="sc"></small></button>';}
+function skRow(){const C=C0();return '<div class="skrow">'+(C.sk||[]).map((x,i)=>skBtn(i)).join('')+skPot()+'</div>';}
+function buildSkillBar(){const C=C0();$('#skills').classList.toggle('many',(C.sk||[]).length>3);$('#skills').innerHTML=(C.sk||[]).map((x,i)=>skBtn(i)).join('')+skPot();updateSkillUI();}
 function updateSkillUI(){
   const C=C0(),sk=C.sk||[],now=Date.now();
   const cardShown=$('#card').style.display==='block';
-  $('#skills').style.display=(sk.length&&!cardShown)?'flex':'none';
+  $('#skills').style.display=(!cardShown)?'flex':'none';
+  for(const el of document.querySelectorAll('[data-pot]')){const cd=Math.ceil((potCd-now)/1000),n=have('trank');const sc=el.querySelector('.sc');if(sc)sc.textContent=cd>0?cd+' s':'×'+n;el.classList.toggle('off',n<=0||cd>0);}
   const list=document.querySelectorAll?document.querySelectorAll('[data-sk]'):[];
   for(const el of list){
     const x=sk[+el.dataset.sk];if(!x)continue;
@@ -1284,10 +1382,19 @@ function craft(id){
   toast('🔨 '+ITEMS[id].n+' hergestellt');
   checkQuests();save();openSheet('craft');
 }
+const potHeal=()=>Math.round(40+maxHP()*.1);
+let potCd=0;
+function usePotion(){
+  if(have('trank')<=0){toast('Keine Heiltränke');return;}
+  if(Date.now()<potCd){toast('Du kannst erst in '+Math.ceil((potCd-Date.now())/1000)+' s wieder trinken');return;}
+  if(S.hp>=maxHP()&&!psn){toast('Leben ist schon voll');return;}
+  S.inv.trank--;const hv=potHeal(),b0=S.hp;S.hp=Math.min(maxHP(),S.hp+hv);psn=null;potCd=Date.now()+6000;
+  toast('🧪 +'+Math.round(S.hp-b0)+' Leben');fMe('+'+Math.round(S.hp-b0),'heal',0);hud();save();updateSkillUI();
+}
 function useItem(id){
   if(id==='trank'&&have('trank')>0){
     if(S.hp>=maxHP()){toast('Leben ist schon voll');return;}
-    S.inv.trank--;S.hp=Math.min(maxHP(),S.hp+40);toast('🧪 +40 Leben');fMe('+40','heal',0);hud();save();openSheet('inv');
+    S.inv.trank--;const hv=potHeal();S.hp=Math.min(maxHP(),S.hp+hv);psn=null;toast('🧪 +'+hv+' Leben');fMe('+'+hv,'heal',0);hud();save();openSheet('inv');
   }
 }
 
@@ -1572,6 +1679,9 @@ document.addEventListener('click',ev=>{
     case 'gearopen':gSlot=b.dataset.slot||'waffe';openSheet('gear');break;
     case 'gslot':gSlot=b.dataset.slot;openSheet('gear');break;
     case 'gequip':if(equip(+b.dataset.id)){save();hud();openSheet('gear');}break;
+    case 'potion':usePotion();break;
+    case 'guard':reactDo('guard');break;
+    case 'intr':reactDo('intr');break;
     case 'gunequip':delete S.eq[b.dataset.slot];save();hud();openSheet('gear');break;
     case 'gup':upgradeGear(+b.dataset.id);break;
     case 'rune':useRune=+b.dataset.q;openSheet('gear');break;
