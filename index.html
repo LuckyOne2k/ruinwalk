@@ -692,6 +692,8 @@ if(!S.gv){ // alte Rüstungen in das neue System übernehmen
 }
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 
+const LV_CAP=50;
+if(S.lv>LV_CAP){S.lv=LV_CAP;S.xp=0;}
 const maxHP=()=>Math.round((100+10*(S.lv-1))*(1+(C0().hpb||0)+(SB().hpb||0)))+gs('hp');
 const defense=()=>S.def+(C0().def||0)+gs('def')+(SB().def||0);
 const atk=()=>10+2*S.lv+gs('atk');
@@ -702,11 +704,13 @@ const add=(k,n)=>{S.inv[k]=(S.inv[k]||0)+n;};
 const have=k=>S.inv[k]||0;
 const findTool=t=>S.tools.find(x=>x.type===t&&x.dur>0);
 function addXP(n){
+  if(S.lv>=LV_CAP){S.xp=0;return;}
   S.xp+=n;
-  while(S.xp>=S.lv*40){S.xp-=S.lv*40;S.lv++;S.hp=maxHP();let msg='⭐ Level '+S.lv+' erreicht!';
+  while(S.lv<LV_CAP&&S.xp>=S.lv*40){S.xp-=S.lv*40;S.lv++;S.hp=maxHP();let msg='⭐ Level '+S.lv+' erreicht!';
     if(S.lv===CLASS_LV&&S.cls==='wanderer')msg+=' Du kannst jetzt eine Klasse wählen (Charakter)!';
     const ns=(C0().sk||[]).find(k=>k.lv===S.lv);if(ns)msg+=' Neue Fähigkeit: '+ns.n+'!';
     toast(msg);}
+  if(S.lv>=LV_CAP)S.xp=0;
 }
 let psn=null,myStun=0;   // Gift (Schaden/s, Restzeit) und Betäubung durch Monster (nicht gespeichert)
 function regen(dt){
@@ -1470,7 +1474,7 @@ function openSheet(s){
     const need=S.lv*40;
     h+='<div style="text-align:center;font-size:96px;line-height:1.1;margin:4px 0 6px">'+figTok()+'</div><div style="text-align:center;font-weight:bold;margin-bottom:6px">'+C0().n+'</div>'
       +'<div class="kv"><span>Level</span><b>'+S.lv+'</b></div>'
-      +'<div class="kv"><span>Erfahrung</span><b>'+Math.floor(S.xp)+' / '+need+'</b></div>'
+      +'<div class="kv"><span>Erfahrung</span><b>'+(S.lv>=LV_CAP?'Höchststufe':Math.floor(S.xp)+' / '+need)+'</b></div>'
       +'<div class="kv"><span>Leben</span><b>'+Math.floor(S.hp)+' / '+maxHP()+'</b></div>'
       +'<div class="kv"><span>Angriff</span><b>'+atk()+'</b></div>'
       +'<div class="kv"><span>Verteidigung</span><b>'+defense()+'</b></div>'
