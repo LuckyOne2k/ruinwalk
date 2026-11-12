@@ -68,6 +68,7 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 .tab.on{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:bold}
 .badge{position:absolute;top:-2px;right:18%;min-width:18px;height:18px;padding:0 4px;background:#e5534b;color:#fff;border-radius:9px;font-size:11px;font-style:normal;font-weight:bold;display:none;align-items:center;justify-content:center}
 .q .btn{width:100%;margin-top:8px;padding:11px;font-size:15px}
+#skills.many .sk{width:46px;height:46px}
 #skills{position:absolute;right:12px;bottom:calc(136px + var(--sb));z-index:500;display:none;flex-direction:column-reverse;gap:8px}
 .sk{width:54px;height:54px;border-radius:50%;border:2px solid var(--acc);background:var(--card);box-shadow:0 2px 8px rgba(0,0,0,.3);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0;line-height:1}
 .sk .si{font-size:22px}.sk .sc{font-size:10px;margin-top:3px;font-weight:bold}
@@ -262,18 +263,116 @@ CLASSES.heiler.sk=[
   {id:'heillicht',n:'Heilendes Licht',i:'💚',lv:5,en:5,cd:10,heal:30,perLv:3,self:true,d:'Heilt dich um 30 Leben plus 3 pro Level.'},
   {id:'schutzsegen',n:'Schutzsegen',i:'🕊️',lv:8,en:5,cd:40,shield:3,self:true,d:'Die nächsten 3 Treffer eines Monsters richten 70 % weniger Schaden an.'},
   {id:'urteil',n:'Strahlendes Urteil',i:'🌞',lv:12,en:8,cd:30,mult:2,heal:20,d:'2-facher Schaden und heilt dich um 20.'}];
-const C0=()=>CLASSES[S.cls]||CLASSES.wanderer;
+
+/* ---------- Klassen-Pfade (Stufe 15 / 30 / 50 verborgen) ---------- */
+const UP_LV=[15,30,50];
+/* m = Werte der Stufe gegenüber der Grundklasse (gesamt): dm=Schadensfaktor, crit=+Krit, hpb=Leben-Bonus (ersetzt), def=Verteidigung (ersetzt), heal=Heilung pro Angriff, range=Reichweite, hits=Treffer pro Angriff, enreg=Energie-Regeneration */
+const PATHS={
+ ritter:{b:'krieger',t:'Tank mit Schild',st:[
+  {n:'Ritter',i:'🛡️',m:{hpb:.35,def:4,dm:1.1},sk:{id:'bollwerk',n:'Bollwerk',i:'🏰',en:6,cd:45,shield:5,self:true,d:'Die nächsten 5 Treffer eines Monsters richten 70 % weniger Schaden an.'}},
+  {n:'Paladin',i:'⚜️',m:{hpb:.45,def:6,dm:1.2,heal:2},sk:{id:'heilhand',n:'Heilige Hand',i:'🙌',en:10,cd:90,healPct:.4,self:true,d:'Heilt 40 % deines maximalen Lebens.'}},
+  {n:'Sonnenwächter',i:'☀️',m:{hpb:.6,def:9,dm:1.4,heal:4},sk:{id:'sonnenzorn',n:'Sonnenzorn',i:'🌞',en:12,cd:40,mult:3.2,heal:40,d:'3,2-facher Schaden und heilt dich um 40.'}}]},
+ berserker:{b:'krieger',t:'Schaden und Raserei',st:[
+  {n:'Berserker',i:'🪓',m:{hpb:.15,def:1,dm:1.5,crit:.15},sk:{id:'raserei',n:'Raserei',i:'😡',en:9,cd:25,mult:2.8,d:'Wilder Hieb mit 2,8-fachem Schaden.'}},
+  {n:'Kriegsherr',i:'👑',m:{hpb:.25,def:3,dm:1.7,crit:.2},sk:{id:'kriegsschrei',n:'Kriegsschrei',i:'📯',en:8,cd:35,mult:2.2,shield:2,d:'2,2-facher Schaden, danach schwächen die nächsten 2 Treffer ab.'}},
+  {n:'Weltenbrecher',i:'🌋',m:{hpb:.3,def:4,dm:2.1,crit:.25},sk:{id:'erdbeben',n:'Erdbeben',i:'💢',en:14,cd:50,mult:4,stun:2,d:'4-facher Schaden, das Monster verfehlt 2 Angriffe.'}}]},
+ duellant:{b:'krieger',t:'Schnell und kritisch',st:[
+  {n:'Duellant',i:'🤺',m:{dm:1.2,crit:.3},sk:{id:'riposte',n:'Doppelstich',i:'🗡️',en:5,cd:15,mult:1.2,hits:2,d:'Zwei schnelle Stiche mit je 1,2-fachem Schaden.'}},
+  {n:'Klingentänzer',i:'💃',m:{dm:1.35,crit:.4},sk:{id:'klingenwirbel',n:'Klingenwirbel',i:'🌀',en:9,cd:30,mult:.8,hits:4,d:'Vier Hiebe mit je 0,8-fachem Schaden.'}},
+  {n:'Phantomklinge',i:'👻',m:{dm:1.6,crit:.5,enreg:1.5},sk:{id:'schattenschnitt',n:'Schattenschnitt',i:'🌑',en:12,cd:35,mult:1.3,hits:3,crit:true,d:'Drei sichere kritische Treffer.'}}]},
+ scharf:{b:'bogen',t:'Reichweite und Krit',st:[
+  {n:'Scharfschütze',i:'🎯',m:{range:80,crit:.3,dm:1.1},sk:{id:'durchschlag',n:'Durchschlag',i:'➰',en:7,cd:20,mult:2.4,rangeBonus:20,d:'2,4-facher Schaden, 20 m mehr Reichweite.'}},
+  {n:'Meisterschütze',i:'🏅',m:{range:90,crit:.4,dm:1.25},sk:{id:'todesschuss',n:'Todesschuss',i:'☠️',en:10,cd:30,mult:2.2,crit:true,d:'Sicherer kritischer Treffer mit 2,2-fachem Schaden.'}},
+  {n:'Falkenauge',i:'🦅',m:{range:110,crit:.55,dm:1.5},sk:{id:'falkenpfeil',n:'Falkenpfeil',i:'🪶',en:12,cd:35,mult:3.5,crit:true,d:'Sicherer kritischer Treffer mit 3,5-fachem Schaden.'}}]},
+ jaeger:{b:'bogen',t:'Tiergefährte',st:[
+  {n:'Jäger',i:'🐺',m:{dm:.75,hits:2},sk:{id:'wolffass',n:'Wolf, fass!',i:'🐾',en:7,cd:20,mult:1.2,hits:3,d:'Dein Wolf greift mit an: 3 Treffer à 1,2-fach.'}},
+  {n:'Bestienmeister',i:'🐻',m:{dm:.8,hits:2,hpb:.1},sk:{id:'rudel',n:'Rudelangriff',i:'🐕',en:10,cd:30,mult:.9,hits:4,d:'Dein Rudel greift an: 4 Treffer à 0,9-fach.'}},
+  {n:'Herr der Wildnis',i:'🦌',m:{dm:.9,hits:2,hpb:.25,crit:.25},sk:{id:'wildnisruf',n:'Ruf der Wildnis',i:'🌲',en:14,cd:40,mult:1,hits:5,stun:1,d:'5 Treffer der Wildnis, das Monster verfehlt 1 Angriff.'}}]},
+ falle:{b:'bogen',t:'Fallen und Kontrolle',st:[
+  {n:'Fallensteller',i:'🪤',m:{crit:.25,dm:1.05},sk:{id:'baerenfalle',n:'Bärenfalle',i:'🪤',en:6,cd:25,mult:1.5,stun:2,d:'1,5-facher Schaden, das Monster verfehlt 2 Angriffe.'}},
+  {n:'Schattenjäger',i:'🌑',m:{crit:.3,dm:1.2},sk:{id:'schattenfalle',n:'Schattenfalle',i:'🕸️',en:9,cd:35,mult:2,stun:3,d:'2-facher Schaden, das Monster verfehlt 3 Angriffe.'}},
+  {n:'Nachtpirscher',i:'🦉',m:{crit:.45,dm:1.5,enreg:1.4},sk:{id:'nachtschuss',n:'Nachtschuss',i:'🌙',en:12,cd:35,mult:3,crit:true,stun:2,d:'Sicherer Krit mit 3-fachem Schaden, 2 Angriffe verfehlt.'}}]},
+ feuer:{b:'magier',t:'Brand und Schaden',st:[
+  {n:'Feuermagier',i:'🔥',m:{dm:1.45},sk:{id:'flammenwelle',n:'Flammenwelle',i:'🌊',en:9,cd:20,mult:2.6,d:'Feuerwelle mit 2,6-fachem Schaden.'}},
+  {n:'Pyromant',i:'☄️',m:{dm:1.7,crit:.1},sk:{id:'inferno',n:'Inferno',i:'🌋',en:12,cd:30,mult:3.2,d:'Flammenmeer mit 3,2-fachem Schaden.'}},
+  {n:'Phönixweber',i:'🪶',m:{dm:2.1,crit:.2,heal:2},sk:{id:'phoenixfeuer',n:'Phönixfeuer',i:'🔥',en:14,cd:40,mult:3.4,heal:30,d:'3,4-facher Schaden und heilt dich um 30.'}}]},
+ frost:{b:'magier',t:'Verlangsamung',st:[
+  {n:'Frostmagier',i:'❄️',m:{dm:1.3},sk:{id:'eissplitter',n:'Eissplitter',i:'🧊',en:6,cd:15,mult:1.5,stun:1,d:'1,5-facher Schaden, das Monster verfehlt 1 Angriff.'}},
+  {n:'Eisweber',i:'🧊',m:{dm:1.45,crit:.1},sk:{id:'eiskerker',n:'Eiskerker',i:'⛓️',en:10,cd:35,mult:1.4,stun:3,d:'1,4-facher Schaden, das Monster verfehlt 3 Angriffe.'}},
+  {n:'Winterherrscher',i:'🌨️',m:{dm:1.7,crit:.15,hpb:.2},sk:{id:'ewigwinter',n:'Ewiger Winter',i:'🥶',en:14,cd:50,mult:2.6,stun:4,d:'2,6-facher Schaden, das Monster verfehlt 4 Angriffe.'}}]},
+ sturm:{b:'magier',t:'Blitz, mehrere Treffer',st:[
+  {n:'Sturmmagier',i:'⚡',m:{dm:.8,hits:2},sk:{id:'kettenblitz',n:'Kettenblitz',i:'🔗',en:9,cd:20,mult:.9,hits:3,d:'Drei Blitze mit je 0,9-fachem Schaden.'}},
+  {n:'Sturmrufer',i:'🌩️',m:{dm:.9,hits:2,crit:.1},sk:{id:'gewitter',n:'Gewittersturm',i:'⛈️',en:12,cd:30,mult:.9,hits:5,d:'Fünf Blitze mit je 0,9-fachem Schaden.'}},
+  {n:'Himmelsspalter',i:'🌪️',m:{dm:1.1,hits:2,crit:.2},sk:{id:'himmelsblitz',n:'Himmelsblitz',i:'🌠',en:15,cd:40,mult:4.2,d:'Gewaltiger Blitz mit 4,2-fachem Schaden.'}}]},
+ priester:{b:'heiler',t:'Heilzauber und Schutz',st:[
+  {n:'Priester',i:'🙏',m:{heal:5,def:1},sk:{id:'gebet',n:'Gebet',i:'📿',en:8,cd:45,healPct:.3,self:true,d:'Heilt 30 % deines maximalen Lebens.'}},
+  {n:'Hohepriester',i:'⛪',m:{heal:7,def:2,hpb:.15},sk:{id:'heilschild',n:'Heiliger Schild',i:'🛡️',en:9,cd:45,heal:40,shield:5,self:true,d:'Heilt 40 Leben und schützt vor 5 Treffern.'}},
+  {n:'Lichtgesandter',i:'😇',m:{heal:10,def:4,hpb:.3,dm:1.1},sk:{id:'himmelslicht',n:'Himmelslicht',i:'🌅',en:14,cd:90,healPct:.6,shield:3,self:true,d:'Heilt 60 % deines max. Lebens, Schutz vor 3 Treffern.'}}]},
+ moench:{b:'heiler',t:'Nahkampf mit Heilkraft',st:[
+  {n:'Mönch',i:'🥋',m:{range:20,dm:1.5,heal:4,hpb:.1},sk:{id:'palmenschlag',n:'Palmenschlag',i:'🖐️',en:6,cd:15,mult:2.2,heal:10,d:'2,2-facher Schaden, heilt dich um 10.'}},
+  {n:'Großmeister',i:'🥇',m:{range:20,dm:1.8,heal:6,hpb:.2,crit:.15},sk:{id:'tausendfaust',n:'Tausend Fäuste',i:'👊',en:10,cd:30,mult:.8,hits:5,heal:15,d:'Fünf Schläge à 0,8-fach, heilt dich um 15.'}},
+  {n:'Erleuchteter',i:'🧘',m:{range:20,dm:2.2,heal:9,hpb:.3,crit:.25},sk:{id:'erleuchtung',n:'Erleuchtung',i:'☯️',en:14,cd:45,mult:3.4,healPct:.25,d:'3,4-facher Schaden und heilt dich um 25 % deines max. Lebens.'}}]},
+ natur:{b:'heiler',t:'Kräuter und Tränke',st:[
+  {n:'Naturheiler',i:'🌿',m:{heal:4,enreg:1.3},sk:{id:'kraeuterbalsam',n:'Kräuterbalsam',i:'🍃',en:5,cd:12,heal:35,perLv:2,self:true,d:'Heilt dich um 35 plus 2 pro Level.'}},
+  {n:'Druide',i:'🌳',m:{heal:6,enreg:1.6,dm:1.2,hpb:.1},sk:{id:'dornenranke',n:'Dornenranken',i:'🥀',en:9,cd:30,mult:1.8,stun:2,d:'1,8-facher Schaden, das Monster verfehlt 2 Angriffe.'}},
+  {n:'Weltenbaum-Hüter',i:'🌲',m:{heal:9,enreg:2,dm:1.5,hpb:.3},sk:{id:'weltenbaum',n:'Segen des Weltenbaums',i:'🌱',en:14,cd:60,mult:2.4,healPct:.35,shield:3,d:'2,4-facher Schaden, heilt 35 % und schützt vor 3 Treffern.'}}]}
+};
+/* Geheime Bedingungen der verborgenen Klassen (Hinweis = rätselhaft, Fortschritt bleibt unsichtbar) */
+const SECRET={
+ ritter:{h:'Das Licht erkennt jene, die den Mächtigen standhalten.',ok:()=>S.stats.kt.elite>=5},
+ berserker:{h:'Nur wer ein ganzes Reich bezwingt, bricht die Welt.',ok:()=>S.stats.kt.area>=1},
+ duellant:{h:'Ein Phantom folgt den Pfaden, die kein anderer geht.',ok:()=>(S.stats.walk||0)>=20000},
+ scharf:{h:'Das Auge des Falken ruht auf dem Seltenen.',ok:()=>S.stats.kt.rare>=15},
+ jaeger:{h:'Die Wildnis gibt, wer sich ihr hingibt.',ok:()=>totalNodes()>=150},
+ falle:{h:'Wenn der Mond hoch steht, wird der Pirscher geboren.',ok:()=>(S.stats.night||0)>=10},
+ feuer:{h:'Aus der Asche erhebt sich, wer gefallen ist.',ok:()=>(S.stats.faints||0)>=3},
+ frost:{h:'Tief im Gestein wartet der ewige Winter.',ok:()=>(S.stats.nodes.erz||0)>=30},
+ sturm:{h:'Der Himmel bricht, wenn Bestien fallen.',ok:()=>S.stats.kt.boss>=3},
+ priester:{h:'Wer Leben bewahrt, wird vom Himmel gesandt.',ok:()=>(S.stats.crafted.trank||0)>=10},
+ moench:{h:'Hundert Wege führen zur Erleuchtung, jeder beginnt mit einem Schritt.',ok:()=>(S.stats.walk||0)>=15000},
+ natur:{h:'Die Wurzeln des Weltenbaums wachsen aus Kräutern.',ok:()=>(S.stats.nodes.kraut||0)>=100}
+};
+const totalNodes=()=>Object.values(S.stats.nodes).reduce((a,b)=>a+b,0);
+/* Klassenquests: Fortschritt seit dem letzten Aufstieg */
+const UPQ=[
+ {t:'Prüfung der Wege',g:[['Monster besiegen',c=>c.kills,40],['Seltene Monster besiegen',c=>c.rare,3],['Meter laufen',c=>c.walk,2000]]},
+ {t:'Prüfung der Meister',g:[['Monster besiegen',c=>c.kills,100],['Elite-Monster besiegen',c=>c.elite,3],['Meter laufen',c=>c.walk,5000]]},
+ {t:'Prüfung des Verborgenen',g:[['Monster besiegen',c=>c.kills,200],['Boss-Monster besiegen',c=>c.boss,1],['Meter laufen',c=>c.walk,10000]]}
+];
+const cnt=()=>({kills:S.stats.kills,rare:S.stats.kt.rare,elite:S.stats.kt.elite,boss:S.stats.kt.boss+S.stats.kt.area,walk:Math.round(S.stats.walk||0)});
+const upProg=()=>{const c=cnt(),b=S.qb||c,q=UPQ[S.tier];return q.g.map(([l,f,n])=>[l,Math.min(n,Math.max(0,f(c)-f(b))),n]);};
+const upQuestDone=()=>S.tier<3&&upProg().every(g=>g[1]>=g[2]);
+const canUp=()=>S.cls!=='wanderer'&&S.tier<3&&S.lv>=UP_LV[S.tier]&&upQuestDone()
+  &&(S.tier<2||!S.path||SECRET[S.path].ok());
+/* Wirksame Klasse = Grundklasse + Stufe des Pfads */
+const _eff={};
+function effClass(){
+  const base=CLASSES[S.cls]||CLASSES.wanderer;
+  if(!S.path||!S.tier||!PATHS[S.path])return base;
+  const key=S.cls+'|'+S.path+'|'+S.tier;if(_eff[key])return _eff[key];
+  const P2=PATHS[S.path],st=P2.st[S.tier-1],m=st.m,o=Object.assign({},base);
+  o.n=st.n;o.i=st.i;o.blurb=P2.t+'. '+(m.dm?'Schaden ×'+m.dm+'. ':'')+(m.hits?m.hits+' Treffer pro Angriff. ':'')+'Verbesserte Werte und neue Fähigkeit.';
+  o.dmg=base.dmg*(m.dm||1);o.crit=Math.min(.95,base.crit+(m.crit||0));
+  if(m.range)o.range=m.range;if(m.hpb!==undefined)o.hpb=m.hpb;if(m.def!==undefined)o.def=m.def;
+  o.heal=(base.heal||0)+(m.heal||0);if(m.hits)o.hits=m.hits;o.enreg=(base.enreg||1)*(m.enreg||1);
+  o.sk=(base.sk||[]).slice();
+  for(let t=0;t<S.tier;t++){const k=P2.st[t].sk;o.sk.push(Object.assign({lv:UP_LV[t]},k));}
+  return _eff[key]=o;
+}
+const C0=()=>effClass();
 const atkRange=()=>C0().range;
 
 /* ---------- Spielstand ---------- */
 const def=()=>({lv:1,xp:0,hp:100,en:100,inv:{},tools:[],skills:{holz:0,berg:0,sammeln:0},cd:{},mh:{},
-  stats:{col:{},nodes:{},kills:0,crafted:{}},qdone:[],qready:[],def:0,cls:'wanderer',scd:{},shield:0,stun:0,exh:0,last:Date.now(),test:false});
+  stats:{col:{},nodes:{},kills:0,crafted:{},kt:{normal:0,rare:0,elite:0,boss:0,area:0},walk:0,night:0,faints:0},path:'',tier:0,qb:null,qdone:[],qready:[],def:0,cls:'wanderer',scd:{},shield:0,stun:0,exh:0,last:Date.now(),test:false});
 let S=def();
 try{
   const raw=localStorage.getItem(KEY);
-  if(raw){const o=JSON.parse(raw);S=Object.assign(def(),o);S.stats=Object.assign(def().stats,o.stats||{});S.skills=Object.assign(def().skills,o.skills||{});}
+  if(raw){const o=JSON.parse(raw);S=Object.assign(def(),o);S.stats=Object.assign(def().stats,o.stats||{});S.skills=Object.assign(def().skills,o.skills||{});S.stats.kt=Object.assign(def().stats.kt,(o.stats||{}).kt||{});}
 }catch(e){}
 if(!CLASSES[S.cls])S.cls='wanderer';
+if(S.path&&!PATHS[S.path]){S.path='';S.tier=0;}
+if(S.cls!=='wanderer'&&!S.qb)S.qb=cnt();
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 
 const maxHP=()=>Math.round((100+10*(S.lv-1))*(1+(C0().hpb||0)));
@@ -359,6 +458,7 @@ function ep(e){return roam.get(e.id)||e;}
 let sel=null;
 
 function setPos(lat,lon,a){
+  if(P&&!S.test&&(a||99)<=60){const d=dist(P,{lat,lon});if(d>=8&&d<150)S.stats.walk=(S.stats.walk||0)+d;}
   P={lat,lon};acc=a;
   if(!pm){
     pm=L.marker([lat,lon],{icon:L.divIcon({className:'',html:'<div class="me"></div>',iconSize:[26,26],iconAnchor:[13,13]}),zIndexOffset:1000,interactive:false}).addTo(map);
@@ -555,13 +655,14 @@ function strike(o){
     dmg+=d;
   }
   let heal='';
-  if(o.heal){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+o.heal);if(S.hp>b0){heal=' · +'+Math.round(S.hp-b0)+' ❤️';fMe('+'+Math.round(S.hp-b0),'heal',0);}}
+  const hv=(o.heal||0)+(o.healPct?maxHP()*o.healPct:0);
+  if(hv){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+hv);if(S.hp>b0){heal=' · +'+Math.round(S.hp-b0)+' ❤️';fMe('+'+Math.round(S.hp-b0),'heal',0);}}
   if(o.shield)S.shield=o.shield;
   if(o.stun)S.stun=o.stun;
   fMob(e,'-'+dmg,'dmg'+(crit?' crit':''),0);
   const hp=(S.mh[e.id]??m.hp)-dmg;
   if(hp<=0){
-    delete S.mh[e.id];S.cd[e.id]=Date.now();S.stats.kills++;S.stun=0;
+    delete S.mh[e.id];S.cd[e.id]=Date.now();S.stats.kills++;S.stats.kt[m.tier]=(S.stats.kt[m.tier]||0)+1;{const hr=new Date().getHours();if(hr>=22||hr<4)S.stats.night++;}S.stun=0;
     const got=[];
     for(const dr of m.drops){if(Math.random()<(dr.c??1)){const q=rnd(dr.min,dr.max);add(dr.i,q);S.stats.col[dr.i]=(S.stats.col[dr.i]||0)+q;got.push('+'+q+' '+ITEMS[dr.i].n);}}
     addXP(m.xp);
@@ -595,6 +696,7 @@ function fMob(e,txt,cls,d){const p=ep(e);fnum({lat:p.lat,lng:p.lon!==undefined?p
 function fMe(txt,cls,d){if(pm)fnum(pm.getLatLng(),txt,cls,d);}
 function othersInFight(e){return 0;}
 function faint(m,e){
+  S.stats.faints=(S.stats.faints||0)+1;
   S.hp=Math.round(maxHP()*.3);S.shield=0;S.stun=0;eng.delete(e.id);
   /* Monster erholt sich nur, wenn kein anderer Spieler im Kampf ist; sonst behält es Leben und kämpft weiter (Mehrspieler: Server liefert die Zahl) */
   if(othersInFight(e)===0){delete S.mh[e.id];}
@@ -630,7 +732,7 @@ function useSkill(i){
   if(now<rd){toast('Noch '+Math.ceil((rd-now)/1000)+' s Abklingzeit');return;}
   if(S.en<sk.en){toast('Zu erschöpft');return;}
   if(sk.mult){
-    if(!strike({mult:sk.mult,hits:sk.hits,crit:sk.crit,en:sk.en,rangeBonus:sk.rangeBonus,heal:sk.heal,stun:sk.stun,shield:sk.shield,icon:sk.i}))return;
+    if(!strike({mult:sk.mult,hits:sk.hits,crit:sk.crit,en:sk.en,rangeBonus:sk.rangeBonus,heal:sk.heal,healPct:sk.healPct,stun:sk.stun,shield:sk.shield,icon:sk.i}))return;
   }else{
     S.en-=sk.en;
     if(sk.heal){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+sk.heal+(sk.perLv||0)*S.lv);toast(sk.i+' '+sk.n+': +'+Math.round(S.hp-b0)+' Leben');fMe('+'+Math.round(S.hp-b0),'heal',0);}
@@ -642,7 +744,7 @@ function useSkill(i){
 }
 function skBtn(i){return '<button class="sk" data-a="skill" data-i="'+i+'" data-sk="'+i+'"><span class="si">'+C0().sk[i].i+'</span><small class="sc"></small></button>';}
 function skRow(){const C=C0();return (C.sk&&C.sk.length)?'<div class="skrow">'+C.sk.map((x,i)=>skBtn(i)).join('')+'</div>':'';}
-function buildSkillBar(){const C=C0();$('#skills').innerHTML=(C.sk||[]).map((x,i)=>skBtn(i)).join('');updateSkillUI();}
+function buildSkillBar(){const C=C0();$('#skills').classList.toggle('many',(C.sk||[]).length>4);$('#skills').innerHTML=(C.sk||[]).map((x,i)=>skBtn(i)).join('');updateSkillUI();}
 function updateSkillUI(){
   const C=C0(),sk=C.sk||[],now=Date.now();
   const cardShown=$('#card').style.display==='block';
@@ -711,10 +813,10 @@ function claimQuest(id){
 }
 
 /* ---------- Menüs ---------- */
-let curSheet=null,confirmReset=false,qtab='cur',pickCls=null;
+let curSheet=null,confirmReset=false,qtab='cur',pickCls=null,pickPath=null;
 function openSheet(s){
   curSheet=s;
-  const titles={inv:'Inventar',craft:'Herstellen',quests:'Quests',char:'Charakter',set:'Mehr',class:'Klasse wählen'};
+  const titles={inv:'Inventar',craft:'Herstellen',quests:'Quests',char:'Charakter',set:'Mehr',class:'Klasse wählen',up:'Klassenentwicklung'};
   $('#shT').textContent=titles[s];
   let h='';
   if(s==='inv'){
@@ -763,6 +865,30 @@ function openSheet(s){
       }).join('');
     }
   }
+
+  if(s==='up'){
+    const base=CLASSES[S.cls];
+    h+='<p style="margin-top:0"><b>'+C0().i+' '+C0().n+'</b> <small>· Stufe '+S.tier+' von 3</small></p>';
+    if(S.tier>=3){h+='<p style="font-size:14px">Du hast die verborgene Klasse erweckt – die höchste Stufe deines Pfads.</p>';}
+    else{
+      const lvOk=S.lv>=UP_LV[S.tier];
+      h+='<div class="kv"><span>'+(lvOk?'✅':'⬜')+' Stufe '+UP_LV[S.tier]+'</span><b>'+S.lv+'</b></div>';
+      h+='<h3>'+UPQ[S.tier].t+'</h3>'+upProg().map(g=>'<div class="kv"><span>'+(g[1]>=g[2]?'✅':'⬜')+' '+g[0]+'</span><b>'+g[1]+' / '+g[2]+'</b></div>').join('');
+      if(S.tier===2){h+='<h3>❓ Verborgene Klasse</h3><p style="font-size:14px;font-style:italic">„'+SECRET[S.path].h+'“</p><p style="font-size:12px;opacity:.7">Name und Werte bleiben geheim, bis du die Bedingung erfüllt hast. Ob du sie erfüllt hast, siehst du erst beim Erwecken.</p>';}
+      else if(S.tier===1){const nx=PATHS[S.path].st[1];h+='<h3>Nächste Stufe</h3><div class="rec"><div class="t">'+nx.i+' '+nx.n+'</div><div class="c">Neue Fähigkeit: '+nx.sk.n+'</div></div>';}
+      else{
+        h+='<h3>Wähle deinen Pfad</h3><p style="font-size:13px;margin-top:0">Die Entscheidung ist dauerhaft.</p>';
+        h+=Object.keys(PATHS).filter(k=>PATHS[k].b===S.cls).map(k=>{
+          const pt=PATHS[k],on=pickPath===k;
+          return '<div class="rec"'+(on?' style="border-color:var(--acc);background:#ffe9c4"':'')+'><div class="t">'+pt.st[0].i+' '+pt.st[0].n+' <small>→ '+pt.st[1].n+' → ❓</small></div><div class="c">'+pt.t+'. Fähigkeit: '+pt.st[0].sk.i+' '+pt.st[0].sk.n+'</div>'
+            +(on?'':'<button class="btn sec" style="margin-top:8px" data-a="uppath" data-id="'+k+'">Auswählen</button>')+'</div>';
+        }).join('');
+      }
+      const ready=canUp()&&(S.tier>0||pickPath);
+      h+=ready?'<button class="btn" style="margin-top:10px;width:100%;padding:13px;font-size:16px" data-a="upok">⬆️ '+(S.tier===2?'Verborgene Klasse erwecken':'Aufsteigen')+'</button>'
+        :(S.tier===0&&canUp()?'<p style="font-size:13px">Wähle erst einen Pfad.</p>':(S.tier===2&&S.lv>=UP_LV[2]&&upQuestDone()?'<button class="btn sec" style="margin-top:10px;width:100%" data-a="upok">Verborgene Klasse erwecken</button><p style="font-size:12px;opacity:.7">Die geheime Bedingung ist noch nicht erfüllt.</p>':''));
+    }
+  }
   if(s==='char'){
     const need=S.lv*40;
     h+='<div class="kv"><span>Level</span><b>'+S.lv+'</b></div>'
@@ -782,12 +908,14 @@ function openSheet(s){
       h+=S.lv>=CLASS_LV
         ?'<button class="btn" data-a="open" data-s="class" style="margin-top:10px;width:100%;padding:13px;font-size:16px">🌟 Klasse wählen</button>'
         :'<p style="font-size:13px">Ab Stufe '+CLASS_LV+' kannst du eine Klasse wählen (noch '+(CLASS_LV-S.lv)+' Stufen).</p>';
-    }else h+='<p style="font-size:13px">'+C.blurb+'</p>';
+    }else{h+='<p style="font-size:13px">'+C.blurb+'</p>'
+      +'<button class="btn'+(canUp()?'':' sec')+'" data-a="open" data-s="up" style="width:100%;padding:12px">⬆️ Klassenentwicklung'+(canUp()?' – bereit!':'')+'</button>';}
     if(C.sk&&C.sk.length)h+='<h3>Fähigkeiten</h3>'+C.sk.map(x=>'<div class="rec"'+(S.lv<x.lv?' style="opacity:.5"':'')+'><div class="t">'+x.i+' '+x.n+' <small>'+(S.lv<x.lv?'ab Stufe '+x.lv:'freigeschaltet')+'</small></div><div class="c">'+x.d+'</div><small>Energie '+x.en+' · Abklingzeit '+x.cd+' s</small></div>').join('');
   }
   if(s==='set'){
     h+='<h3>Testmodus</h3><p style="font-size:14px">Im Testmodus ignoriert das Spiel dein GPS. Tippe auf die Karte, um dich dorthin zu bewegen, zum Beispiel drinnen oder am Schreibtisch.</p>'
       +'<button class="btn" data-a="test">Testmodus: '+(S.test?'AN (ausschalten)':'AUS (einschalten)')+'</button>'
+      +((S.test&&S.cls!=='wanderer'&&S.tier<3)?'<button class="btn sec" style="margin-top:8px" data-a="cheatup">🧪 Nächste Klassenentwicklung freischalten</button>':'')
       +'<h3>Spielstand</h3><p style="font-size:14px">Wird automatisch in diesem Browser gespeichert.</p>'
       +'<button class="btn sec" data-a="reset">'+(confirmReset?'Wirklich alles löschen? Nochmal tippen':'Spielstand löschen')+'</button>'
       +'<h3>Über</h3><p style="font-size:13px;line-height:1.5">Prototyp. Ressourcen und Monster entstehen deterministisch an festen Orten der echten Karte, für alle Spieler gleich. Respawn nach 8–15 Minuten. Kartendaten © OpenStreetMap-Mitwirkende.</p>';
@@ -795,18 +923,20 @@ function openSheet(s){
   $('#shB').innerHTML=h;
   $('#sheet').style.display='flex';
 }
-function closeSheet(){$('#sheet').style.display='none';curSheet=null;confirmReset=false;pickCls=null;}
+function closeSheet(){$('#sheet').style.display='none';curSheet=null;confirmReset=false;pickCls=null;pickPath=null;}
 
 /* ---------- UI ---------- */
 let tt=null;
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600);}
+let upNote=-1;
 function hud(){
   const mx=maxHP();
   $('#lv').textContent=S.lv;
   $('#hpb').style.width=(100*S.hp/mx)+'%';$('#hpt').textContent=Math.floor(S.hp)+'/'+mx;
   $('#enb').style.width=S.en+'%';$('#en2').textContent=Math.floor(S.en)+'/100';
   const qb=$('#qb'),n=S.qready.length;qb.textContent=n;qb.style.display=n?'flex':'none';
-  $('#cb').style.display=(S.cls==='wanderer'&&S.lv>=CLASS_LV)?'flex':'none';
+  $('#cb').style.display=((S.cls==='wanderer'&&S.lv>=CLASS_LV)||canUp())?'flex':'none';
+  if(canUp()&&upNote!==S.tier){upNote=S.tier;toast('🌟 Klassenentwicklung bereit! (Charakter)');}
 }
 function setTest(on){
   S.test=on;
@@ -834,10 +964,26 @@ document.addEventListener('click',ev=>{
       if(!confirmReset){confirmReset=true;openSheet('set');}
       else{try{localStorage.removeItem(KEY);}catch(e){}location.reload();}
       break;
+    case 'uppath':pickPath=b.dataset.id;openSheet('up');break;
+    case 'upok':{
+      if(S.tier===2&&S.lv>=UP_LV[2]&&upQuestDone()&&!SECRET[S.path].ok()){toast('❓ Etwas fehlt noch… die Hinweise verraten mehr.');break;}
+      if(!canUp())break;
+      if(S.tier===0){if(!pickPath||PATHS[pickPath].b!==S.cls)break;S.path=pickPath;}
+      S.tier++;S.qb=cnt();S.scd={};S.shield=0;S.stun=0;
+      const st=PATHS[S.path].st[S.tier-1];
+      closeSheet();buildSkillBar();S.hp=maxHP();
+      toast((S.tier===3?'🌟 Verborgene Klasse erweckt: ':'⬆️ Aufstieg: ')+st.i+' '+st.n+'! Neue Fähigkeit: '+st.sk.n);
+      save();hud();renderCard();updateNear();
+      break;}
+    case 'cheatup':{
+      const c=cnt();S.lv=Math.max(S.lv,UP_LV[Math.min(S.tier,2)]);
+      S.qb={kills:c.kills-300,rare:c.rare-10,elite:c.elite-10,boss:c.boss-10,walk:c.walk-20000};
+      if(S.tier===2&&S.path){const k=S.stats.kt;k.elite+=5;k.area+=1;k.rare+=15;k.boss+=3;S.stats.walk+=20000;S.stats.night+=10;S.stats.faints+=3;S.stats.nodes.baum=(S.stats.nodes.baum||0)+150;S.stats.nodes.erz=(S.stats.nodes.erz||0)+30;S.stats.nodes.kraut=(S.stats.nodes.kraut||0)+100;S.stats.crafted.trank=(S.stats.crafted.trank||0)+10;}
+      S.hp=maxHP();save();hud();openSheet('set');break;}
     case 'clspick':pickCls=b.dataset.id;openSheet('class');break;
     case 'clsok':
       if(pickCls&&CLASSES[pickCls]&&S.lv>=CLASS_LV&&S.cls==='wanderer'){
-        const c=CLASSES[pickCls];S.cls=pickCls;S.scd={};S.shield=0;S.stun=0;closeSheet();buildSkillBar();
+        const c=CLASSES[pickCls];S.cls=pickCls;S.path='';S.tier=0;S.qb=cnt();S.scd={};S.shield=0;S.stun=0;closeSheet();buildSkillBar();
         S.hp=maxHP();toast(c.i+' Du bist jetzt '+c.n+'! Neue Fähigkeit: '+c.sk[0].n);
         save();hud();renderCard();updateNear();
       }
