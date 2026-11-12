@@ -102,7 +102,7 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 .ent.mob.near{box-shadow:0 0 0 4px rgba(229,83,75,.35)}
 .mhp{position:absolute;left:4px;right:4px;bottom:-9px;height:5px;background:#5a2a27;border-radius:3px;overflow:hidden}
 .mhp u{display:block;height:100%;background:#ff6b5e;width:100%}
-.me{width:22px;height:22px;border-radius:50%;background:#3b82f6;border:3px solid #fff;box-shadow:0 0 0 2px #3b82f6,0 2px 8px rgba(0,0,0,.4)}
+.mech{width:52px;height:52px;font-size:50px;line-height:52px;text-align:center;position:relative}.mech::before{content:'';position:absolute;left:10px;right:10px;bottom:2px;height:8px;border-radius:50%;background:rgba(0,0,0,.28)}.mech .px{position:relative}
 /* Start */
 #start{position:absolute;inset:0;z-index:1000;background:linear-gradient(#ffe7c2,#fdf6ee);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center;gap:12px}
 #start h1{margin:0;font-size:36px}
@@ -159,6 +159,7 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 <script src="sprites_gear.js?v=3"></script>
 <script src="sprites_items.js?v=3"></script>
 <script src="sprites_mobs.js?v=3"></script>
+<script src="sprites_chars.js?v=3"></script>
 <script src="pxdom.js?v=2"></script>
 <script>
 (()=>{
@@ -809,6 +810,8 @@ pruneCd();
 const map=L.map('map',{zoomControl:false,attributionControl:false,maxZoom:19,minZoom:13}).setView(START_POS,16);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
 
+let meK='';const meTok=()=>':ch_'+S.cls+':',meIcon=()=>L.divIcon({className:'',html:'<div class="mech">'+meTok()+'</div>',iconSize:[52,52],iconAnchor:[26,38]});
+function updMe(){if(pm&&meK!==meTok()&&pm.setIcon){meK=meTok();pm.setIcon(meIcon());}}
 let P=null,acc=null,pm=null,pc=null,pr=null,follow=true,watchId=null,lastGps=null,lastCell='';
 const ents=new Map();
 const roam=new Map(), eng=new Map();   // laufende Monsterpositionen / Kampf-Zeitpunkte
@@ -822,7 +825,7 @@ function setPos(lat,lon,a){
   if(P&&!S.test&&(a||99)<=60){const d=dist(P,{lat,lon});if(d>=8&&d<150)S.stats.walk=(S.stats.walk||0)+d;}
   P={lat,lon};acc=a;
   if(!pm){
-    pm=L.marker([lat,lon],{icon:L.divIcon({className:'',html:'<div class="me"></div>',iconSize:[26,26],iconAnchor:[13,13]}),zIndexOffset:1000,interactive:false}).addTo(map);
+    meK=meTok();pm=L.marker([lat,lon],{icon:meIcon(),zIndexOffset:1000,interactive:false}).addTo(map);
     pc=L.circle([lat,lon],{radius:a||20,weight:1,color:'#3b82f6',fillOpacity:.07,interactive:false}).addTo(map);
     pr=L.circle([lat,lon],{radius:RANGE,weight:1.5,color:'#3aa76d',dashArray:'5 6',fill:false,interactive:false}).addTo(map);
     map.setView([lat,lon],17);
@@ -1307,7 +1310,7 @@ function openSheet(s){
       h+='<p style="font-size:14px;margin-top:0">Wähle deine Grundklasse. Die Entscheidung ist vorerst dauerhaft. Upgrades und Klassenwechsel kommen später.</p>';
       h+=PICK.map(id=>{
         const c=CLASSES[id],on=pickCls===id;
-        return '<div class="rec"'+(on?' style="border-color:var(--acc);background:#ffe9c4"':'')+'><div class="t">'+c.i+' '+c.n+'</div><div class="c">'+c.blurb+'</div><small>'+c.w+' · Reichweite '+c.range+' m · Energie '+c.en+' pro Angriff</small><br>'
+        return '<div class="rec"'+(on?' style="border-color:var(--acc);background:#ffe9c4"':'')+'><div style="float:right;font-size:64px;line-height:1;margin:0 0 4px 8px">:ch_'+id+':</div><div class="t">'+c.i+' '+c.n+'</div><div class="c">'+c.blurb+'</div><small>'+c.w+' · Reichweite '+c.range+' m · Energie '+c.en+' pro Angriff</small><br>'
           +(on?'<button class="btn" style="margin-top:8px;width:100%;padding:11px" data-a="clsok">✔ Als '+c.n+' entscheiden</button>'
               :'<button class="btn sec" style="margin-top:8px" data-a="clspick" data-id="'+id+'">Auswählen</button>')+'</div>';
       }).join('');
@@ -1384,7 +1387,8 @@ function openSheet(s){
   }
   if(s==='char'){
     const need=S.lv*40;
-    h+='<div class="kv"><span>Level</span><b>'+S.lv+'</b></div>'
+    h+='<div style="text-align:center;font-size:96px;line-height:1.1;margin:4px 0 6px">:ch_'+S.cls+':</div><div style="text-align:center;font-weight:bold;margin-bottom:6px">'+C0().n+'</div>'
+      +'<div class="kv"><span>Level</span><b>'+S.lv+'</b></div>'
       +'<div class="kv"><span>Erfahrung</span><b>'+Math.floor(S.xp)+' / '+need+'</b></div>'
       +'<div class="kv"><span>Leben</span><b>'+Math.floor(S.hp)+' / '+maxHP()+'</b></div>'
       +'<div class="kv"><span>Angriff</span><b>'+atk()+'</b></div>'
@@ -1425,6 +1429,7 @@ let tt=null;
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600);}
 let upNote=-1;
 function hud(){
+  updMe();
   const mx=maxHP();
   $('#lv').textContent=S.lv;
   $('#hpb').style.width=(100*S.hp/mx)+'%';$('#hpt').textContent=Math.floor(S.hp)+'/'+mx;
