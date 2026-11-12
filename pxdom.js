@@ -5,11 +5,11 @@ function pxBuild(){PX_KEYS={};for(const k of Object.keys(PX_SPR).concat(Object.k
 if(typeof PX_ITEMS!=='undefined')for(const n of PX_ITEMS)if(/^(set_|ring_|amulett_)/.test(n))PX_KEYS[':i_'+n+':']=':i_'+n+':';else if(/^[wo]_/.test(n))PX_KEYS[':g_'+n+':']=':g_'+n+':';
 PX_RE=new RegExp(Object.keys(PX_KEYS).sort((a,b)=>b.length-a.length).map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\uFE0F?').join('|'),'g');}
 const PX_URL={};
-const PX_LAY={ritter:1};
+const PX_LAY={ritter:'wo',krieger:'wo',paladin:'wo',sonnenwaechter:'wo',duellant:'wo',klingentaenzer:'wo',phantomklinge:'wo',berserker:'w',kriegsherr:'w',weltenbrecher:'w'};
 function pxUrl(emo){
   const k=PX_KEYS[PX_NORM(emo)];if(!k)return null;
   if(typeof PX_ITEMS!=='undefined'){const m=/^:[ing]_(\w+):$/.exec(k);if(m&&PX_ITEMS.indexOf(m[1])>=0&&(k[1]==='i'||k[1]==='g'||['stock','stein','ranke','kraut'].indexOf(m[1])>=0))return 'items/'+m[1]+'.png?v=3';}
-  if(typeof PX_PNG!=='undefined'){const m=/^:ch_(\w+):$/.exec(k);if(m&&PX_PNG.indexOf(m[1])>=0){const sl=m[1];if(PX_LAY[sl]&&typeof PX_EQ==='function'){const e=PX_EQ(sl);if(e){const L=[];if(e.w)L.push('figs/lay/'+sl+'_w_'+e.w+'.png?v=1');if(e.o)L.push('figs/lay/'+sl+'_o_'+e.o+'.png?v=1');L.push('figs/'+sl+'_base.png?v=1');return 'url('+L.join('),url(')+')';}}return 'figs/'+sl+'.png?v=38';}}
+  if(typeof PX_PNG!=='undefined'){const m=/^:ch_(\w+):$/.exec(k);if(m&&PX_PNG.indexOf(m[1])>=0){const sl=m[1];if(PX_LAY[sl]&&typeof PX_EQ==='function'){const e=PX_EQ(sl);if(e){const L=[];if(e.w&&PX_LAY[sl].indexOf('w')>=0)L.push('figs/lay/'+sl+'_w_'+e.w+'.png?v=1');if(e.o&&PX_LAY[sl].indexOf('o')>=0)L.push('figs/lay/'+sl+'_o_'+e.o+'.png?v=1');L.push('figs/'+sl+'_base.png?v=1');return 'url('+L.join('),url(')+')';}}return 'figs/'+sl+'.png?v=38';}}
   if(PX_URL[k])return PX_URL[k];
   const d=pxDef(k);if(!d)return null;
   const cv=document.createElement('canvas');const NN=pxSizeOf(d[0],32);cv.width=cv.height=NN;
