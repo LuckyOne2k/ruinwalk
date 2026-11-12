@@ -221,60 +221,60 @@ const ABIL={
 };
 const MOBS={
   // normal (häufig) · hab: w Wald, g Wiese & Feld, s Sumpf & Wasser, f Fels & Berg, r Ruinen & Siedlung, * überall · w = Häufigkeit
-  rohling:{ag:1,hab:'wg',w:5,n:'Rohling',i:':m_rohling:',tier:'normal',hp:30,min:3,max:8,xp:8,rec:1,res:15*60e3,drops:[{i:'fell',min:1,max:2}]},
-  kaefer:{ag:1,hab:'wg',w:3,ab:'panzer',n:'Riesenkäfer',i:':m_kaefer:',tier:'normal',hp:38,min:3,max:7,xp:10,rec:2,res:15*60e3,drops:[{i:'kaefer',min:1,max:2}]},
-  keiler:{ag:1,hab:'w',w:2,ab:'wut',n:'Wildkeiler',i:':m_keiler:',tier:'normal',hp:50,min:4,max:9,xp:12,rec:3,res:15*60e3,drops:[{i:'hauer',min:1,max:1},{i:'fell',min:1,max:1,c:.5}]},
-  hase:{hab:'g',w:3,ab:'flucht',n:'Feldhase',i:':m_hase:',tier:'normal',hp:15,min:1,max:3,xp:3,rec:1,res:15*60e3,drops:[{i:'fell',min:1,max:1,c:.6}]},
-  goblin:{ag:1,hab:'fr',w:2,ab:'dieb',n:'Goblin',i:':m_goblin:',tier:'normal',hp:45,min:4,max:9,xp:12,rec:3,res:15*60e3,drops:[{i:'fell',min:1,max:1},{i:'eisenerz',min:1,max:1,c:.3}]},
-  waldspinne:{ag:1,hab:'w',w:3,ab:'gift',n:'Waldspinne',i:':m_waldspinne:',tier:'normal',hp:34,min:3,max:7,xp:10,rec:2,res:15*60e3,drops:[{i:'gift',min:1,max:1,c:.7}]},
-  fledermaus:{ag:1,hab:'fr',w:3,ab:'saug',n:'Riesenfledermaus',i:':m_fledermaus:',tier:'normal',hp:24,min:2,max:6,xp:8,rec:2,res:15*60e3,drops:[{i:'knochen',min:1,max:1,c:.5}]},
-  ratte:{ag:1,hab:'r',w:3,ab:'schwarm',n:'Kanalratte',i:':m_ratte:',tier:'normal',hp:20,min:2,max:5,xp:6,rec:1,res:15*60e3,drops:[{i:'fell',min:1,max:1,c:.5},{i:'knochen',min:1,max:1,c:.3}]},
-  giftschlange:{ag:1,hab:'gs',w:2,ab:'gift',n:'Giftschlange',i:':m_giftschlange:',tier:'normal',hp:32,min:3,max:8,xp:10,rec:3,res:15*60e3,drops:[{i:'haut',min:1,max:1},{i:'gift',min:1,max:1,c:.4}]},
-  frosch:{hab:'s',w:3,ab:'flucht',n:'Riesenfrosch',i:':m_frosch:',tier:'normal',hp:14,min:1,max:3,xp:3,rec:1,res:15*60e3,drops:[{i:'kraut',min:1,max:1,c:.5}]},
-  blutegel:{ag:1,hab:'s',w:3,ab:'saug',n:'Blutegel',i:':m_blutegel:',tier:'normal',hp:28,min:3,max:6,xp:9,rec:2,res:15*60e3,drops:[{i:'haut',min:1,max:1,c:.6}]},
-  muecken:{ag:1,hab:'s',w:2,ab:'schwarm',n:'Mückenschwarm',i:':m_muecken:',tier:'normal',hp:22,min:2,max:5,xp:7,rec:2,res:15*60e3,drops:[{i:'kraut',min:1,max:1,c:.4}]},
-  krebs:{ag:1,hab:'s',w:2,ab:'panzer',n:'Schlammkrebs',i:':m_krebs:',tier:'normal',hp:44,min:4,max:8,xp:11,rec:3,res:15*60e3,drops:[{i:'kaefer',min:1,max:1,c:.8}]},
-  eichhoernchen:{hab:'w',w:3,ab:'flucht',n:'Eichhörnchen',i:':m_eichhoernchen:',tier:'normal',hp:12,min:1,max:2,xp:3,rec:1,res:15*60e3,drops:[{i:'fell',min:1,max:1,c:.5}]},
-  bergziege:{ag:1,hab:'f',w:3,ab:'wut',n:'Bergziege',i:':m_bergziege:',tier:'normal',hp:48,min:4,max:9,xp:12,rec:3,res:15*60e3,drops:[{i:'horn',min:1,max:1},{i:'fell',min:1,max:1,c:.5}]},
-  skorpion:{ag:1,hab:'fg',w:2,ab:'gift',n:'Steinskorpion',i:':m_skorpion:',tier:'normal',hp:36,min:4,max:8,xp:11,rec:3,res:15*60e3,drops:[{i:'gift',min:1,max:1,c:.7},{i:'kaefer',min:1,max:1,c:.3}]},
-  igel:{hab:'wg',w:2,ab:'dorn',n:'Waldigel',i:':m_igel:',tier:'normal',hp:18,min:1,max:3,xp:4,rec:1,res:15*60e3,drops:[{i:'fell',min:1,max:1,c:.6}]},
-  irrlicht:{ag:1,hab:'sr',w:2,ab:'fern',n:'Irrlicht',i:':m_irrlicht:',tier:'normal',hp:26,min:3,max:7,xp:9,rec:3,res:15*60e3,drops:[{i:'geist',min:1,max:1,c:.7}]},
-  streuner:{ag:1,hab:'gr',w:3,ab:'schwarm',n:'Streunender Hund',i:':m_streuner:',tier:'normal',hp:32,min:3,max:7,xp:10,rec:2,res:15*60e3,drops:[{i:'fell',min:1,max:1},{i:'knochen',min:1,max:1,c:.4}]},
-  kraehe:{ag:1,hab:'*',w:3,ab:'dieb',n:'Aaskrähe',i:':m_kraehe:',tier:'normal',hp:18,min:2,max:5,xp:7,rec:2,res:15*60e3,drops:[{i:'feder',min:1,max:1,c:.6}]},
+  rohling:{ag:1,hab:'wg',w:5,n:'Rohling',i:':m_rohling:',tier:'normal',hp:30,min:3,max:8,xp:8,rec:1,res:15*60e3,drops:[{i:'fell',min:1,max:2,c:.67}]},
+  kaefer:{ag:1,hab:'wg',w:3,ab:'panzer',n:'Riesenkäfer',i:':m_kaefer:',tier:'normal',hp:38,min:3,max:7,xp:10,rec:2,res:15*60e3,drops:[{i:'kaefer',min:1,max:2,c:.67}]},
+  keiler:{ag:1,hab:'w',w:2,ab:'wut',n:'Wildkeiler',i:':m_keiler:',tier:'normal',hp:50,min:4,max:9,xp:12,rec:3,res:15*60e3,drops:[{i:'hauer',min:1,max:1,c:.67},{i:'fell',min:1,max:1,c:.33}]},
+  hase:{hab:'g',w:3,ab:'flucht',n:'Feldhase',i:':m_hase:',tier:'normal',hp:15,min:1,max:3,xp:3,rec:1,res:15*60e3,drops:[{i:'fell',min:1,max:1,c:.4}]},
+  goblin:{ag:1,hab:'fr',w:2,ab:'dieb',n:'Goblin',i:':m_goblin:',tier:'normal',hp:45,min:4,max:9,xp:12,rec:3,res:15*60e3,drops:[{i:'fell',min:1,max:1,c:.67},{i:'eisenerz',min:1,max:1,c:.2}]},
+  waldspinne:{ag:1,hab:'w',w:3,ab:'gift',n:'Waldspinne',i:':m_waldspinne:',tier:'normal',hp:34,min:3,max:7,xp:10,rec:2,res:15*60e3,drops:[{i:'gift',min:1,max:1,c:.47}]},
+  fledermaus:{ag:1,hab:'fr',w:3,ab:'saug',n:'Riesenfledermaus',i:':m_fledermaus:',tier:'normal',hp:24,min:2,max:6,xp:8,rec:2,res:15*60e3,drops:[{i:'knochen',min:1,max:1,c:.33}]},
+  ratte:{ag:1,hab:'r',w:3,ab:'schwarm',n:'Kanalratte',i:':m_ratte:',tier:'normal',hp:20,min:2,max:5,xp:6,rec:1,res:15*60e3,drops:[{i:'fell',min:1,max:1,c:.33},{i:'knochen',min:1,max:1,c:.2}]},
+  giftschlange:{ag:1,hab:'gs',w:2,ab:'gift',n:'Giftschlange',i:':m_giftschlange:',tier:'normal',hp:32,min:3,max:8,xp:10,rec:3,res:15*60e3,drops:[{i:'haut',min:1,max:1,c:.67},{i:'gift',min:1,max:1,c:.27}]},
+  frosch:{hab:'s',w:3,ab:'flucht',n:'Riesenfrosch',i:':m_frosch:',tier:'normal',hp:14,min:1,max:3,xp:3,rec:1,res:15*60e3,drops:[{i:'kraut',min:1,max:1,c:.33}]},
+  blutegel:{ag:1,hab:'s',w:3,ab:'saug',n:'Blutegel',i:':m_blutegel:',tier:'normal',hp:28,min:3,max:6,xp:9,rec:2,res:15*60e3,drops:[{i:'haut',min:1,max:1,c:.4}]},
+  muecken:{ag:1,hab:'s',w:2,ab:'schwarm',n:'Mückenschwarm',i:':m_muecken:',tier:'normal',hp:22,min:2,max:5,xp:7,rec:2,res:15*60e3,drops:[{i:'kraut',min:1,max:1,c:.27}]},
+  krebs:{ag:1,hab:'s',w:2,ab:'panzer',n:'Schlammkrebs',i:':m_krebs:',tier:'normal',hp:44,min:4,max:8,xp:11,rec:3,res:15*60e3,drops:[{i:'kaefer',min:1,max:1,c:.53}]},
+  eichhoernchen:{hab:'w',w:3,ab:'flucht',n:'Eichhörnchen',i:':m_eichhoernchen:',tier:'normal',hp:12,min:1,max:2,xp:3,rec:1,res:15*60e3,drops:[{i:'fell',min:1,max:1,c:.33}]},
+  bergziege:{ag:1,hab:'f',w:3,ab:'wut',n:'Bergziege',i:':m_bergziege:',tier:'normal',hp:48,min:4,max:9,xp:12,rec:3,res:15*60e3,drops:[{i:'horn',min:1,max:1,c:.67},{i:'fell',min:1,max:1,c:.33}]},
+  skorpion:{ag:1,hab:'fg',w:2,ab:'gift',n:'Steinskorpion',i:':m_skorpion:',tier:'normal',hp:36,min:4,max:8,xp:11,rec:3,res:15*60e3,drops:[{i:'gift',min:1,max:1,c:.47},{i:'kaefer',min:1,max:1,c:.2}]},
+  igel:{hab:'wg',w:2,ab:'dorn',n:'Waldigel',i:':m_igel:',tier:'normal',hp:18,min:1,max:3,xp:4,rec:1,res:15*60e3,drops:[{i:'fell',min:1,max:1,c:.4}]},
+  irrlicht:{ag:1,hab:'sr',w:2,ab:'fern',n:'Irrlicht',i:':m_irrlicht:',tier:'normal',hp:26,min:3,max:7,xp:9,rec:3,res:15*60e3,drops:[{i:'geist',min:1,max:1,c:.47}]},
+  streuner:{ag:1,hab:'gr',w:3,ab:'schwarm',n:'Streunender Hund',i:':m_streuner:',tier:'normal',hp:32,min:3,max:7,xp:10,rec:2,res:15*60e3,drops:[{i:'fell',min:1,max:1,c:.67},{i:'knochen',min:1,max:1,c:.27}]},
+  kraehe:{ag:1,hab:'*',w:3,ab:'dieb',n:'Aaskrähe',i:':m_kraehe:',tier:'normal',hp:18,min:2,max:5,xp:7,rec:2,res:15*60e3,drops:[{i:'feder',min:1,max:1,c:.4}]},
   // selten
-  goblinfuehrer:{ag:1,hab:'fr',ab:'schwarm',n:'Goblin-Anführer',i:':m_goblinfuehrer:',tier:'rare',hp:100,min:6,max:12,xp:34,rec:6,res:30*60e3,drops:[{i:'eisenerz',min:1,max:3},{i:'fell',min:1,max:2},{i:'trank',min:1,max:1,c:.3}]},
-  silberfuchs:{hab:'wg',ab:'flucht',n:'Silberfuchs',i:':m_silberfuchs:',tier:'rare',hp:80,min:5,max:11,xp:30,rec:5,res:30*60e3,drops:[{i:'silberfell',min:1,max:2},{i:'fell',min:1,max:2,c:.5}]},
-  kristallhirsch:{hab:'wf',ab:'flucht',n:'Kristallhirsch',i:':m_kristallhirsch:',tier:'rare',hp:110,min:6,max:12,xp:40,rec:6,res:30*60e3,drops:[{i:'kristall',min:1,max:2}]},
-  nachtkauz:{hab:'w',ab:'flucht',n:'Nachtkauz',i:':m_nachtkauz:',tier:'rare',hp:90,min:6,max:13,xp:35,rec:6,res:30*60e3,drops:[{i:'nachtfeder',min:1,max:3}]},
-  schattenwolf:{ag:1,hab:'w',ab:'wut',n:'Schattenwolf',i:':m_schattenwolf:',tier:'rare',hp:105,min:6,max:13,xp:38,rec:6,res:30*60e3,drops:[{i:'silberfell',min:1,max:1,c:.5},{i:'fell',min:1,max:2},{i:'knochen',min:1,max:2}]},
-  koenigsspinne:{ag:1,hab:'w',ab:'gift',n:'Königsspinne',i:':m_koenigsspinne:',tier:'rare',hp:95,min:6,max:12,xp:36,rec:6,res:30*60e3,drops:[{i:'gift',min:1,max:2},{i:'haut',min:1,max:1,c:.5}]},
-  sumpfhexe:{ag:1,hab:'s',ab:'heil',n:'Sumpfhexe',i:':m_sumpfhexe:',tier:'rare',hp:100,min:6,max:13,xp:40,rec:6,res:30*60e3,drops:[{i:'geist',min:1,max:2},{i:'kraut',min:2,max:3}]},
-  steinadler:{ag:1,hab:'f',ab:'fern',n:'Steinadler',i:':m_steinadler:',tier:'rare',hp:90,min:6,max:12,xp:36,rec:6,res:30*60e3,drops:[{i:'feder',min:2,max:3},{i:'nachtfeder',min:1,max:1,c:.4}]},
-  kettengeist:{ag:1,hab:'r',ab:'saug',n:'Kettengeist',i:':m_kettengeist:',tier:'rare',hp:105,min:6,max:13,xp:40,rec:7,res:30*60e3,drops:[{i:'geist',min:2,max:3},{i:'eisenerz',min:1,max:2,c:.5}]},
-  wegelagerer:{ag:1,hab:'gr',ab:'dieb',n:'Wegelagerer',i:':m_wegelagerer:',tier:'rare',hp:110,min:6,max:14,xp:42,rec:7,res:30*60e3,drops:[{i:'eisenerz',min:1,max:2},{i:'trank',min:1,max:1,c:.3}]},
-  salamander:{ag:1,hab:'fs',ab:'gift',n:'Feuersalamander',i:':m_salamander:',tier:'rare',hp:95,min:6,max:12,xp:36,rec:6,res:30*60e3,drops:[{i:'haut',min:1,max:2},{i:'gift',min:1,max:1,c:.5}]},
-  stier:{ag:1,hab:'g',ab:'bruell',n:'Wilder Stier',i:':m_stier:',tier:'rare',hp:120,min:7,max:13,xp:40,rec:7,res:30*60e3,drops:[{i:'horn',min:1,max:2},{i:'fell',min:1,max:2}]},
+  goblinfuehrer:{ag:1,hab:'fr',ab:'schwarm',n:'Goblin-Anführer',i:':m_goblinfuehrer:',tier:'rare',hp:100,min:6,max:12,xp:34,rec:6,res:30*60e3,drops:[{i:'eisenerz',min:1,max:3,c:.67},{i:'fell',min:1,max:2,c:.67},{i:'trank',min:1,max:1,c:.2}]},
+  silberfuchs:{hab:'wg',ab:'flucht',n:'Silberfuchs',i:':m_silberfuchs:',tier:'rare',hp:80,min:5,max:11,xp:30,rec:5,res:30*60e3,drops:[{i:'silberfell',min:1,max:2,c:.67},{i:'fell',min:1,max:2,c:.33}]},
+  kristallhirsch:{hab:'wf',ab:'flucht',n:'Kristallhirsch',i:':m_kristallhirsch:',tier:'rare',hp:110,min:6,max:12,xp:40,rec:6,res:30*60e3,drops:[{i:'kristall',min:1,max:2,c:.67}]},
+  nachtkauz:{hab:'w',ab:'flucht',n:'Nachtkauz',i:':m_nachtkauz:',tier:'rare',hp:90,min:6,max:13,xp:35,rec:6,res:30*60e3,drops:[{i:'nachtfeder',min:1,max:3,c:.67}]},
+  schattenwolf:{ag:1,hab:'w',ab:'wut',n:'Schattenwolf',i:':m_schattenwolf:',tier:'rare',hp:105,min:6,max:13,xp:38,rec:6,res:30*60e3,drops:[{i:'silberfell',min:1,max:1,c:.33},{i:'fell',min:1,max:2,c:.67},{i:'knochen',min:1,max:2,c:.67}]},
+  koenigsspinne:{ag:1,hab:'w',ab:'gift',n:'Königsspinne',i:':m_koenigsspinne:',tier:'rare',hp:95,min:6,max:12,xp:36,rec:6,res:30*60e3,drops:[{i:'gift',min:1,max:2,c:.67},{i:'haut',min:1,max:1,c:.33}]},
+  sumpfhexe:{ag:1,hab:'s',ab:'heil',n:'Sumpfhexe',i:':m_sumpfhexe:',tier:'rare',hp:100,min:6,max:13,xp:40,rec:6,res:30*60e3,drops:[{i:'geist',min:1,max:2,c:.67},{i:'kraut',min:2,max:3,c:.67}]},
+  steinadler:{ag:1,hab:'f',ab:'fern',n:'Steinadler',i:':m_steinadler:',tier:'rare',hp:90,min:6,max:12,xp:36,rec:6,res:30*60e3,drops:[{i:'feder',min:2,max:3,c:.67},{i:'nachtfeder',min:1,max:1,c:.27}]},
+  kettengeist:{ag:1,hab:'r',ab:'saug',n:'Kettengeist',i:':m_kettengeist:',tier:'rare',hp:105,min:6,max:13,xp:40,rec:7,res:30*60e3,drops:[{i:'geist',min:2,max:3,c:.67},{i:'eisenerz',min:1,max:2,c:.33}]},
+  wegelagerer:{ag:1,hab:'gr',ab:'dieb',n:'Wegelagerer',i:':m_wegelagerer:',tier:'rare',hp:110,min:6,max:14,xp:42,rec:7,res:30*60e3,drops:[{i:'eisenerz',min:1,max:2,c:.67},{i:'trank',min:1,max:1,c:.2}]},
+  salamander:{ag:1,hab:'fs',ab:'gift',n:'Feuersalamander',i:':m_salamander:',tier:'rare',hp:95,min:6,max:12,xp:36,rec:6,res:30*60e3,drops:[{i:'haut',min:1,max:2,c:.67},{i:'gift',min:1,max:1,c:.33}]},
+  stier:{ag:1,hab:'g',ab:'bruell',n:'Wilder Stier',i:':m_stier:',tier:'rare',hp:120,min:7,max:13,xp:40,rec:7,res:30*60e3,drops:[{i:'horn',min:1,max:2,c:.67},{i:'fell',min:1,max:2,c:.67}]},
   // Elite
-  alpharohling:{ag:1,hab:'wg',ab:'schwarm',n:'Alpha-Rohling',i:':m_alpharohling:',tier:'elite',hp:260,min:10,max:20,xp:90,rec:8,res:60*60e3,drops:[{i:'alphafell',min:1,max:2},{i:'fell',min:2,max:4},{i:'trank',min:1,max:1,c:.3}]},
-  steinwaechter:{ag:1,hab:'f',ab:'panzer',n:'Steinwächter',i:':m_steinwaechter:',tier:'elite',hp:320,min:12,max:22,xp:110,rec:10,res:60*60e3,drops:[{i:'steinherz',min:1,max:1},{i:'eisenerz',min:2,max:4}]},
-  urhirsch:{hab:'w',ab:'dorn',n:'Uralter Hirsch',i:':m_urhirsch:',tier:'elite',hp:280,min:10,max:18,xp:100,rec:9,res:60*60e3,drops:[{i:'kristall',min:2,max:3},{i:'alphafell',min:1,max:1,c:.5}]},
-  urkeiler:{ag:1,hab:'w',ab:'wut',n:'Urkeiler',i:':m_urkeiler:',tier:'elite',hp:290,min:11,max:20,xp:100,rec:9,res:60*60e3,drops:[{i:'hauer',min:2,max:3},{i:'alphafell',min:1,max:1,c:.5},{i:'trank',min:1,max:1,c:.3}]},
-  skelettritter:{ag:1,hab:'r',ab:'saug',n:'Skelettritter',i:':m_skelettritter:',tier:'elite',hp:300,min:12,max:21,xp:105,rec:10,res:60*60e3,drops:[{i:'knochen',min:2,max:3},{i:'eisenerz',min:2,max:4},{i:'geist',min:1,max:2,c:.5}]},
-  moorhydra:{ag:1,hab:'s',ab:'heil',n:'Moorhydra',i:':m_moorhydra:',tier:'elite',hp:330,min:11,max:20,xp:110,rec:10,res:60*60e3,drops:[{i:'gift',min:2,max:3},{i:'moorperle',min:1,max:1,c:.3},{i:'kraut',min:2,max:3}]},
-  greif:{ag:1,hab:'f',ab:'fern',n:'Greif',i:':m_greif:',tier:'elite',hp:270,min:11,max:20,xp:100,rec:9,res:60*60e3,drops:[{i:'feder',min:2,max:3},{i:'nachtfeder',min:1,max:2},{i:'kristall',min:1,max:1,c:.4}]},
-  oger:{ag:1,hab:'gr',ab:'bruell',n:'Oger',i:':m_oger:',tier:'elite',hp:340,min:13,max:23,xp:115,rec:11,res:60*60e3,drops:[{i:'horn',min:2,max:3},{i:'alphafell',min:1,max:1,c:.4},{i:'trank',min:1,max:1,c:.4}]},
+  alpharohling:{ag:1,hab:'wg',ab:'schwarm',n:'Alpha-Rohling',i:':m_alpharohling:',tier:'elite',hp:260,min:10,max:20,xp:90,rec:8,res:60*60e3,drops:[{i:'alphafell',min:1,max:2,c:.67},{i:'fell',min:2,max:4,c:.67},{i:'trank',min:1,max:1,c:.2}]},
+  steinwaechter:{ag:1,hab:'f',ab:'panzer',n:'Steinwächter',i:':m_steinwaechter:',tier:'elite',hp:320,min:12,max:22,xp:110,rec:10,res:60*60e3,drops:[{i:'steinherz',min:1,max:1,c:.67},{i:'eisenerz',min:2,max:4,c:.67}]},
+  urhirsch:{hab:'w',ab:'dorn',n:'Uralter Hirsch',i:':m_urhirsch:',tier:'elite',hp:280,min:10,max:18,xp:100,rec:9,res:60*60e3,drops:[{i:'kristall',min:2,max:3,c:.67},{i:'alphafell',min:1,max:1,c:.33}]},
+  urkeiler:{ag:1,hab:'w',ab:'wut',n:'Urkeiler',i:':m_urkeiler:',tier:'elite',hp:290,min:11,max:20,xp:100,rec:9,res:60*60e3,drops:[{i:'hauer',min:2,max:3,c:.67},{i:'alphafell',min:1,max:1,c:.33},{i:'trank',min:1,max:1,c:.2}]},
+  skelettritter:{ag:1,hab:'r',ab:'saug',n:'Skelettritter',i:':m_skelettritter:',tier:'elite',hp:300,min:12,max:21,xp:105,rec:10,res:60*60e3,drops:[{i:'knochen',min:2,max:3,c:.67},{i:'eisenerz',min:2,max:4,c:.67},{i:'geist',min:1,max:2,c:.33}]},
+  moorhydra:{ag:1,hab:'s',ab:'heil',n:'Moorhydra',i:':m_moorhydra:',tier:'elite',hp:330,min:11,max:20,xp:110,rec:10,res:60*60e3,drops:[{i:'gift',min:2,max:3,c:.67},{i:'moorperle',min:1,max:1,c:.2},{i:'kraut',min:2,max:3,c:.67}]},
+  greif:{ag:1,hab:'f',ab:'fern',n:'Greif',i:':m_greif:',tier:'elite',hp:270,min:11,max:20,xp:100,rec:9,res:60*60e3,drops:[{i:'feder',min:2,max:3,c:.67},{i:'nachtfeder',min:1,max:2,c:.67},{i:'kristall',min:1,max:1,c:.27}]},
+  oger:{ag:1,hab:'gr',ab:'bruell',n:'Oger',i:':m_oger:',tier:'elite',hp:340,min:13,max:23,xp:115,rec:11,res:60*60e3,drops:[{i:'horn',min:2,max:3,c:.67},{i:'alphafell',min:1,max:1,c:.27},{i:'trank',min:1,max:1,c:.27}]},
   // Boss
-  waldtyrann:{ag:1,hab:'wg',ab:'wut',n:'Waldtyrann',i:':m_waldtyrann:',tier:'boss',hp:700,min:18,max:32,xp:300,rec:14,res:3*3600e3,drops:[{i:'tyrannenzahn',min:1,max:2},{i:'fell',min:5,max:8},{i:'trank',min:2,max:2}]},
-  moorkoenigin:{ag:1,hab:'s',ab:'gift',n:'Moorkönigin',i:':m_moorkoenigin:',tier:'boss',hp:800,min:20,max:34,xp:340,rec:16,res:3*3600e3,drops:[{i:'moorperle',min:1,max:1},{i:'kristall',min:2,max:3},{i:'trank',min:2,max:2}]},
-  schildkroete:{hab:'s',ab:'panzer',n:'Mooswächter-Schildkröte',i:':m_schildkroete:',tier:'boss',hp:750,min:14,max:26,xp:320,rec:15,res:3*3600e3,drops:[{i:'moorperle',min:1,max:1},{i:'steinherz',min:1,max:2},{i:'trank',min:2,max:2}]},
-  vampirfuerst:{ag:1,hab:'r',ab:'saug',n:'Vampirfürst',i:':m_vampirfuerst:',tier:'boss',hp:780,min:19,max:33,xp:330,rec:15,res:3*3600e3,drops:[{i:'geist',min:2,max:3},{i:'tyrannenzahn',min:1,max:1,c:.5},{i:'trank',min:2,max:2}]},
-  felswurm:{ag:1,hab:'f',ab:'bruell',n:'Felswurm',i:':m_felswurm:',tier:'boss',hp:820,min:20,max:34,xp:340,rec:16,res:3*3600e3,drops:[{i:'steinherz',min:1,max:2},{i:'haut',min:2,max:3},{i:'trank',min:2,max:2}]},
+  waldtyrann:{ag:1,hab:'wg',ab:'wut',n:'Waldtyrann',i:':m_waldtyrann:',tier:'boss',hp:700,min:18,max:32,xp:300,rec:14,res:3*3600e3,drops:[{i:'tyrannenzahn',min:1,max:2,c:.67},{i:'fell',min:5,max:8,c:.67},{i:'trank',min:1,max:3,c:.67}]},
+  moorkoenigin:{ag:1,hab:'s',ab:'gift',n:'Moorkönigin',i:':m_moorkoenigin:',tier:'boss',hp:800,min:20,max:34,xp:340,rec:16,res:3*3600e3,drops:[{i:'moorperle',min:1,max:1,c:.67},{i:'kristall',min:2,max:3,c:.67},{i:'trank',min:1,max:3,c:.67}]},
+  schildkroete:{hab:'s',ab:'panzer',n:'Mooswächter-Schildkröte',i:':m_schildkroete:',tier:'boss',hp:750,min:14,max:26,xp:320,rec:15,res:3*3600e3,drops:[{i:'moorperle',min:1,max:1,c:.67},{i:'steinherz',min:1,max:2,c:.67},{i:'trank',min:1,max:3,c:.67}]},
+  vampirfuerst:{ag:1,hab:'r',ab:'saug',n:'Vampirfürst',i:':m_vampirfuerst:',tier:'boss',hp:780,min:19,max:33,xp:330,rec:15,res:3*3600e3,drops:[{i:'geist',min:2,max:3,c:.67},{i:'tyrannenzahn',min:1,max:1,c:.33},{i:'trank',min:1,max:3,c:.67}]},
+  felswurm:{ag:1,hab:'f',ab:'bruell',n:'Felswurm',i:':m_felswurm:',tier:'boss',hp:820,min:20,max:34,xp:340,rec:16,res:3*3600e3,drops:[{i:'steinherz',min:1,max:2,c:.67},{i:'haut',min:2,max:3,c:.67},{i:'trank',min:1,max:3,c:.67}]},
   // Gebietsboss (einer pro Lebensraum-Gebiet, greift erst an wenn du ihn angreifst)
-  baumriese:{hab:'w',ab:'heil',n:'Uralter Baumriese',i:':m_baumriese:',tier:'area',hp:11000,min:70,max:120,xp:3400,rec:42,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'tyrannenzahn',min:1,max:2},{i:'trank',min:3,max:3}]},
-  urmammut:{hab:'g',ab:'bruell',n:'Urmammut',i:':m_urmammut:',tier:'area',hp:12000,min:75,max:130,xp:3600,rec:44,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'horn',min:3,max:4},{i:'trank',min:3,max:3}]},
-  sumpfsaurier:{hab:'s',ab:'gift',n:'Sumpfsaurier',i:':m_sumpfsaurier:',tier:'area',hp:11000,min:75,max:130,xp:3500,rec:44,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'moorperle',min:2,max:3},{i:'trank',min:3,max:3}]},
-  bergtroll:{hab:'f',ab:'panzer',n:'Bergtroll',i:':m_bergtroll:',tier:'area',hp:10000,min:70,max:120,xp:3300,rec:40,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'steinherz',min:3,max:3},{i:'trank',min:3,max:3}]},
-  aschedrache:{hab:'r',ab:'fern',n:'Aschedrache',i:':m_aschedrache:',tier:'area',hp:12000,min:80,max:140,xp:3800,rec:46,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'drachenschuppe',min:3,max:5},{i:'trank',min:4,max:4}]}
+  baumriese:{hab:'w',ab:'heil',n:'Uralter Baumriese',i:':m_baumriese:',tier:'area',hp:11000,min:70,max:120,xp:3400,rec:42,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1,c:.67},{i:'tyrannenzahn',min:1,max:2,c:.67},{i:'trank',min:2,max:4,c:.67}]},
+  urmammut:{hab:'g',ab:'bruell',n:'Urmammut',i:':m_urmammut:',tier:'area',hp:12000,min:75,max:130,xp:3600,rec:44,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1,c:.67},{i:'horn',min:3,max:4,c:.67},{i:'trank',min:2,max:4,c:.67}]},
+  sumpfsaurier:{hab:'s',ab:'gift',n:'Sumpfsaurier',i:':m_sumpfsaurier:',tier:'area',hp:11000,min:75,max:130,xp:3500,rec:44,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1,c:.67},{i:'moorperle',min:2,max:3,c:.67},{i:'trank',min:2,max:4,c:.67}]},
+  bergtroll:{hab:'f',ab:'panzer',n:'Bergtroll',i:':m_bergtroll:',tier:'area',hp:10000,min:70,max:120,xp:3300,rec:40,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1,c:.67},{i:'steinherz',min:2,max:4,c:.67},{i:'trank',min:2,max:4,c:.67}]},
+  aschedrache:{hab:'r',ab:'fern',n:'Aschedrache',i:':m_aschedrache:',tier:'area',hp:12000,min:80,max:140,xp:3800,rec:46,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1,c:.67},{i:'drachenschuppe',min:3,max:5,c:.67},{i:'trank',min:3,max:5,c:.67}]}
 };
 const TIERS={normal:{l:'Monster',sz:44},rare:{l:'💜 Seltenes Monster',sz:48},elite:{l:'⭐ Elite',sz:54},boss:{l:'👹 Boss',sz:62},area:{l:'👑 Gebietsboss',sz:74}};
 const EXH_MS=180000;  // Erschöpfung nach Ohnmacht
@@ -377,9 +377,9 @@ const gName=g=>{const b=getBase(g.b);return '<span style="color:'+QC[g.q]+';font
 const gNameT=g=>{const b=getBase(g.b);return '['+QN[g.q]+'] '+b.n+(g.p?' +'+g.p:'');};
 function gStr(o){const a=[];if(o.def)a.push('🛡️ '+o.def);if(o.atk)a.push('⚔️ '+o.atk);if(o.hp)a.push('❤️ '+o.hp);if(o.crit)a.push('🎯 '+Math.round(o.crit*100)+'%');return a.join(' · ')||'–';}
 function rollQ(w){let r=Math.random()*w.reduce((a,b)=>a+b,0);for(let i=0;i<w.length;i++){r-=w[i];if(r<0)return i;}return 0;}
-const RDROPCH={normal:.01,rare:.06,elite:.2,boss:.45,area:1};
+const RDROPCH={normal:.007,rare:.04,elite:.13,boss:.3,area:.67};
 const RDROPQ={normal:[100,0,0,0,0],rare:[70,30,0,0,0],elite:[20,55,22,3,0],boss:[0,25,50,22,3],area:[0,0,30,50,20]};
-const DROPCH={normal:.015,rare:.05,elite:.28,boss:.65,area:1};
+const DROPCH={normal:.01,rare:.033,elite:.19,boss:.43,area:.67};
 const DROPQ={normal:[85,14,1,0,0],rare:[50,40,9,1,0],elite:[20,45,28,6,1],boss:[0,25,50,22,3],area:[0,0,35,50,15]};
 const DROPT={normal:[1],rare:[1,1,2],elite:[2],boss:[2,3],area:[3]};
 function rollGear(tier){
