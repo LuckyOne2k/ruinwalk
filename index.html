@@ -105,7 +105,7 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
   <button data-a="open" data-s="inv"><b>🎒</b>Inventar</button>
   <button data-a="open" data-s="craft"><b>🔨</b>Herstellen</button>
   <button data-a="open" data-s="quests"><b>📜</b>Quests<i class="badge" id="qb"></i></button>
-  <button data-a="open" data-s="char"><b>🧙</b>Charakter</button>
+  <button data-a="open" data-s="char"><b>🧙</b>Charakter<i class="badge" id="cb">!</i></button>
   <button data-a="open" data-s="set"><b>⚙️</b>Mehr</button>
 </nav>
 
@@ -140,7 +140,7 @@ if(!window.isSecureContext){
 /* ---------- Konstanten ---------- */
 const KEY='ruinwalk_v1';
 const DLAT=0.0015, DLON=0.00226;   // Zellgröße ca. 165 m x 165 m
-const RANGE=40, BOW=60, VIEW=2, SHOW_DIST=500;
+const RANGE=40, VIEW=2, SHOW_DIST=500, CLASS_LV=5;
 const START_POS=[48.3705,10.8978]; // Augsburg Rathausplatz (Testmodus)
 
 const ITEMS={
@@ -168,14 +168,32 @@ const RECIPES=[
 const SKILLNAME={holz:'Holzfällen',berg:'Bergbau',sammeln:'Sammeln'};
 const SLOTS=[['waffe','Waffe'],['kopf','Kopf'],['brust','Brust'],['haende','Hände'],['fuesse','Füße']];
 function equipped(slot){
-  if(slot==='waffe')return {i:'🏹',n:'Jagdbogen'};
+  if(slot==='waffe'){const c=C0();return {i:c.wi,n:c.w};}
   const r=RECIPES.find(x=>x.kind==='armor'&&x.slot===slot&&S.stats.crafted[x.id]);
   return r?ITEMS[r.id]:null;
 }
 
+/* ---------- Klassen ---------- */
+const CLASSES={
+  wanderer:{n:'Wanderer',i:'🧭',w:'Schleuder',wi:'🪃',act:'Schleuder abfeuern',range:30,dmg:.8,en:2,crit:.1,blurb:'Noch keine Klasse.'},
+  krieger:{n:'Krieger',i:'⚔️',w:'Schwert & Schild',wi:'⚔️',act:'Zuschlagen',range:20,dmg:1.3,en:2,crit:.1,hpb:.2,def:2,
+    blurb:'Robust und stark im Nahkampf. +20 % Leben, +2 Verteidigung, hoher Schaden. Du musst nah ran.'},
+  moench:{n:'Mönch',i:'🥋',w:'Fäuste',wi:'👊',act:'Fäuste einsetzen',range:20,dmg:.6,hits:2,en:1,crit:.1,enreg:1.25,
+    blurb:'Schnelle Doppelschläge, spart Energie und erholt sich 25 % schneller. Nahkampf.'},
+  bogen:{n:'Bogenschütze',i:'🏹',w:'Bogen',wi:'🏹',act:'Pfeil abschießen',range:60,dmg:1,en:2,crit:.2,
+    blurb:'Größte Reichweite und hohe Chance auf kritische Treffer. Bleibt auf Abstand.'},
+  magier:{n:'Elementarmagier',i:'🔮',w:'Zauberstab',wi:'🪄',act:'Zauber wirken',range:45,dmg:1.25,en:3,crit:.1,
+    blurb:'Mächtige Elementarzauber mit hohem Schaden, kostet aber mehr Energie.'},
+  heiler:{n:'Heiler',i:'✨',w:'Stab des Lichts',wi:'🌟',act:'Lichtstrahl wirken',range:45,dmg:.8,en:2,crit:.1,heal:3,
+    blurb:'Weniger Schaden, dafür heilt jeder Angriff dich um 3 Leben. Ideal für lange Wege.'}
+};
+const PICK=['krieger','moench','bogen','magier','heiler'];
+const C0=()=>CLASSES[S.cls]||CLASSES.wanderer;
+const atkRange=()=>C0().range;
+
 /* ---------- Spielstand ---------- */
 const def=()=>({lv:1,xp:0,hp:100,en:100,inv:{},tools:[],skills:{holz:0,berg:0,sammeln:0},cd:{},mh:{},
-  stats:{col:{},nodes:{},kills:0,crafted:{}},qdone:[],qready:[],def:0,last:Date.now(),test:false});
+  stats:{col:{},nodes:{},kills:0,crafted:{}},qdone:[],qready:[],def:0,cls:'wanderer',last:Date.now(),test:false});
 let S=def();
 try{
   const raw=localStorage.getItem(KEY);
@@ -183,7 +201,8 @@ try{
 }catch(e){}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 
-const maxHP=()=>100+10*(S.lv-1);
+const maxHP=()=>Math.round((100+10*(S.lv-1))*(1+(C0().hpb||0)));
+const defense=()=>S.def+(C0().def||0);
 const atk=()=>10+2*S.lv;
 const sl=k=>1+Math.floor(S.skills[k]/10);
 const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
@@ -192,11 +211,11 @@ const have=k=>S.inv[k]||0;
 const findTool=t=>S.tools.find(x=>x.type===t&&x.dur>0);
 function addXP(n){
   S.xp+=n;
-  while(S.xp>=S.lv*40){S.xp-=S.lv*40;S.lv++;S.hp=maxHP();toast('⭐ Level '+S.lv+' erreicht!');}
+  while(S.xp>=S.lv*40){S.xp-=S.lv*40;S.lv++;S.hp=maxHP();toast('⭐ Level '+S.lv+' erreicht!'+(S.lv===CLASS_LV&&S.cls==='wanderer'?' Du kannst jetzt eine Klasse wählen (Charakter)!':''));}
 }
 function regen(dt){
   S.hp=Math.min(maxHP(),S.hp+dt/5);
-  S.en=Math.min(100,S.en+dt/6);
+  S.en=Math.min(100,S.en+dt/6*(C0().enreg||1));
 }
 regen(Math.min(8*3600,Math.max(0,(Date.now()-S.last)/1000)));
 S.last=Date.now();
@@ -313,7 +332,7 @@ function updateNear(){
   if(!P)return;
   for(const [id,o] of ents){
     const el=o.m.getElement();if(!el||!el.firstElementChild)continue;
-    const n=el.firstElementChild,r=o.e.kind==='mob'?BOW:RANGE;
+    const n=el.firstElementChild,r=o.e.kind==='mob'?atkRange():RANGE;
     n.classList.toggle('near',dist(P,o.e)<=r);
     n.classList.toggle('sel',!!sel&&sel.id===id);
   }
@@ -333,10 +352,10 @@ function renderCard(){
     sub=(isMob?'Monster · schwach':'Ressource')+' · '+Math.round(ds)+' m entfernt';
     if(isMob){
       const mx=d.hp,hp=S.mh[e.id]??mx;
-      body='<div class="row">❤️ '+hp+' / '+mx+'<div class="hpbar"><i style="width:'+(100*hp/mx)+'%"></i></div>Schießt mit Bogen bis '+BOW+' m · Energie 2</div>';
-      action='shoot';label='🏹 Mit Bogen schießen';
-      if(ds>BOW)label='Zu weit – noch '+Math.ceil(ds-BOW)+' m';
-      else if(S.en<2)label='Zu erschöpft';
+      body='<div class="row">❤️ '+hp+' / '+mx+'<div class="hpbar"><i style="width:'+(100*hp/mx)+'%"></i></div>'+C0().w+' · Reichweite '+atkRange()+' m · Energie '+C0().en+'</div>';
+      action='shoot';label=C0().i+' '+C0().act;
+      if(ds>atkRange())label='Zu weit – noch '+Math.ceil(ds-atkRange())+' m';
+      else if(S.en<C0().en)label='Zu erschöpft';
       else dis=false;
     }else{
       action='collect';label='Einsammeln';
@@ -379,11 +398,18 @@ function collect(){
 }
 function shoot(){
   const e=sel;if(!e||e.kind!=='mob'||!P)return;
-  const m=MOBS[e.type];
-  if(dist(P,e)>BOW){toast('Zu weit weg');return;}
-  if(S.en<2){toast('Zu erschöpft');return;}
-  S.en-=2;
-  let dmg=atk()+rnd(0,8);const crit=Math.random()<.1;if(crit)dmg*=2;
+  const m=MOBS[e.type],C=C0();
+  if(dist(P,e)>C.range){toast('Zu weit weg');return;}
+  if(S.en<C.en){toast('Zu erschöpft');return;}
+  S.en-=C.en;
+  let dmg=0,crit=false;
+  for(let i=0;i<(C.hits||1);i++){
+    let d=Math.max(1,Math.round((atk()+rnd(0,8))*C.dmg));
+    if(Math.random()<C.crit){d*=2;crit=true;}
+    dmg+=d;
+  }
+  let heal='';
+  if(C.heal){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+C.heal);if(S.hp>b0)heal=' · +'+C.heal+' ❤️';}
   const hp=(S.mh[e.id]??m.hp)-dmg;
   if(hp<=0){
     delete S.mh[e.id];S.cd[e.id]=Date.now();S.stats.kills++;
@@ -393,9 +419,9 @@ function shoot(){
     deselect();refreshWorld();checkQuests();
   }else{
     S.mh[e.id]=hp;
-    let msg=(crit?'💥 Kritisch! ':'🎯 ')+dmg+' Schaden';
+    let msg=(crit?'💥 Kritisch! ':C.i+' ')+dmg+' Schaden'+heal;
     if(Math.random()<.6){
-      const h=Math.max(1,rnd(m.min,m.max)-S.def);S.hp-=h;msg+=' · '+m.n+' trifft dich: -'+h;
+      const h=Math.max(1,rnd(m.min,m.max)-defense());S.hp-=h;msg+=' · '+m.n+' trifft dich: -'+h;
     }
     if(S.hp<=0){
       S.hp=Math.round(maxHP()*.3);S.mh[e.id]=m.hp;
@@ -457,10 +483,10 @@ function claimQuest(id){
 }
 
 /* ---------- Menüs ---------- */
-let curSheet=null,confirmReset=false,qtab='cur';
+let curSheet=null,confirmReset=false,qtab='cur',pickCls=null;
 function openSheet(s){
   curSheet=s;
-  const titles={inv:'Inventar',craft:'Herstellen',quests:'Quests',char:'Charakter',set:'Mehr'};
+  const titles={inv:'Inventar',craft:'Herstellen',quests:'Quests',char:'Charakter',set:'Mehr',class:'Klasse wählen'};
   $('#shT').textContent=titles[s];
   let h='';
   if(s==='inv'){
@@ -497,6 +523,18 @@ function openSheet(s){
         :'<p>Noch keine erledigten Quests.</p>';
     }
   }
+  if(s==='class'){
+    if(S.cls!=='wanderer'||S.lv<CLASS_LV){h+='<p>Du kannst noch keine Klasse wählen.</p>';}
+    else{
+      h+='<p style="font-size:14px;margin-top:0">Wähle deine Grundklasse. Die Entscheidung ist vorerst dauerhaft. Upgrades und Klassenwechsel kommen später.</p>';
+      h+=PICK.map(id=>{
+        const c=CLASSES[id],on=pickCls===id;
+        return '<div class="rec"'+(on?' style="border-color:var(--acc);background:#ffe9c4"':'')+'><div class="t">'+c.i+' '+c.n+'</div><div class="c">'+c.blurb+'</div><small>'+c.w+' · Reichweite '+c.range+' m · Energie '+c.en+' pro Angriff</small><br>'
+          +(on?'<button class="btn" style="margin-top:8px;width:100%;padding:11px" data-a="clsok">✔ Als '+c.n+' entscheiden</button>'
+              :'<button class="btn sec" style="margin-top:8px" data-a="clspick" data-id="'+id+'">Auswählen</button>')+'</div>';
+      }).join('');
+    }
+  }
   if(s==='char'){
     const need=S.lv*40;
     h+='<div class="kv"><span>Level</span><b>'+S.lv+'</b></div>'
@@ -509,7 +547,14 @@ function openSheet(s){
       +SLOTS.map(([k,l])=>{const e=equipped(k);return '<div class="it"'+(e?'':' style="opacity:.5"')+'><span>'+(e?e.i:'➕')+'</span><small>'+l+'</small><small>'+(e?e.n:'leer')+'</small></div>';}).join('')+'</div>'
       +'<h3>Lebensfertigkeiten</h3>'
       +Object.keys(SKILLNAME).map(k=>'<div class="kv"><span>'+SKILLNAME[k]+'</span><b>Stufe '+sl(k)+' <small>('+(S.skills[k]%10)+'/10)</small></b></div>').join('')
-      +'<h3>Klasse</h3><div class="kv"><span>🏹 Bogenschütze</span><small>Fernkampf bis '+BOW+' m</small></div>';
+      +'';
+    const C=C0();
+    h+='<h3>Klasse</h3><div class="kv"><span>'+C.i+' '+C.n+'</span><small>'+C.w+' · '+C.range+' m</small></div>';
+    if(S.cls==='wanderer'){
+      h+=S.lv>=CLASS_LV
+        ?'<button class="btn" data-a="open" data-s="class" style="margin-top:10px;width:100%;padding:13px;font-size:16px">🌟 Klasse wählen</button>'
+        :'<p style="font-size:13px">Ab Stufe '+CLASS_LV+' kannst du eine Klasse wählen (noch '+(CLASS_LV-S.lv)+' Stufen).</p>';
+    }else h+='<p style="font-size:13px">'+C.blurb+'</p>';
   }
   if(s==='set'){
     h+='<h3>Testmodus</h3><p style="font-size:14px">Im Testmodus ignoriert das Spiel dein GPS. Tippe auf die Karte, um dich dorthin zu bewegen, zum Beispiel drinnen oder am Schreibtisch.</p>'
@@ -521,7 +566,7 @@ function openSheet(s){
   $('#shB').innerHTML=h;
   $('#sheet').style.display='flex';
 }
-function closeSheet(){$('#sheet').style.display='none';curSheet=null;confirmReset=false;}
+function closeSheet(){$('#sheet').style.display='none';curSheet=null;confirmReset=false;pickCls=null;}
 
 /* ---------- UI ---------- */
 let tt=null;
@@ -532,6 +577,7 @@ function hud(){
   $('#hpb').style.width=(100*S.hp/mx)+'%';$('#hpt').textContent=Math.floor(S.hp)+'/'+mx;
   $('#enb').style.width=S.en+'%';$('#en2').textContent=Math.floor(S.en)+'/100';
   const qb=$('#qb'),n=S.qready.length;qb.textContent=n;qb.style.display=n?'flex':'none';
+  $('#cb').style.display=(S.cls==='wanderer'&&S.lv>=CLASS_LV)?'flex':'none';
 }
 function setTest(on){
   S.test=on;
@@ -556,6 +602,14 @@ document.addEventListener('click',ev=>{
     case 'reset':
       if(!confirmReset){confirmReset=true;openSheet('set');}
       else{try{localStorage.removeItem(KEY);}catch(e){}location.reload();}
+      break;
+    case 'clspick':pickCls=b.dataset.id;openSheet('class');break;
+    case 'clsok':
+      if(pickCls&&CLASSES[pickCls]&&S.lv>=CLASS_LV&&S.cls==='wanderer'){
+        const c=CLASSES[pickCls];S.cls=pickCls;closeSheet();
+        S.hp=maxHP();toast(c.i+' Du bist jetzt '+c.n+'!');
+        save();hud();renderCard();updateNear();
+      }
       break;
     case 'qtab':qtab=b.dataset.t;openSheet('quests');break;
     case 'qclaim':claimQuest(b.dataset.id);break;
