@@ -8,8 +8,8 @@ function pxUrl(emo){
   const k=PX_KEYS[PX_NORM(emo)];if(!k)return null;
   if(PX_URL[k])return PX_URL[k];
   const d=pxDef(k);if(!d)return null;
-  const cv=document.createElement('canvas');cv.width=cv.height=32;
-  const cx=cv.getContext('2d'),im=cx.createImageData(32,32);im.data.set(pxPixels(d[0],d[1],32));cx.putImageData(im,0,0);
+  const cv=document.createElement('canvas');const NN=pxSizeOf(d[0],32);cv.width=cv.height=NN;
+  const cx=cv.getContext('2d'),im=cx.createImageData(NN,NN);im.data.set(pxPixels(d[0],d[1],32));cx.putImageData(im,0,0);
   return PX_URL[k]=cv.toDataURL('image/png');
 }
 pxBuild();

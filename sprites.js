@@ -161,8 +161,9 @@ const PX_ALIAS={
   '☠️':['💀','w>g'],'🕊️':['🪶',''],'🩸':['💧','c>r'],'📢':['📯',''],'🔗':['⛓️',''],'⚔':['⚔️',''],'🪱x':['🪱','']
 };
 /* ---------- Engine ---------- */
+function pxSizeOf(def,N){const m=/^@(\d+);/.exec(def);return m?+m[1]:(N||16);}
 function pxRaster(def,N){
-  N=N||16;const g=new Array(N*N).fill(null),shade=new Array(N*N).fill(1);
+  N=pxSizeOf(def,N);def=def.replace(/^@\d+;/,'');const g=new Array(N*N).fill(null),shade=new Array(N*N).fill(1);
   const put=(x,y,c)=>{x=Math.round(x);y=Math.round(y);if(x<0||y<0||x>=N||y>=N)return;g[y*N+x]=c==='_'?null:c;};
   for(const op of def.split(';')){
     const m=/^([ertlpL])([-\d.,]+)([A-Za-z_])$/.exec(op.trim());if(!m)continue;
@@ -186,7 +187,7 @@ function pxHex(h,f){const n=parseInt(h.slice(1),16);let r=n>>16,gg=(n>>8)&255,b=
   if(f>1){r+=(255-r)*(f-1);gg+=(255-gg)*(f-1);b+=(255-b)*(f-1);}else{r*=f;gg*=f;b*=f;}
   return [Math.round(r),Math.round(gg),Math.round(b)];}
 function pxPixels(def,swap,N){
-  N=N||16;const g=pxRaster(def,N),out=new Uint8ClampedArray(N*N*4),at=(x,y)=>x<0||y<0||x>=N||y>=N?null:g[y*N+x];
+  N=pxSizeOf(def,N);const g=pxRaster(def,N),out=new Uint8ClampedArray(N*N*4),at=(x,y)=>x<0||y<0||x>=N||y>=N?null:g[y*N+x];
   const K=pxHex(PX_PAL.k,1);
   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
     const c=g[y*N+x],i=(y*N+x)*4;
@@ -222,5 +223,5 @@ function pxDef(key){
   const a=PX_ALIAS[key];if(!a)return null;
   const base=PX_SPR[a[0]];return base?[pxScaleDef(base),pxSwap(a[1])]:null;
 }
-if(typeof module!=='undefined')module.exports={PX_SPR,PX_ALIAS,PX_SPR32,PX_ALIAS32,pxPixels,pxDef,PX_PAL};
+if(typeof module!=='undefined')module.exports={pxSizeOf,PX_SPR,PX_ALIAS,PX_SPR32,PX_ALIAS32,pxPixels,pxDef,PX_PAL};
 
