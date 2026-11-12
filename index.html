@@ -78,6 +78,10 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 .fbox{background:var(--card);border-radius:20px;padding:20px;max-width:360px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,.5);text-align:center}
 .fbox h2{margin:0 0 6px;font-size:24px}.fbox p{margin:8px 0;font-size:14px;line-height:1.45}
 .fbox ul{text-align:left;margin:8px 0 12px;padding-left:20px;font-size:14px;line-height:1.5}
+/* Schwebende Zahlen */
+.fl{font-weight:800;font-size:20px;white-space:nowrap;text-align:center;pointer-events:none;text-shadow:0 0 3px #000,0 0 3px #000,0 1px 2px #000;animation:flup 1.3s ease-out forwards}
+.fl.dmg{color:#ff3b3b}.fl.heal{color:#3ddc6a}.fl.crit{font-size:28px}
+@keyframes flup{0%{transform:translateY(0) scale(.6);opacity:0}15%{transform:translateY(-8px) scale(1.15);opacity:1}100%{transform:translateY(-52px) scale(1);opacity:0}}
 /* Entities */
 .leaflet-map-pane:not(.leaflet-zoom-anim) .leaflet-marker-icon.roam{transition:transform 1s linear}
 .ent.t-rare{border-color:#9b5de5;background:#f1e6ff}
@@ -551,9 +555,10 @@ function strike(o){
     dmg+=d;
   }
   let heal='';
-  if(o.heal){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+o.heal);if(S.hp>b0)heal=' · +'+Math.round(S.hp-b0)+' ❤️';}
+  if(o.heal){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+o.heal);if(S.hp>b0){heal=' · +'+Math.round(S.hp-b0)+' ❤️';fMe('+'+Math.round(S.hp-b0),'heal',0);}}
   if(o.shield)S.shield=o.shield;
   if(o.stun)S.stun=o.stun;
+  fMob(e,'-'+dmg,'dmg'+(crit?' crit':''),0);
   const hp=(S.mh[e.id]??m.hp)-dmg;
   if(hp<=0){
     delete S.mh[e.id];S.cd[e.id]=Date.now();S.stats.kills++;S.stun=0;
@@ -569,7 +574,7 @@ function strike(o){
     else if(Math.random()<.6){
       let h=Math.max(1,rnd(m.min,m.max)-defense());
       if(S.shield>0){S.shield--;h=Math.max(1,Math.round(h*.3));}
-      S.hp-=h;msg+=' · '+m.n+' trifft dich: -'+h;
+      S.hp-=h;msg+=' · '+m.n+' trifft dich: -'+h;fMe('-'+h,'dmg',350);
     }
     if(S.hp<=0)faint(m,e);
     else toast(msg);
@@ -578,6 +583,16 @@ function strike(o){
   save();hud();renderCard();
   return true;
 }
+function fnum(ll,txt,cls,delay){
+  setTimeout(()=>{
+    if(!ll)return;
+    const j=Math.round((Math.random()-.5)*28);
+    const mk=L.marker([ll.lat,ll.lng],{icon:L.divIcon({className:'',html:'<div class="fl '+cls+'" style="margin-left:'+j+'px">'+txt+'</div>',iconSize:[80,30],iconAnchor:[40,34]}),zIndexOffset:3000,interactive:false}).addTo(map);
+    setTimeout(()=>map.removeLayer(mk),1400);
+  },delay||0);
+}
+function fMob(e,txt,cls,d){const p=ep(e);fnum({lat:p.lat,lng:p.lon!==undefined?p.lon:p.lng},txt,cls,d);}
+function fMe(txt,cls,d){if(pm)fnum(pm.getLatLng(),txt,cls,d);}
 function othersInFight(e){return 0;}
 function faint(m,e){
   S.hp=Math.round(maxHP()*.3);S.shield=0;S.stun=0;eng.delete(e.id);
@@ -618,8 +633,8 @@ function useSkill(i){
     if(!strike({mult:sk.mult,hits:sk.hits,crit:sk.crit,en:sk.en,rangeBonus:sk.rangeBonus,heal:sk.heal,stun:sk.stun,shield:sk.shield,icon:sk.i}))return;
   }else{
     S.en-=sk.en;
-    if(sk.heal){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+sk.heal+(sk.perLv||0)*S.lv);toast(sk.i+' '+sk.n+': +'+Math.round(S.hp-b0)+' Leben');}
-    if(sk.healPct){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+maxHP()*sk.healPct);toast(sk.i+' '+sk.n+': +'+Math.round(S.hp-b0)+' Leben');}
+    if(sk.heal){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+sk.heal+(sk.perLv||0)*S.lv);toast(sk.i+' '+sk.n+': +'+Math.round(S.hp-b0)+' Leben');fMe('+'+Math.round(S.hp-b0),'heal',0);}
+    if(sk.healPct){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+maxHP()*sk.healPct);toast(sk.i+' '+sk.n+': +'+Math.round(S.hp-b0)+' Leben');fMe('+'+Math.round(S.hp-b0),'heal',0);}
     if(sk.shield){S.shield=sk.shield;toast(sk.i+' '+sk.n+': Schutz für '+sk.shield+' Treffer');}
   }
   S.scd[sk.id]=now+sk.cd*1000;
@@ -660,7 +675,7 @@ function craft(id){
 function useItem(id){
   if(id==='trank'&&have('trank')>0){
     if(S.hp>=maxHP()){toast('Leben ist schon voll');return;}
-    S.inv.trank--;S.hp=Math.min(maxHP(),S.hp+40);toast('🧪 +40 Leben');hud();save();openSheet('inv');
+    S.inv.trank--;S.hp=Math.min(maxHP(),S.hp+40);toast('🧪 +40 Leben');fMe('+40','heal',0);hud();save();openSheet('inv');
   }
 }
 
