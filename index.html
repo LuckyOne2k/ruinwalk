@@ -74,6 +74,11 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 .sk.off{opacity:.45;border-color:#b9a78f}
 .skrow{display:flex;gap:12px;justify-content:center;margin-top:10px}
 /* Entities */
+.ent.t-rare{border-color:#9b5de5;background:#f1e6ff}
+.ent.t-elite{border-color:#f5a623;border-width:3px;background:#fff0d2;box-shadow:0 0 10px 3px rgba(245,166,35,.65);font-size:26px}
+.ent.t-boss{border-color:#c1121f;border-width:3px;background:#ffe0e0;box-shadow:0 0 14px 4px rgba(193,18,31,.55);font-size:32px}
+.ent.t-area{border-color:#6a040f;border-width:4px;background:#ffd6d6;box-shadow:0 0 20px 7px rgba(106,4,15,.6);font-size:40px}
+.ent.t-area::after{content:'👑';position:absolute;top:-18px;font-size:22px}
 .ent{width:44px;height:44px;border-radius:50%;background:rgba(255,250,244,.96);border:2px solid #d9c3a5;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 2px 6px rgba(0,0,0,.3);position:relative;transition:.15s}
 .ent.near{border-color:var(--ok);box-shadow:0 0 0 4px rgba(58,167,109,.35),0 2px 6px rgba(0,0,0,.3)}
 .ent.sel{transform:scale(1.18)}
@@ -153,6 +158,11 @@ const ITEMS={
   stock:{n:'Stock',i:'🥢'}, stein:{n:'Kleiner Stein',i:'🪨'}, ranke:{n:'Ranke',i:'🌿'},
   holz:{n:'Holz',i:'🪵'}, eisenerz:{n:'Eisenerz',i:'🟤'}, kraut:{n:'Heilkraut',i:'☘️'},
   fell:{n:'Fell',i:'🧶'}, trank:{n:'Heiltrank',i:'🧪'},
+  kaefer:{n:'Käferpanzer',i:'🪲'}, hauer:{n:'Eberhauer',i:'🦷'}, silberfell:{n:'Silberfell',i:'🧣'},
+  kristall:{n:'Kristallsplitter',i:'💎'}, nachtfeder:{n:'Nachtfeder',i:'🪶'}, alphafell:{n:'Alphafell',i:'🧥'},
+  steinherz:{n:'Steinherz',i:'💠'}, tyrannenzahn:{n:'Tyrannenzahn',i:'🦴'}, moorperle:{n:'Moorperle',i:'🧿'},
+  drachenschuppe:{n:'Drachenschuppe',i:'🔶'}, gebietsherz:{n:'Gebietsherz',i:'💖'},
+  kaeferhelm:{n:'Käferpanzer-Helm',i:'⛑️'}, keilerhandschuhe:{n:'Keiler-Handschuhe',i:'🧤'}, silberstiefel:{n:'Silberfell-Stiefel',i:'👢'},
   axt:{n:'Holzfälleraxt',i:'🪓'}, spitzhacke:{n:'Spitzhacke',i:'⛏️'}, fellweste:{n:'Fellweste',i:'🦺'}
 };
 const TOOLNAME={holz:'Holzfälleraxt',berg:'Spitzhacke'};
@@ -164,12 +174,39 @@ const NODES={
   baum:{n:'Baum',i:'🌲',w:14,drop:'holz',min:2,max:3,en:4,xp:3,skill:'holz',tool:'holz',res:12*60e3},
   erz:{n:'Eisenerzvorkommen',i:'⛰️',w:8,drop:'eisenerz',min:1,max:2,en:5,xp:4,skill:'berg',tool:'berg',res:15*60e3}
 };
-const MOBS={rohling:{n:'Rohling',i:'🐺',hp:30,min:3,max:8,xp:8,drop:'fell',dmin:1,dmax:2,res:15*60e3}};
+const MOBS={
+  // normal (häufig)
+  rohling:{n:'Rohling',i:'🐺',tier:'normal',hp:30,min:3,max:8,xp:8,rec:1,res:15*60e3,drops:[{i:'fell',min:1,max:2}]},
+  kaefer:{n:'Riesenkäfer',i:'🪲',tier:'normal',hp:38,min:3,max:7,xp:10,rec:2,res:15*60e3,drops:[{i:'kaefer',min:1,max:2}]},
+  keiler:{n:'Wildkeiler',i:'🐗',tier:'normal',hp:50,min:4,max:9,xp:12,rec:3,res:15*60e3,drops:[{i:'hauer',min:1,max:1},{i:'fell',min:1,max:1,c:.5}]},
+  // selten
+  silberfuchs:{n:'Silberfuchs',i:'🦊',tier:'rare',hp:80,min:5,max:11,xp:30,rec:5,res:30*60e3,drops:[{i:'silberfell',min:1,max:2},{i:'fell',min:1,max:2,c:.5}]},
+  kristallhirsch:{n:'Kristallhirsch',i:'🦌',tier:'rare',hp:110,min:6,max:12,xp:40,rec:6,res:30*60e3,drops:[{i:'kristall',min:1,max:2}]},
+  nachtkauz:{n:'Nachtkauz',i:'🦉',tier:'rare',hp:90,min:6,max:13,xp:35,rec:6,res:30*60e3,drops:[{i:'nachtfeder',min:1,max:3}]},
+  // Elite
+  alpharohling:{n:'Alpha-Rohling',i:'🐺',tier:'elite',hp:260,min:10,max:20,xp:90,rec:8,res:60*60e3,drops:[{i:'alphafell',min:1,max:2},{i:'fell',min:2,max:4},{i:'trank',min:1,max:1,c:.3}]},
+  steinwaechter:{n:'Steinwächter',i:'🗿',tier:'elite',hp:320,min:12,max:22,xp:110,rec:10,res:60*60e3,drops:[{i:'steinherz',min:1,max:1},{i:'eisenerz',min:2,max:4}]},
+  // Boss
+  waldtyrann:{n:'Waldtyrann',i:'🐻',tier:'boss',hp:700,min:18,max:32,xp:300,rec:14,res:3*3600e3,drops:[{i:'tyrannenzahn',min:1,max:2},{i:'fell',min:5,max:8},{i:'trank',min:2,max:2}]},
+  moorkoenigin:{n:'Moorkönigin',i:'🐊',tier:'boss',hp:800,min:20,max:34,xp:340,rec:16,res:3*3600e3,drops:[{i:'moorperle',min:1,max:1},{i:'kristall',min:2,max:3},{i:'trank',min:2,max:2}]},
+  // Gebietsboss (einer pro Gebiet)
+  aschedrache:{n:'Aschedrache',i:'🐉',tier:'area',hp:3000,min:30,max:55,xp:1500,rec:25,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'drachenschuppe',min:3,max:5},{i:'trank',min:4,max:4}]},
+  bergtroll:{n:'Bergtroll',i:'🧌',tier:'area',hp:2600,min:28,max:50,xp:1300,rec:22,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'steinherz',min:3,max:3},{i:'trank',min:3,max:3}]},
+  sumpfsaurier:{n:'Sumpfsaurier',i:'🦖',tier:'area',hp:2800,min:30,max:52,xp:1400,rec:24,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'moorperle',min:2,max:3},{i:'trank',min:3,max:3}]}
+};
+const TIERS={normal:{l:'Monster',sz:44},rare:{l:'💜 Seltenes Monster',sz:48},elite:{l:'⭐ Elite',sz:54},boss:{l:'👹 Boss',sz:62},area:{l:'👑 Gebietsboss',sz:74}};
+const SPAWN={normal:[['rohling',5],['kaefer',3],['keiler',2]],rare:[['silberfuchs',1],['kristallhirsch',1],['nachtkauz',1]],
+  elite:[['alpharohling',1],['steinwaechter',1]],boss:[['waldtyrann',1],['moorkoenigin',1]],area:[['aschedrache',1],['bergtroll',1],['sumpfsaurier',1]]};
+const REGION=12, AREA_DIST=4000; // Gebiet = 12x12 Zellen (ca. 2 x 3 km)
+function fmtDist(d){return d>=1000?(d/1000).toFixed(1).replace('.',',')+' km':Math.round(d)+' m';}
 const RECIPES=[
   {id:'axt',kind:'tool',type:'holz',dur:15,cost:{stock:3,stein:2,ranke:2}},
   {id:'spitzhacke',kind:'tool',type:'berg',dur:15,cost:{holz:2,stein:3,ranke:2}},
   {id:'trank',kind:'item',cost:{kraut:3}},
-  {id:'fellweste',kind:'armor',slot:'brust',def:3,cost:{fell:4,ranke:2}}
+  {id:'fellweste',kind:'armor',slot:'brust',def:3,cost:{fell:4,ranke:2}},
+  {id:'kaeferhelm',kind:'armor',slot:'kopf',def:2,cost:{kaefer:4,ranke:2}},
+  {id:'keilerhandschuhe',kind:'armor',slot:'haende',def:2,cost:{hauer:3,fell:2}},
+  {id:'silberstiefel',kind:'armor',slot:'fuesse',def:3,cost:{silberfell:2,fell:3}}
 ];
 const SKILLNAME={holz:'Holzfällen',berg:'Bergbau',sammeln:'Sammeln'};
 const SLOTS=[['waffe','Waffe'],['kopf','Kopf'],['brust','Brust'],['haende','Hände'],['fuesse','Füße']];
@@ -257,7 +294,18 @@ function hash(x,y){let h=(x*374761393+y*668265263)|0;h=(h^(h>>>13))*1274126177|0
 function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 const WT=Object.values(NODES).reduce((s,n)=>s+n.w,0);
 function pickType(r){let v=r()*WT;for(const k in NODES){v-=NODES[k].w;if(v<=0)return k;}return 'stock';}
+function pickW(list,x){const t=list.reduce((a,b)=>a+b[1],0);let v=x*t;for(const [k,w] of list){v-=w;if(v<=0)return k;}return list[0][0];}
 const cellCache=new Map();
+function areaEnts(){
+  if(!P)return [];
+  const rx0=Math.floor(Math.floor(P.lon/DLON)/REGION),ry0=Math.floor(Math.floor(P.lat/DLAT)/REGION),out=[];
+  for(let rx=rx0-1;rx<=rx0+1;rx++)for(let ry=ry0-1;ry<=ry0+1;ry++){
+    const r=mulberry(hash(rx*7919+13,ry*104729+7)),
+      cx=rx*REGION+Math.floor(r()*REGION),cy=ry*REGION+Math.floor(r()*REGION);
+    out.push({id:'g'+rx+'_'+ry,kind:'mob',type:pickW(SPAWN.area,r()),lat:(cy+.1+r()*.8)*DLAT,lon:(cx+.1+r()*.8)*DLON});
+  }
+  return out;
+}
 function cellEnts(cx,cy){
   const key=cx+'_'+cy;
   if(cellCache.has(key))return cellCache.get(key);
@@ -267,13 +315,18 @@ function cellEnts(cx,cy){
     out.push({id:'n'+key+'_'+i,kind:'node',type,lat:(cy+.1+r()*.8)*DLAT,lon:(cx+.1+r()*.8)*DLON});
   }
   if(r()<.7)out.push({id:'m'+key,kind:'mob',type:'rohling',lat:(cy+.1+r()*.8)*DLAT,lon:(cx+.1+r()*.8)*DLON});
+  const tn=r();const lastM=out[out.length-1];if(lastM&&lastM.kind==='mob')lastM.type=pickW(SPAWN.normal,tn);
+  const rareChance=[['r',.12,'rare'],['e',.04,'elite'],['b',.01,'boss']];
+  for(const [pre,ch,tier] of rareChance){
+    if(r()<ch)out.push({id:pre+key,kind:'mob',type:pickW(SPAWN[tier],r()),lat:(cy+.1+r()*.8)*DLAT,lon:(cx+.1+r()*.8)*DLON});
+  }
   if(cellCache.size>400)cellCache.clear();
   cellCache.set(key,out);
   return out;
 }
 function def2(e){return e.kind==='node'?NODES[e.type]:MOBS[e.type];}
 function alive(e){const c=S.cd[e.id];return !c||Date.now()-c>=def2(e).res;}
-function pruneCd(){const now=Date.now();for(const k in S.cd){if(now-S.cd[k]>3600e3){delete S.cd[k];delete S.mh[k];}}}
+function pruneCd(){const now=Date.now();for(const k in S.cd){if(now-S.cd[k]>13*3600e3){delete S.cd[k];delete S.mh[k];}}}
 pruneCd();
 
 /* ---------- Karte ---------- */
@@ -330,9 +383,9 @@ map.on('click',e=>{if(S.test){setPos(e.latlng.lat,e.latlng.lng,5);}else{deselect
 
 /* ---------- Entities auf der Karte ---------- */
 function mk(e){
-  const d=def2(e);
-  const html='<div class="ent '+e.kind+'">'+d.i+(e.kind==='mob'?'<b class="mhp"><u></u></b>':'')+'</div>';
-  const m=L.marker([e.lat,e.lon],{icon:L.divIcon({className:'',html,iconSize:[44,44],iconAnchor:[22,22]}),zIndexOffset:e.kind==='mob'?500:100}).addTo(map);
+  const d=def2(e),tier=e.kind==='mob'?d.tier:'',sz=e.kind==='mob'?TIERS[tier].sz:44;
+  const html='<div class="ent '+e.kind+(tier?' t-'+tier:'')+'" style="width:'+sz+'px;height:'+sz+'px">'+d.i+(e.kind==='mob'?'<b class="mhp"><u></u></b>':'')+'</div>';
+  const m=L.marker([e.lat,e.lon],{icon:L.divIcon({className:'',html,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),zIndexOffset:e.kind==='mob'?(tier==='area'?900:500):100}).addTo(map);
   m.on('click',ev=>{L.DomEvent.stopPropagation(ev);select(e.id);});
   return m;
 }
@@ -341,6 +394,7 @@ function refreshWorld(){
   const cx=Math.floor(P.lon/DLON),cy=Math.floor(P.lat/DLAT),want=new Map();
   for(let dx=-VIEW;dx<=VIEW;dx++)for(let dy=-VIEW;dy<=VIEW;dy++)
     for(const e of cellEnts(cx+dx,cy+dy))if(alive(e)&&dist(P,e)<=SHOW_DIST)want.set(e.id,e);
+  for(const e of areaEnts())if(alive(e)&&dist(P,e)<=AREA_DIST)want.set(e.id,e);
   for(const [id,o] of ents){if(!want.has(id)){map.removeLayer(o.m);ents.delete(id);if(sel&&sel.id===id)deselect();}}
   for(const [id,e] of want){if(!ents.has(id))ents.set(id,{e,m:mk(e)});}
   for(const [id,o] of ents){
@@ -373,12 +427,14 @@ function renderCard(){
   if(!P){sub='Warte auf Position…';label='Kein GPS';}
   else{
     const ds=dist(P,e);
-    sub=(isMob?'Monster · schwach':'Ressource')+' · '+Math.round(ds)+' m entfernt';
+    sub=(isMob?TIERS[d.tier].l:'Ressource')+' · '+fmtDist(ds)+' entfernt';
     if(isMob){
       const mx=d.hp,hp=S.mh[e.id]??mx;
-      body='<div class="row">❤️ '+hp+' / '+mx+'<div class="hpbar"><i style="width:'+(100*hp/mx)+'%"></i></div>'+C0().w+' · Reichweite '+atkRange()+' m · Energie '+C0().en+'</div>'+skRow();
+      body='<div class="row">❤️ '+hp+' / '+mx+'<div class="hpbar"><i style="width:'+(100*hp/mx)+'%"></i></div>'+C0().w+' · Reichweite '+atkRange()+' m · Energie '+C0().en
+        +'<br>Empfohlen: Stufe '+d.rec+(S.lv+2<d.rec?' <span class="bad">⚠️ sehr gefährlich</span>':'')
+        +'<br>Beute: '+d.drops.map(x=>ITEMS[x.i].i+(x.c?'?':'')).join(' ')+'</div>'+skRow();
       action='shoot';label=C0().i+' '+C0().act;
-      if(ds>atkRange())label='Zu weit – noch '+Math.ceil(ds-atkRange())+' m';
+      if(ds>atkRange())label='Zu weit – noch '+fmtDist(ds-atkRange());
       else if(S.en<C0().en)label='Zu erschöpft';
       else dis=false;
     }else{
@@ -440,9 +496,10 @@ function strike(o){
   const hp=(S.mh[e.id]??m.hp)-dmg;
   if(hp<=0){
     delete S.mh[e.id];S.cd[e.id]=Date.now();S.stats.kills++;S.stun=0;
-    const q=rnd(m.dmin,m.dmax);add(m.drop,q);S.stats.col[m.drop]=(S.stats.col[m.drop]||0)+q;
+    const got=[];
+    for(const dr of m.drops){if(Math.random()<(dr.c??1)){const q=rnd(dr.min,dr.max);add(dr.i,q);S.stats.col[dr.i]=(S.stats.col[dr.i]||0)+q;got.push('+'+q+' '+ITEMS[dr.i].n);}}
     addXP(m.xp);
-    toast('💥 '+m.n+' besiegt! +'+q+' '+ITEMS[m.drop].n);
+    toast('💥 '+m.n+' besiegt! '+got.join(', '));
     deselect();refreshWorld();checkQuests();
   }else{
     S.mh[e.id]=hp;
@@ -455,7 +512,7 @@ function strike(o){
     }
     if(S.hp<=0){
       S.hp=Math.round(maxHP()*.3);S.mh[e.id]=m.hp;S.shield=0;S.stun=0;
-      msg='😵 Du bist zusammengebrochen. Der Rohling erholt sich.';
+      msg='😵 Du bist zusammengebrochen. '+m.n+' erholt sich.';
       deselect();
     }
     toast(msg);refreshWorld();
