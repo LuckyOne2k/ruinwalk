@@ -78,15 +78,16 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 .rb{width:60px;height:60px;border-radius:50%;border:2px solid #c0392b;background:var(--card);box-shadow:0 2px 8px rgba(0,0,0,.3);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0;line-height:1;font-size:22px}.rb small{font-size:9px;margin-top:2px}.rb.hot{background:#ffd9a8;border-color:#ff6a00;animation:pulse .5s infinite alternate}
 @keyframes pulse{to{transform:scale(1.12)}}.sts{display:flex;justify-content:space-around;background:var(--sur);border:1px solid var(--line);border-radius:16px;padding:10px 4px;margin-bottom:10px}
 .st{text-align:center;display:flex;flex-direction:column;gap:2px}.st small{font-size:11px;font-weight:700;color:var(--dim)}.st b{font-size:22px;font-weight:800}
-.doll{position:relative;height:390px;margin-bottom:6px}
-.dg{position:absolute;left:50%;top:0;width:300px;height:300px;margin-left:-150px;border-radius:50%;background:radial-gradient(circle,rgba(255,122,47,.38),rgba(255,122,47,0) 68%);pointer-events:none}
-.dfig{position:absolute;left:50%;top:0;width:170px;height:292px;margin-left:-85px;display:flex;align-items:center;justify-content:center;font-size:230px;line-height:1;overflow:visible}.dfig .px{display:block;vertical-align:baseline;width:192px;height:192px;image-rendering:pixelated;margin-top:6px}
-.pd{position:absolute;width:64px;height:64px;border-radius:50%;background:#241c17;border:3px solid #4a3d33;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--ink)}
-.pd.em{border-style:dashed;opacity:.85}.pd .pi{font-size:26px;line-height:1}.pd small{font-size:11px;font-weight:700;line-height:1}
+.doll{position:relative;height:462px;margin-bottom:6px}
+.dg{position:absolute;left:50%;top:23px;width:300px;height:300px;margin-left:-150px;border-radius:50%;background:radial-gradient(circle,rgba(255,122,47,.38),rgba(255,122,47,0) 68%);pointer-events:none}
+.dfig{position:absolute;left:50%;top:0;width:170px;height:346px;margin-left:-85px;display:flex;align-items:center;justify-content:center;font-size:230px;line-height:1;overflow:visible}.dfig .px{display:block;vertical-align:baseline;width:192px;height:192px;image-rendering:pixelated}
+.pd{position:absolute;width:72px;padding:0;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--ink)}
+.pc{position:relative;width:64px;height:64px;border-radius:50%;background:#241c17;border:3px solid #4a3d33;display:flex;align-items:center;justify-content:center}
+.pd.em .pc{border-style:dashed;opacity:.85}.pd .pi{font-size:28px;line-height:1}.pd small{font-size:12px;font-weight:700;line-height:1}
 .pd .pp{position:absolute;right:-4px;top:-6px;min-width:24px;height:20px;border-radius:10px;color:#1a0f08;font-size:11px;font-weight:800;font-style:normal;display:flex;align-items:center;justify-content:center;padding:0 4px}
-.p-kopf{left:42px;top:0}.p-brust{left:6px;top:76px}.p-beine{left:6px;top:152px}.p-fuesse{left:42px;top:228px}
-.p-amulett{right:42px;top:0}.p-umhang{right:6px;top:76px}.p-haende{right:6px;top:152px}.p-ring{right:42px;top:228px}
-.p-waffe{left:50%;margin-left:-70px;top:310px}.p-nebenhand{left:50%;margin-left:6px;top:310px}
+.p-kopf{left:38px;top:0}.p-brust{left:2px;top:88px}.p-beine{left:2px;top:176px}.p-fuesse{left:38px;top:264px}
+.p-amulett{right:38px;top:0}.p-umhang{right:2px;top:88px}.p-haende{right:2px;top:176px}.p-ring{right:38px;top:264px}
+.p-waffe{left:50%;margin-left:-78px;top:368px}.p-nebenhand{left:50%;margin-left:6px;top:368px}
 
 /* ---- Kampf-Layout (V2 Daumenzone) ---- */
 body.cbt #gps,body.cbt #cu,body.cbt #loc,body.cbt #attr{display:none}
@@ -1631,7 +1632,7 @@ function openSheet(s){
   }
   if(s==='char'){
     const need=S.lv*40;
-    const pd=k=>{const sl0=SLOTS.find(x=>x[0]===k),g=gearOf(S.eq[k]);return '<button class="pd p-'+k+(g?'':' em')+'" data-a="gearopen" data-slot="'+k+'" aria-label="'+sl0[1]+(g?': '+getBase(g.b).n:' leer')+'"'+(g?' style="border-color:'+QC[g.q]+';box-shadow:0 0 12px '+QC[g.q]+'66"':'')+'><span class="pi">'+(g?getBase(g.b).i:SLOTIC[k])+'</span><small>'+sl0[1]+'</small>'+(g&&g.p?'<i class="pp" style="background:'+QC[g.q]+'">+'+g.p+'</i>':'')+'</button>';};
+    const pd=k=>{const sl0=SLOTS.find(x=>x[0]===k),g=gearOf(S.eq[k]);return '<button class="pd p-'+k+(g?'':' em')+'" data-a="gearopen" data-slot="'+k+'" aria-label="'+sl0[1]+(g?': '+getBase(g.b).n:' leer')+'"><span class="pc"'+(g?' style="border-color:'+QC[g.q]+';box-shadow:0 0 12px '+QC[g.q]+'66"':'')+'><span class="pi">'+(g?getBase(g.b).i:SLOTIC[k])+'</span>'+(g&&g.p?'<i class="pp" style="background:'+QC[g.q]+'">+'+g.p+'</i>':'')+'</span><small>'+sl0[1]+'</small></button>';};
     const tile=(n,v,sm,hot)=>'<div class="st"><small>'+n+'</small><b style="'+(sm?'font-size:15px;':'')+(hot?'color:var(--acc)':'')+'">'+v+'</b></div>';
     h+='<div style="font-size:12px;letter-spacing:.14em;color:var(--acc);font-weight:800;text-transform:uppercase;margin:2px 0 8px">'+C0().n+(S.lv>=LV_CAP?' · Höchststufe':' · Erfahrung '+Math.floor(S.xp)+' / '+need)+'</div>'
       +'<div class="sts">'+tile('Level',S.lv,0,1)+tile('Leben',Math.floor(S.hp)+' / '+maxHP(),1)+tile('Angriff',atk())+tile('Verteidigung',defense())+'</div>'
