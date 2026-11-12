@@ -311,7 +311,7 @@ const SLOTS=[['waffe','Waffe'],['nebenhand','Nebenhand'],['kopf','Kopf'],['brust
 const SLOTIC={waffe:':g_w_schwert_1:',nebenhand:':g_o_schild_1:',kopf:':g_kopf_schwer_1:',brust:':g_brust_schwer_1:',beine:':g_beine_schwer_1:',haende:':g_haende_schwer_1:',fuesse:':g_fuesse_schwer_1:',umhang:':g_umhang_1:',ring:':g_ring_1:',amulett:':g_amulett_1:'};
 const QN=['Gewöhnlich','Ungewöhnlich','Selten','Episch','Legendär'];
 const QC=['#7d8590','#2f9e4f','#2f6fdb','#9b4dd6','#e08a00'];
-const QM=[1,1.15,1.35,1.6,2];
+const QM=[1,1.25,1.6,2,2.6];
 const GT=[null,{lv:1,s:1,r:'I'},{lv:10,s:2.2,r:'II'},{lv:25,s:4,r:'III'}];
 const WPN={wanderer:'schleuder',krieger:'schwert',bogen:'bogen',magier:'stab',heiler:'heilstab'};
 const OFF={krieger:'schild',bogen:'koecher',magier:'buch',heiler:'talisman'};
@@ -326,11 +326,34 @@ const WIC={schleuder:':g_w_schleuder_1:',schwert:':g_w_schwert_1:',bogen:':g_w_b
 const ONM={schild:['','Holzschild','Stahlschild','Drachenschild'],koecher:['','Lederköcher','Silberköcher','Falkenköcher'],buch:['','Notizbuch','Runenbuch','Arkanum'],talisman:['','Kräutertalisman','Silbertalisman','Sonnentalisman']};
 const UNM=['','Wollumhang','Silbermantel','Drachenmantel'],RNM=['','Eisenring','Silberring','Drachenring'],MNM=['','Steinamulett','Kristallamulett','Herzamulett'];
 const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
+/* ---------- Sets ---------- */
+const SETS=[
+{id:'felsenhaut',n:'Felsenhaut',cls:'krieger',ty:'schwer',lv:25,mul:1.1,boss:'felswurm',p:['Felsscheitel','Wurmpanzer','Steinfalten','Brockenfäuste','Schotterstampfer','Wurmhautmantel'],w:'Felsspalter',o:'Wand aus Wurmschuppen',b2:{hpb:.08},b4:{def:5},b6:{steinhaut:5},bw:{dmgPanzer:.10}},
+{id:'blutdurst',n:'Blutdurst',cls:'krieger',ty:'schwer',lv:25,mul:1.1,boss:'vampirfuerst',p:['Fledermaushelm','Aderharnisch','Schienen der Nacht','Klauenhandschuhe','Schritte im Zwielicht','Mantel des Fürsten'],w:'Aderlass',o:'Kelchschild',b2:{healHit:4},b4:{crit:.08},b6:{lifesteal:.08},bw:{critHeal:.03}},
+{id:'mammutklan',n:'Mammutklan',cls:'krieger',ty:'schwer',lv:45,mul:1.2,boss:'urmammut',p:['Stoßzahnhelm','Mammutfellpanzer','Pelzbeinlinge des Klans','Hornfäuste','Stampfer der Steppe','Zottelmantel'],w:'Eiszeitbrecher',o:'Klanschild aus Stoßzahn',b2:{hpb:.10},b4:{def:8},b6:{miss:.10},bw:{dmgBoss:.15}},
+{id:'dornenpirsch',n:'Dornenpirsch',cls:'bogen',ty:'mittel',lv:25,mul:1.1,boss:'waldtyrann',p:['Dornenkapuze','Rindenwams','Rankenhose','Griffranken','Moosschritte','Blätterhaut'],w:'Dornenbogen',o:'Harzköcher',b2:{range:10},b4:{crit:.08},b6:{poisonShot:4},bw:{dmgFar:.10}},
+{id:'moorschuppe',n:'Moorschuppe',cls:'bogen',ty:'mittel',lv:45,mul:1.2,boss:'sumpfsaurier',p:['Schuppenkappe','Sumpfechsenwams','Schlammbeinlinge','Krallenhandschuhe','Watstiefel','Schilfmantel'],w:'Saurierhornbogen',o:'Schuppenköcher',b2:{poisonRes:.5},b4:{dm:.10},b6:{miss:.10},bw:{crit:.06}},
+{id:'aschenjaeger',n:'Aschenjäger',cls:'bogen',ty:'mittel',lv:45,mul:1.2,boss:'aschedrache',p:['Aschenmaske','Drachenhautwams','Glutbeinlinge','Funkenhandschuhe','Rußstiefel','Schwingen aus Asche'],w:'Glutfeder-Bogen',o:'Aschenköcher',b2:{range:12},b4:{crit:.12},b6:{burn:1},bw:{critDmg:.10}},
+{id:'irrlicht',n:'Irrlichtgewand',cls:'magier',ty:'leicht',lv:25,mul:1.1,boss:'moorkoenigin',p:['Irrlichthaube','Nebelrobe','Mooswehen','Glühhandschuhe','Torfsandalen','Schleier der Moore'],w:'Lichtführer',o:'Moorfibel',b2:{enreg:.10},b4:{dm:.10},b6:{enCost:1},bw:{first:.25}},
+{id:'kristallsaenger',n:'Kristallsänger',cls:'magier',ty:'leicht',lv:45,mul:1.2,boss:'bergtroll',p:['Kristallkrone','Singende Robe','Geodenrock','Splitterhandschuhe','Hallende Schuhe','Prismenschleier'],w:'Resonanzstab',o:'Kristallkodex',b2:{dm:.12},b4:{enreg:.10},b6:{dbl:5},bw:{skillDm:.10}},
+{id:'moosgnade',n:'Moosgnade',cls:'heiler',ty:'leicht',lv:25,mul:1.1,boss:'schildkroete',p:['Moosgeflecht-Kappe','Gnadenrobe','Farnbeinkleid','Pilzhandschuhe','Quellschuhe','Tuch der stillen Teiche'],w:'Quellstab',o:'Talisman der Mooswacht',b2:{healHit:3},b4:{hpb:.10},b6:{healMul:.2},bw:{def:4}},
+{id:'ahnenhain',n:'Ahnenhain',cls:'heiler',ty:'leicht',lv:45,mul:1.2,boss:'baumriese',p:['Wurzelkranz','Rindenrobe der Ahnen','Astbeinkleid','Blütenhandschuhe','Wurzelschuhe','Blättermantel'],w:'Ahnenast',o:'Talisman des Hains',b2:{hpb:.15},b4:{healHit:5},b6:{rescue:.25},bw:{enreg:.10}}
+];
+const SETD={};SETS.forEach(x=>SETD[x.id]=x);
+const SSLOTS=['kopf','brust','beine','haende','fuesse','umhang'];
+const SETDROP={boss:.2,area:.35};
+const BTXT={hpb:v=>'+'+Math.round(v*100)+' % Leben',def:v=>'+'+v+' Verteidigung',healHit:v=>'+'+v+' Heilung pro Treffer',crit:v=>'+'+Math.round(v*100)+' % Krit-Chance',lifesteal:v=>'Lebensraub: heilt '+Math.round(v*100)+' % deines Schadens',steinhaut:v=>'Steinhaut: jeder '+v+'. Treffer gegen dich richtet nur 1 Schaden an',miss:v=>Math.round(v*100)+' % Chance, dass das Monster verfehlt',range:v=>'+'+v+' m Reichweite',poisonShot:v=>'Jeder '+v+'. Treffer vergiftet: +40 % Schaden',poisonRes:v=>Math.round(v*100)+' % weniger Giftschaden',dm:v=>'+'+Math.round(v*100)+' % Schaden',burn:v=>'Krit-Treffer verbrennen: +30 % Schaden',enreg:v=>'+'+Math.round(v*100)+' % Energie-Regeneration',enCost:v=>'Fähigkeiten kosten '+v+' Energie weniger',dbl:v=>'Jeder '+v+'. Angriff trifft doppelt',healMul:v=>'Heilungen +'+Math.round(v*100)+' %',rescue:v=>'Unter 30 % Leben: einmal pro Kampf '+Math.round(v*100)+' % heilen',dmgPanzer:v=>'+'+Math.round(v*100)+' % Schaden gegen Gepanzerte',dmgBoss:v=>'+'+Math.round(v*100)+' % Schaden gegen Bosse',dmgFar:v=>'+'+Math.round(v*100)+' % Schaden gegen Ziele über 50 m',critHeal:v=>'Krit-Treffer heilen '+Math.round(v*100)+' % deines max. Lebens',critDmg:v=>'+'+Math.round(v*100)+' % Krit-Schaden',first:v=>'Erster Angriff +'+Math.round(v*100)+' % Schaden',skillDm:v=>'Fähigkeiten +'+Math.round(v*100)+' % Schaden'};
+const bTxt=b=>Object.keys(b).map(k=>BTXT[k](b[k])).join(', ');
 const _gb={};
 function getBase(id){
   if(_gb[id])return _gb[id];
   const p=id.split('|'),k=p[0];let b=null;
-  if(k==='a'){const slot=p[1],ty=p[2],t=+p[3],a=ARM[slot],s=GT[t].s,tm={schwer:1.4,mittel:1,leicht:.6}[ty];
+  if(k==='s'){const sd=SETD[p[1]],ix=+p[2];let r;
+    if(ix<6)r=ix<5?getBase('a|'+SSLOTS[ix]+'|'+sd.ty+'|3'):getBase('u|3');
+    else if(ix===6)r=getBase('w|'+WPN[sd.cls]+'|3');else r=getBase('o|'+OFF[sd.cls]+'|3');
+    const st={};for(const q in r.st)st[q]=q==='crit'?Math.round(r.st[q]*sd.mul*1000)/1000:Math.round(r.st[q]*sd.mul);
+    b={n:ix<6?sd.p[ix]:(ix===6?sd.w:sd.o),i:r.i,slot:r.slot,type:r.type,t:3,st,set:sd.id,lvReq:sd.lv};}
+  else if(k==='a'){const slot=p[1],ty=p[2],t=+p[3],a=ARM[slot],s=GT[t].s,tm={schwer:1.4,mittel:1,leicht:.6}[ty];
     const st={def:Math.max(1,Math.round(a.d*s*tm))};
     if(ty==='schwer')st.hp=Math.round(a.w*s*2);if(ty==='mittel')st.crit=.01*t;if(ty==='leicht')st.atk=Math.max(1,Math.round(a.w*s*.8));
     b={n:cap(APFX[ty][t]+a.n[ATYPES.indexOf(ty)]),i:':g_'+slot+'_'+ty+'_'+t+':',slot,type:ty,t,st};}
@@ -353,6 +376,34 @@ function gStats(g){
   for(const k in b.st)o[k]=k==='crit'?Math.round(b.st[k]*f*1000)/1000:Math.round(b.st[k]*f);
   return o;
 }
+function SB(){
+  const o={},add=b=>{for(const k in b)o[k]=(o[k]||0)+b[k];},cnt={};
+  for(const sl of SSLOTS){const g=gearOf(S.eq[sl]);if(g){const b=getBase(g.b);if(b.set)cnt[b.set]=(cnt[b.set]||0)+1;}}
+  for(const id in cnt){const d=SETD[id];if(cnt[id]>=2)add(d.b2);if(cnt[id]>=4)add(d.b4);if(cnt[id]>=6)add(d.b6);}
+  const w=gearOf(S.eq.waffe),n=gearOf(S.eq.nebenhand);
+  if(w&&n){const a=getBase(w.b),c=getBase(n.b);if(a.set&&a.set===c.set)add(SETD[a.set].bw);}
+  return o;
+}
+const enc=x=>Math.max(1,x-(SB().enCost||0));
+function setInfo(){
+  const cnt={};for(const sl of SSLOTS){const g=gearOf(S.eq[sl]);if(g){const b=getBase(g.b);if(b.set)cnt[b.set]=(cnt[b.set]||0)+1;}}
+  const w=gearOf(S.eq.waffe),n=gearOf(S.eq.nebenhand),wb=w&&getBase(w.b),nb=n&&getBase(n.b);
+  const ws=wb&&wb.set&&nb&&nb.set;
+  const ids=Object.keys(cnt);if(wb&&wb.set&&!ids.includes(wb.set))ids.push(wb.set);if(nb&&nb.set&&!ids.includes(nb.set))ids.push(nb.set);
+  if(!ids.length)return '';
+  let h='<h3>✨ Set-Boni</h3>';
+  for(const id of ids){const d=SETD[id],c=cnt[id]||0,both=wb&&nb&&wb.set===id&&nb.set===id;
+    h+='<div class="rec"><div class="t">'+d.n+' <small>('+c+' / 6 Rüstung'+(both?' · Waffen komplett':'')+')</small></div><div class="c">'
+      +[[2,d.b2],[4,d.b4],[6,d.b6]].map(x=>'<span class="'+(c>=x[0]?'good':'bad')+'">'+(c>=x[0]?'✅':'⬜')+' '+x[0]+' Teile: '+bTxt(x[1])+'</span>').join('<br>')
+      +'<br><span class="'+(both?'good':'bad')+'">'+(both?'✅':'⬜')+' Waffe + Nebenhand: '+bTxt(d.bw)+'</span></div></div>';}
+  return h;
+}
+function rollSet(e,m){
+  if(Math.random()>=(SETDROP[m.tier]||0))return null;
+  const d=SETS.find(x=>x.boss===e.type);if(!d)return null;
+  return addGear('s|'+d.id+'|'+rnd(0,7),rollQ(DROPQ[m.tier]));
+}
+let hitTaken=0,atkCnt=0,psCnt=0,rescueUsed=false;
 function gs(k){let v=0;for(const sl in S.eq){const g=gearOf(S.eq[sl]);if(g)v+=gStats(g)[k]||0;}return v;}
 function canEquip(g){
   const b=getBase(g.b);
@@ -620,7 +671,7 @@ function effClass(){
   return _eff[key]=o;
 }
 const C0=()=>effClass();
-const atkRange=()=>C0().range;
+const atkRange=()=>C0().range+(SB().range||0);
 
 /* ---------- Spielstand ---------- */
 const def=()=>({lv:1,xp:0,hp:100,en:100,inv:{},tools:[],skills:{holz:0,berg:0,sammeln:0},cd:{},mh:{},
@@ -641,10 +692,10 @@ if(!S.gv){ // alte Rüstungen in das neue System übernehmen
 }
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 
-const maxHP=()=>Math.round((100+10*(S.lv-1))*(1+(C0().hpb||0)))+gs('hp');
-const defense=()=>S.def+(C0().def||0)+gs('def');
+const maxHP=()=>Math.round((100+10*(S.lv-1))*(1+(C0().hpb||0)+(SB().hpb||0)))+gs('hp');
+const defense=()=>S.def+(C0().def||0)+gs('def')+(SB().def||0);
 const atk=()=>10+2*S.lv+gs('atk');
-const critCh=()=>Math.min(.75,C0().crit+gs('crit'));   // Krit-Obergrenze 75 %
+const critCh=()=>Math.min(.75,C0().crit+gs('crit')+(SB().crit||0));   // Krit-Obergrenze 75 %
 const sl=k=>1+Math.floor(S.skills[k]/10);
 const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
 const add=(k,n)=>{S.inv[k]=(S.inv[k]||0)+n;};
@@ -662,7 +713,8 @@ function regen(dt){
   S.hp=Math.min(maxHP(),S.hp+dt/5);
   if(psn&&dt<5){S.hp=Math.max(1,S.hp-psn.dps*dt);psn.t-=dt;if(psn.t<=0)psn=null;}
   let fight=false;try{fight=eng.size>0;}catch(e){}
-  S.en=Math.min(100,S.en+dt*(fight?.6:2)*(C0().enreg||1));
+  if(!fight)rescueUsed=false;
+  S.en=Math.min(100,S.en+dt*(fight?.6:2)*(C0().enreg||1)*(1+(SB().enreg||0)));
 }
 regen(Math.min(8*3600,Math.max(0,(Date.now()-S.last)/1000)));
 S.last=Date.now();
@@ -956,18 +1008,20 @@ function monsterHit(m,e){
     S.mh[e.id]=Math.min(m.hp,Math.round(hpNow+m.hp*.08));
     fMob(e,'+'+Math.round(m.hp*.08),'heal',0);toast(m.i+' '+m.n+' heilt sich');refreshWorld();return;
   }
-  if(Math.random()<.15){toast(m.i+' '+m.n+' verfehlt dich');return;}
+  if(Math.random()<.15+(SB().miss||0)){toast(m.i+' '+m.n+' verfehlt dich');return;}
   const raw=rnd(m.min,m.max);let h=Math.max(1,Math.ceil(raw*.25),raw-defense());   // Rüstung senkt höchstens 75 %
   if(m.tier==='area'&&hpNow<m.hp*.35)h=Math.round(h*1.4);   // Gebietsboss: Raserei
   if(m.ab==='wut'&&hpNow<m.hp*.3)h=Math.round(h*1.5);
   if(m.ab==='schwarm')h=Math.max(1,Math.round(h*.6));
   if(S.shield>0){S.shield--;h=Math.max(1,Math.round(h*.3));}
+  {const sh=SB().steinhaut;if(sh&&++hitTaken%sh===0)h=1;}
   if(m.ab==='schwarm')h*=2;
   eng.set(e.id,Date.now());
   S.hp-=h;fMe('-'+h,'dmg',0);
   if(S.hp<=0){faint(m,e);hud();return;}
   let extra='';
-  if(m.ab==='gift'&&Math.random()<.4){psn={dps:Math.max(1,Math.round(m.max*.1)),t:8};extra=' · ☠️ vergiftet';}
+  {const rs=SB().rescue;if(rs&&!rescueUsed&&S.hp<maxHP()*.3){rescueUsed=true;const g0=Math.round(maxHP()*rs);S.hp=Math.min(maxHP(),S.hp+g0);fMe('+'+g0,'heal',0);extra=' · 🌿 Hainsegen +'+g0;}}
+  if(m.ab==='gift'&&Math.random()<.4){psn={dps:Math.max(1,Math.round(m.max*.1*(1-(SB().poisonRes||0)))),t:8};extra=' · ☠️ vergiftet';}
   else if(m.ab==='bruell'&&r.n%4===0&&Date.now()>=myStun){myStun=Date.now()+2500;extra=' · 😵 betäubt';}
   else if(m.ab==='saug'){const g=Math.round(h*.5);S.mh[e.id]=Math.min(m.hp,hpNow+g);extra=' · 🩸 saugt '+g;refreshWorld();}
   else if(m.ab==='dieb'&&S.cu>0&&Math.random()<.35){
@@ -1086,19 +1140,27 @@ function strike(o){
   const m=MOBS[e.type],C=C0();
   if(Date.now()<S.exh){toast('😵 Du bist noch erschöpft ('+fmtT(S.exh-Date.now())+')');return false;}
   if(Date.now()<myStun){toast('😵 Du bist benommen ('+Math.ceil((myStun-Date.now())/1000)+' s)');return false;}
-  if(dist(P,ep(e))>(C.range+(o.rangeBonus||0))){toast('Zu weit weg');return false;}
+  const dd=dist(P,ep(e));
+  if(dd>(atkRange()+(o.rangeBonus||0))){toast('Zu weit weg');return false;}
+  const first=!eng.has(e.id),sb=SB();
   eng.set(e.id,Date.now());
   if(S.en<o.en){toast('Zu erschöpft');return false;}
   S.en-=o.en;
   let dmg=0,crit=false;
+  const fm=1+(sb.dm||0)+(m.ab==='panzer'?sb.dmgPanzer||0:0)+((m.tier==='boss'||m.tier==='area')?sb.dmgBoss||0:0)+(dd>50?sb.dmgFar||0:0)+(first?sb.first||0:0)+(o.icon?sb.skillDm||0:0);
   for(let i=0;i<(o.hits||1);i++){
-    let d=Math.max(1,Math.round((atk()+rnd(0,8))*o.mult));
-    if(o.crit||Math.random()<critCh()){d*=2;crit=true;}
+    let d=Math.max(1,Math.round((atk()+rnd(0,8))*o.mult*fm));
+    if(o.crit||Math.random()<critCh()){d=Math.round(d*(2+(sb.critDmg||0)));crit=true;}
     dmg+=d;
   }
   if(m.ab==='panzer')dmg=Math.max(1,Math.round(dmg*.65));
+  let sx='';
+  if(sb.dbl&&++atkCnt%sb.dbl===0){dmg*=2;sx+=' · 🔮 Doppelklang';}
+  if(sb.poisonShot&&++psCnt%sb.poisonShot===0){dmg=Math.round(dmg*1.4);sx+=' · ☠️ Gift';}
+  if(sb.burn&&crit){dmg=Math.round(dmg*1.3);sx+=' · 🔥 Glut';}
   let heal='';
-  const hv=(o.heal||0)+(o.healPct?maxHP()*o.healPct:0);
+  let hv=(o.heal||0)+(sb.healHit||0)+(o.healPct?maxHP()*o.healPct:0);
+  hv=hv*(1+(sb.healMul||0))+dmg*(sb.lifesteal||0)+(crit?maxHP()*(sb.critHeal||0):0);
   if(hv){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+hv);if(S.hp>b0){heal=' · +'+Math.round(S.hp-b0)+' ❤️';fMe('+'+Math.round(S.hp-b0),'heal',0);}}
   if(o.shield)S.shield=o.shield;
   if(o.stun)S.stun=o.stun;
@@ -1112,12 +1174,13 @@ function strike(o){
     {const cr=COIN[m.tier]||[1,3],cc=rnd(cr[0],cr[1]);earn(cc);got.push(fmtM(cc));}
     if(Math.random()<(RDROPCH[m.tier]||0)){const rq=rollQ(RDROPQ[m.tier]);add('rune'+rq,1);got.push('📜 '+ITEMS['rune'+rq].n);}
     const gd=rollGear(m.tier);if(gd)got.push('🎁 '+gNameT(gd.g)+(gd.auto?' (angelegt)':''));
+    const sd=rollSet(e,m);if(sd)got.push('✨ '+gNameT(sd.g)+(sd.auto?' (angelegt)':''));
     addXP(m.xp);
     toast('💥 '+m.n+' besiegt! '+got.join(', '));
     deselect();refreshWorld();checkQuests();
   }else{
     S.mh[e.id]=hp;
-    let msg=(crit?'💥 Kritisch! ':(o.icon||C.i)+' ')+dmg+' Schaden'+heal;
+    let msg=(crit?'💥 Kritisch! ':(o.icon||C.i)+' ')+dmg+' Schaden'+sx+heal;
     if(S.stun>0)msg+=' · '+m.n+' ist gelähmt';
     toast(msg);
     refreshWorld();
@@ -1173,14 +1236,15 @@ function useSkill(i){
   if(S.lv<sk.lv){toast('Diese Fähigkeit gibt es ab Stufe '+sk.lv);return;}
   const now=Date.now(),rd=S.scd[sk.id]||0;
   if(now<rd){toast('Noch '+Math.ceil((rd-now)/1000)+' s Abklingzeit');return;}
-  if(S.en<sk.en){toast('Zu erschöpft');return;}
+  if(S.en<enc(sk.en)){toast('Zu erschöpft');return;}
   if(sk.mult){
-    if(!strike({mult:sk.mult,hits:sk.hits,crit:sk.crit,en:sk.en,rangeBonus:sk.rangeBonus,heal:sk.heal,healPct:sk.healPct,stun:sk.stun,shield:sk.shield,icon:sk.i}))return;
+    if(!strike({mult:sk.mult,hits:sk.hits,crit:sk.crit,en:enc(sk.en),rangeBonus:sk.rangeBonus,heal:sk.heal,healPct:sk.healPct,stun:sk.stun,shield:sk.shield,icon:sk.i}))return;
     nextAtk=Math.max(nextAtk,Date.now()+800);
   }else{
-    S.en-=sk.en;
-    if(sk.heal){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+sk.heal+(sk.perLv||0)*S.lv);toast(sk.i+' '+sk.n+': +'+Math.round(S.hp-b0)+' Leben');fMe('+'+Math.round(S.hp-b0),'heal',0);}
-    if(sk.healPct){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+maxHP()*sk.healPct);toast(sk.i+' '+sk.n+': +'+Math.round(S.hp-b0)+' Leben');fMe('+'+Math.round(S.hp-b0),'heal',0);}
+    S.en-=enc(sk.en);
+    const hm=1+(SB().healMul||0);
+    if(sk.heal){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+(sk.heal+(sk.perLv||0)*S.lv)*hm);toast(sk.i+' '+sk.n+': +'+Math.round(S.hp-b0)+' Leben');fMe('+'+Math.round(S.hp-b0),'heal',0);}
+    if(sk.healPct){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+maxHP()*sk.healPct*hm);toast(sk.i+' '+sk.n+': +'+Math.round(S.hp-b0)+' Leben');fMe('+'+Math.round(S.hp-b0),'heal',0);}
     if(sk.shield){S.shield=sk.shield;toast(sk.i+' '+sk.n+': Schutz für '+sk.shield+' Treffer');}
   }
   S.scd[sk.id]=now+sk.cd*1000;
@@ -1201,7 +1265,7 @@ function updateSkillUI(){
     if(S.lv<x.lv){txt='Lv'+x.lv;off=true;}
     else if(cd>0){txt=cd+' s';off=true;}
     else if(x.mult&&S.exh>now){txt='😵';off=true;}
-    else{txt=x.en+'⚡';off=S.en<x.en;}
+    else{txt=enc(x.en)+'⚡';off=S.en<enc(x.en);}
     const sc=el.querySelector('.sc');if(sc)sc.textContent=txt;
     el.classList.toggle('off',off);
   }
@@ -1359,6 +1423,7 @@ function openSheet(s){
     h+='<div class="kv"><span>⚔️ Angriff '+atk()+'</span><span>🛡️ Verteidigung '+defense()+'</span></div><div class="kv"><span>❤️ Max. Leben '+maxHP()+'</span><span>🎯 Krit '+Math.round(critCh()*100)+'%</span></div>';
     h+='<div class="grid" style="grid-template-columns:repeat(5,1fr);margin:8px 0">'+SLOTS.map(([k,l])=>{const g=gearOf(S.eq[k]);
       return '<button class="it" data-a="gslot" data-slot="'+k+'" style="border:2px solid '+(k===sl?'var(--acc)':(g?QC[g.q]:'var(--line)'))+(k===sl?';background:#ffe9c4':'')+'"><span>'+(g?getBase(g.b).i:SLOTIC[k])+'</span><small>'+l+'</small></button>';}).join('')+'</div>';
+    h+=setInfo();
     h+='<h3>'+SLOTS.find(x=>x[0]===sl)[1]+'</h3>';
     const owned=[0,1,2,3,4].filter(q=>have('rune'+q)>0);
     if(useRune>=0&&!owned.includes(useRune))useRune=-1;
@@ -1373,7 +1438,7 @@ function openSheet(s){
       const fee=c?Math.round(UPFEE(g.p)*[1,1.5,2][b.t-1]):0;
       const cs=c?Object.keys(c).map(k=>'<span class="'+(have(k)>=c[k]?'good':'bad')+'">'+ITEMS[k].i+' '+have(k)+'/'+c[k]+'</span>').join(' ')+' <span class="'+((S.cu||0)>=fee?'good':'bad')+'">'+fmtM(fee)+'</span>':'';
       return '<div class="rec" style="border-color:'+QC[g.q]+(on?';background:#ffe9c4':'')+'"><div class="t">'+gName(g)+(on?' <small>(angelegt)</small>':'')+'</div>'
-        +'<div class="c"><small style="color:'+QC[g.q]+'">'+QN[g.q]+(b.type&&WTN[b.type]?' · '+WTN[b.type]:(ARMN[b.type]?' · '+ARMN[b.type]:''))+' · ab Lv '+b.lv+'</small><br>'+gStr(st)+(dif?'<br>'+dif:'')+'</div>'
+        +'<div class="c"><small style="color:'+QC[g.q]+'">'+(b.set?'✨ '+SETD[b.set].n+' · ':'')+QN[g.q]+(b.type&&WTN[b.type]?' · '+WTN[b.type]:(ARMN[b.type]?' · '+ARMN[b.type]:''))+' · ab Lv '+b.lv+'</small><br>'+gStr(st)+(dif?'<br>'+dif:'')+'</div>'
         +(on?'<button class="btn sec" data-a="gunequip" data-slot="'+sl+'">Ablegen</button> ':'<button class="btn" data-a="gequip" data-id="'+g.u+'"'+(why?' disabled':'')+'>'+(why||'Anlegen')+'</button> ')
         +(c?'<div style="margin-top:6px;font-size:13px">⬆️ Auf +'+(g.p+1)+' · Chance <b>'+Math.round(upChance(g)*100)+' %</b></div><div style="font-size:13px;margin:3px 0">'+cs+'</div><button class="btn sec" data-a="gup" data-id="'+g.u+'"'+(okU?'':' disabled')+'>Verbessern versuchen</button>':'<small>Maximal verbessert (+'+UPMAX+')</small>')+'</div>';
     }).join('');
