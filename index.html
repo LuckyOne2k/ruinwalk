@@ -52,6 +52,7 @@ button{font-family:inherit;color:inherit}
 .sh-head h2{margin:0;font-size:22px}
 #shB{flex:1;overflow:auto;padding:6px 16px calc(24px + var(--sb))}
 .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+button.it{font:inherit;color:inherit}
 .it{background:#f6ecdd;border:1px solid var(--line);border-radius:12px;text-align:center;padding:8px 2px;position:relative}
 .it span{font-size:26px;display:block}.it b{position:absolute;right:6px;top:3px;font-size:13px}.it small{font-size:10px;display:block;line-height:1.1}
 h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding-bottom:3px}
@@ -220,18 +221,137 @@ function fmtDist(d){return d>=1000?(d/1000).toFixed(1).replace('.',',')+' km':Ma
 const RECIPES=[
   {id:'axt',kind:'tool',type:'holz',dur:15,cost:{stock:3,stein:2,ranke:2}},
   {id:'spitzhacke',kind:'tool',type:'berg',dur:15,cost:{holz:2,stein:3,ranke:2}},
-  {id:'trank',kind:'item',cost:{kraut:3}},
-  {id:'fellweste',kind:'armor',slot:'brust',def:3,cost:{fell:4,ranke:2}},
-  {id:'kaeferhelm',kind:'armor',slot:'kopf',def:2,cost:{kaefer:4,ranke:2}},
-  {id:'keilerhandschuhe',kind:'armor',slot:'haende',def:2,cost:{hauer:3,fell:2}},
-  {id:'silberstiefel',kind:'armor',slot:'fuesse',def:3,cost:{silberfell:2,fell:3}}
+  {id:'trank',kind:'item',cost:{kraut:3}}
 ];
 const SKILLNAME={holz:'Holzfällen',berg:'Bergbau',sammeln:'Sammeln'};
-const SLOTS=[['waffe','Waffe'],['kopf','Kopf'],['brust','Brust'],['haende','Hände'],['fuesse','Füße']];
-function equipped(slot){
-  if(slot==='waffe'){const c=C0();return {i:c.wi,n:c.w};}
-  const r=RECIPES.find(x=>x.kind==='armor'&&x.slot===slot&&S.stats.crafted[x.id]);
-  return r?ITEMS[r.id]:null;
+/* ---------- Ausrüstung ---------- */
+const SLOTS=[['waffe','Waffe'],['nebenhand','Nebenhand'],['kopf','Kopf'],['brust','Brust'],['beine','Beine'],['haende','Hände'],['fuesse','Füße'],['umhang','Umhang'],['ring','Ring'],['amulett','Amulett']];
+const SLOTIC={waffe:'⚔️',nebenhand:'🛡️',kopf:'⛑️',brust:'🦺',beine:'👖',haende:'🧤',fuesse:'👢',umhang:'🧥',ring:'💍',amulett:'📿'};
+const QN=['Gewöhnlich','Ungewöhnlich','Selten','Episch','Legendär'];
+const QC=['#7d8590','#2f9e4f','#2f6fdb','#9b4dd6','#e08a00'];
+const QM=[1,1.15,1.35,1.6,2];
+const GT=[null,{lv:1,s:1,r:'I'},{lv:10,s:2.2,r:'II'},{lv:25,s:4,r:'III'}];
+const WPN={wanderer:'schleuder',krieger:'schwert',bogen:'bogen',magier:'stab',heiler:'heilstab'};
+const OFF={krieger:'schild',bogen:'koecher',magier:'buch',heiler:'talisman'};
+const ARMT={wanderer:['mittel','leicht'],krieger:['schwer'],bogen:['mittel'],magier:['leicht'],heiler:['leicht']};
+const ARMN={schwer:'Schwere Rüstung',mittel:'Mittlere Rüstung',leicht:'Leichte Rüstung'};
+const WTN={schleuder:'Schleuder',schwert:'Schwert',bogen:'Bogen',stab:'Zauberstab',heilstab:'Heilstab',schild:'Schild',koecher:'Köcher',buch:'Zauberbuch',talisman:'Talisman'};
+const ARM={kopf:{d:2,w:2,n:['helm','kappe','kapuze']},brust:{d:4,w:3,n:['harnisch','wams','robe']},beine:{d:3,w:2,n:['beinschienen','hose','beinkleid']},haende:{d:1.5,w:1,n:['handschuhe','handschuhe','handschuhe']},fuesse:{d:1.5,w:1,n:['stiefel','stiefel','schuhe']}};
+const ATYPES=['schwer','mittel','leicht'];
+const APFX={schwer:['','Eisen','Stahl','Drachenstahl'],mittel:['','Leder','Silberleder','Tyrannenleder'],leicht:['','Stoff','Kristallstoff','Mondseide']};
+const WNM={schleuder:['','Astschleuder','Lederschleuder','Meisterschleuder'],schwert:['','Eisenschwert','Stahlschwert','Drachenklinge'],bogen:['','Kurzbogen','Langbogen','Falkenbogen'],stab:['','Holzstab','Kristallstab','Sturmstab'],heilstab:['','Lichtzweig','Silberstab','Sonnenstab']};
+const WIC={schleuder:'🪃',schwert:'⚔️',bogen:'🏹',stab:'🪄',heilstab:'🌟',schild:'🛡️',koecher:'🎒',buch:'📖',talisman:'🧿'};
+const ONM={schild:['','Holzschild','Stahlschild','Drachenschild'],koecher:['','Lederköcher','Silberköcher','Falkenköcher'],buch:['','Notizbuch','Runenbuch','Arkanum'],talisman:['','Kräutertalisman','Silbertalisman','Sonnentalisman']};
+const UNM=['','Wollumhang','Silbermantel','Drachenmantel'],RNM=['','Eisenring','Silberring','Drachenring'],MNM=['','Steinamulett','Kristallamulett','Herzamulett'];
+const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
+const _gb={};
+function getBase(id){
+  if(_gb[id])return _gb[id];
+  const p=id.split('|'),k=p[0];let b=null;
+  if(k==='a'){const slot=p[1],ty=p[2],t=+p[3],a=ARM[slot],s=GT[t].s,tm={schwer:1.4,mittel:1,leicht:.6}[ty];
+    const st={def:Math.max(1,Math.round(a.d*s*tm))};
+    if(ty==='schwer')st.hp=Math.round(a.w*s*2);if(ty==='mittel')st.crit=.01*t;if(ty==='leicht')st.atk=Math.max(1,Math.round(a.w*s*.8));
+    b={n:cap(APFX[ty][t]+a.n[ATYPES.indexOf(ty)]),i:SLOTIC[slot],slot,type:ty,t,st};}
+  else if(k==='w'){const ty=p[1],t=+p[2],s=GT[t].s;const st={atk:Math.round(3*s)};if(ty==='bogen')st.crit=.01*t;if(ty==='heilstab')st.hp=Math.round(5*s);
+    b={n:WNM[ty][t],i:WIC[ty],slot:'waffe',type:ty,t,st};}
+  else if(k==='o'){const ty=p[1],t=+p[2],s=GT[t].s;const st={schild:{def:Math.round(3*s),hp:Math.round(4*s)},koecher:{crit:.02*t,atk:Math.round(s)},buch:{atk:Math.round(2.5*s)},talisman:{hp:Math.round(10*s),def:Math.round(s)}}[ty];
+    b={n:ONM[ty][t],i:WIC[ty],slot:'nebenhand',type:ty,t,st};}
+  else if(k==='u'){const t=+p[1],s=GT[t].s;b={n:UNM[t],i:'🧥',slot:'umhang',type:'',t,st:{def:Math.round(s),hp:Math.round(3*s)}};}
+  else if(k==='r'){const t=+p[1],s=GT[t].s;b={n:RNM[t],i:'💍',slot:'ring',type:'',t,st:{atk:Math.round(1.2*s),crit:.01*t}};}
+  else if(k==='m'){const t=+p[1],s=GT[t].s;b={n:MNM[t],i:'📿',slot:'amulett',type:'',t,st:{hp:Math.round(6*s)}};}
+  else if(k==='q'){const pa=PATHS[p[1]],t=+p[2],st=pa.st[t-1],ty=WPN[pa.b],s=GT[Math.min(3,t+1)].s;
+    const stt={atk:Math.round(3.5*s)};if(ty==='bogen')stt.crit=.02*t;if(ty==='heilstab')stt.hp=Math.round(6*s);
+    b={n:cap(WTN[ty])+' des '+(t===3?st.n:st.n),i:WIC[ty],slot:'waffe',type:ty,t:Math.min(3,t+1),st:stt,fixedQ:[2,3,4][t-1],lvReq:UP_LV[t-1]};}
+  b.id=id;b.lv=b.lvReq||GT[b.t].lv;
+  return _gb[id]=b;
+}
+const gearOf=uid=>S.gear.find(g=>g.u===uid);
+function gStats(g){
+  const b=getBase(g.b),f=QM[g.q]*(1+.1*g.p),o={def:0,atk:0,hp:0,crit:0};
+  for(const k in b.st)o[k]=k==='crit'?Math.round(b.st[k]*f*1000)/1000:Math.round(b.st[k]*f);
+  return o;
+}
+function gs(k){let v=0;for(const sl in S.eq){const g=gearOf(S.eq[sl]);if(g)v+=gStats(g)[k]||0;}return v;}
+function canEquip(g){
+  const b=getBase(g.b);
+  if(S.lv<b.lv)return 'Ab Level '+b.lv;
+  if(b.slot==='waffe'&&b.type!==WPN[S.cls])return 'Falsche Waffenart';
+  if(b.slot==='nebenhand'&&b.type!==OFF[S.cls])return OFF[S.cls]?'Passt nicht zu deiner Klasse':'Erst mit einer Klasse';
+  if(ARM[b.slot]&&!ARMT[S.cls].includes(b.type))return ARMN[b.type]+' nicht erlaubt';
+  return '';
+}
+function equip(uid,quiet){
+  const g=gearOf(uid);if(!g)return false;
+  const why=canEquip(g);if(why){if(!quiet)toast(why);return false;}
+  S.eq[getBase(g.b).slot]=uid;return true;
+}
+function fixGear(){for(const sl of Object.keys(S.eq)){const g=gearOf(S.eq[sl]);if(!g||canEquip(g))delete S.eq[sl];}}
+function addGear(bid,q,quiet){
+  const b=getBase(bid);if(b.fixedQ!==undefined)q=b.fixedQ;
+  const g={u:++S.gid,b:bid,q,p:0};S.gear.push(g);
+  let auto=false;if(!S.eq[b.slot]&&!canEquip(g)){S.eq[b.slot]=g.u;auto=true;}
+  return {g,auto};
+}
+const gName=g=>{const b=getBase(g.b);return '<span style="color:'+QC[g.q]+';font-weight:bold">'+b.i+' '+b.n+(g.p?' +'+g.p:'')+'</span>';};
+const gNameT=g=>{const b=getBase(g.b);return '['+QN[g.q]+'] '+b.n+(g.p?' +'+g.p:'');};
+function gStr(o){const a=[];if(o.def)a.push('🛡️ '+o.def);if(o.atk)a.push('⚔️ '+o.atk);if(o.hp)a.push('❤️ '+o.hp);if(o.crit)a.push('🎯 '+Math.round(o.crit*100)+'%');return a.join(' · ')||'–';}
+function rollQ(w){let r=Math.random()*w.reduce((a,b)=>a+b,0);for(let i=0;i<w.length;i++){r-=w[i];if(r<0)return i;}return 0;}
+const DROPCH={normal:.015,rare:.05,elite:.28,boss:.65,area:1};
+const DROPQ={normal:[85,14,1,0,0],rare:[50,40,9,1,0],elite:[20,45,28,6,1],boss:[0,25,50,22,3],area:[0,0,35,50,15]};
+const DROPT={normal:[1],rare:[1,1,2],elite:[2],boss:[2,3],area:[3]};
+function rollGear(tier){
+  if(Math.random()>=(DROPCH[tier]||0))return null;
+  const t=DROPT[tier][rnd(0,DROPT[tier].length-1)],q=rollQ(DROPQ[tier]);
+  const slots=['waffe','waffe',...(OFF[S.cls]?['nebenhand']:[]),'kopf','brust','beine','haende','fuesse','umhang','ring','amulett'];
+  const sl=slots[rnd(0,slots.length-1)];
+  let id;
+  if(sl==='waffe')id='w|'+(Math.random()<.8?WPN[S.cls]:Object.values(WPN)[rnd(0,4)])+'|'+t;
+  else if(sl==='nebenhand')id='o|'+OFF[S.cls]+'|'+t;
+  else if(sl==='umhang')id='u|'+t;else if(sl==='ring')id='r|'+t;else if(sl==='amulett')id='m|'+t;
+  else{const types=ARMT[S.cls];const ty=Math.random()<.7?types[rnd(0,types.length-1)]:ATYPES[rnd(0,2)];id='a|'+sl+'|'+ty+'|'+t;}
+  return addGear(id,q);
+}
+/* Rezepte */
+const GR=[];
+(function(){
+  for(let t=1;t<=3;t++){
+    for(const sl of Object.keys(ARM)){const w=ARM[sl].w;
+      const c={schwer:[{eisenerz:w*2,ranke:1},{eisenerz:w*2,steinherz:Math.ceil(w/2)},{drachenschuppe:w,steinherz:w}][t-1],
+               mittel:[{fell:w*2,ranke:1},{fell:w,silberfell:w},{tyrannenzahn:w,alphafell:w}][t-1],
+               leicht:[{ranke:w*2,kraut:w},{ranke:w*2,nachtfeder:w},{moorperle:w,kristall:w*2}][t-1]};
+      for(const ty of ATYPES)GR.push({id:'a|'+sl+'|'+ty+'|'+t,cost:c[ty]});}
+    const W={schleuder:[{stock:2,ranke:2,stein:1},{fell:3,ranke:3,stein:3},null],schwert:[{eisenerz:4,holz:2},{eisenerz:6,steinherz:2},null],bogen:[{holz:3,ranke:3},{holz:4,silberfell:2,nachtfeder:2},null],stab:[{holz:3,stein:2},{holz:3,kristall:3},null],heilstab:[{holz:3,kraut:2},{holz:3,kristall:2,kraut:4},null]};
+    for(const ty in W)if(W[ty][t-1])GR.push({id:'w|'+ty+'|'+t,cost:W[ty][t-1]});
+    const O={schild:[{holz:3,eisenerz:2},{eisenerz:5,steinherz:1},{drachenschuppe:2,steinherz:2}],koecher:[{fell:3,ranke:2},{silberfell:2,fell:2},{tyrannenzahn:1,alphafell:2}],buch:[{fell:2,ranke:2,stock:2},{kristall:3,ranke:2},{moorperle:1,kristall:3}],talisman:[{kraut:3,stein:2},{kristall:2,kraut:4},{moorperle:1,kraut:6}]};
+    for(const ty in O)GR.push({id:'o|'+ty+'|'+t,cost:O[ty][t-1]});
+    GR.push({id:'u|'+t,cost:[{fell:3,ranke:2},{silberfell:2,nachtfeder:2},{tyrannenzahn:1,drachenschuppe:2}][t-1]});
+    GR.push({id:'r|'+t,cost:[{eisenerz:2,ranke:1},{eisenerz:3,kristall:2},{drachenschuppe:1,kristall:3}][t-1]});
+    GR.push({id:'m|'+t,cost:[{stein:3,ranke:2},{kristall:2,nachtfeder:1},{gebietsherz:1,kristall:2}][t-1]});
+  }
+})();
+function grUsable(r){const b=getBase(r.id);
+  if(b.slot==='waffe')return b.type===WPN[S.cls];
+  if(b.slot==='nebenhand')return b.type===OFF[S.cls];
+  if(ARM[b.slot])return ARMT[S.cls].includes(b.type);
+  return true;}
+function craftGear(bid){
+  const r=GR.find(x=>x.id===bid);if(!r)return;const b=getBase(bid);
+  if(S.lv<b.lv){toast('Ab Level '+b.lv);return;}
+  for(const k in r.cost)if(have(k)<r.cost[k]){toast('Material fehlt');return;}
+  for(const k in r.cost)S.inv[k]-=r.cost[k];
+  const res=addGear(bid,rollQ([70,24,5,1,0]));
+  S.stats.crafted[bid]=(S.stats.crafted[bid]||0)+1;
+  toast('🔨 '+gNameT(res.g)+' hergestellt'+(res.auto?' und angelegt':''));
+  save();hud();openSheet('craft');
+}
+const UPCOST=p=>[{eisenerz:2,stein:2},{eisenerz:4,stein:4},{eisenerz:6,stein:6},{eisenerz:8,kristall:2},{eisenerz:10,steinherz:1}][p];
+function upgradeGear(uid){
+  const g=gearOf(uid);if(!g)return;if(g.p>=5){toast('Maximal +5');return;}
+  const c=UPCOST(g.p);
+  for(const k in c)if(have(k)<c[k]){toast('Material fehlt');return;}
+  for(const k in c)S.inv[k]-=c[k];
+  g.p++;toast('⬆️ '+gNameT(g)+' verbessert');
+  save();hud();openSheet('gear');
 }
 
 /* ---------- Klassen ---------- */
@@ -367,7 +487,7 @@ const atkRange=()=>C0().range;
 
 /* ---------- Spielstand ---------- */
 const def=()=>({lv:1,xp:0,hp:100,en:100,inv:{},tools:[],skills:{holz:0,berg:0,sammeln:0},cd:{},mh:{},
-  stats:{col:{},nodes:{},kills:0,crafted:{},kt:{normal:0,rare:0,elite:0,boss:0,area:0},walk:0,night:0,faints:0},path:'',tier:0,qb:null,qdone:[],qready:[],def:0,cls:'wanderer',scd:{},shield:0,stun:0,exh:0,last:Date.now(),test:false});
+  stats:{col:{},nodes:{},kills:0,crafted:{},kt:{normal:0,rare:0,elite:0,boss:0,area:0},walk:0,night:0,faints:0},path:'',tier:0,qb:null,gear:[],eq:{},gid:0,gv:0,qdone:[],qready:[],def:0,cls:'wanderer',scd:{},shield:0,stun:0,exh:0,last:Date.now(),test:false});
 let S=def();
 try{
   const raw=localStorage.getItem(KEY);
@@ -376,11 +496,17 @@ try{
 if(!CLASSES[S.cls])S.cls='wanderer';
 if(S.path&&!PATHS[S.path]){S.path='';S.tier=0;}
 if(S.cls!=='wanderer'&&!S.qb)S.qb=cnt();
+if(!S.gv){ // alte Rüstungen in das neue System übernehmen
+  S.gv=1;
+  const mp={fellweste:'a|brust|mittel|1',kaeferhelm:'a|kopf|schwer|1',keilerhandschuhe:'a|haende|mittel|1',silberstiefel:'a|fuesse|leicht|1'};
+  for(const k in mp)if(S.stats.crafted[k])addGear(mp[k].replace(/\|(schwer|mittel|leicht)\|/,'|'+ARMT[S.cls][0]+'|'),0,true);
+  S.def=0;fixGear();
+}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 
-const maxHP=()=>Math.round((100+10*(S.lv-1))*(1+(C0().hpb||0)));
-const defense=()=>S.def+(C0().def||0);
-const atk=()=>10+2*S.lv;
+const maxHP=()=>Math.round((100+10*(S.lv-1))*(1+(C0().hpb||0)))+gs('hp');
+const defense=()=>S.def+(C0().def||0)+gs('def');
+const atk=()=>10+2*S.lv+gs('atk');
 const sl=k=>1+Math.floor(S.skills[k]/10);
 const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
 const add=(k,n)=>{S.inv[k]=(S.inv[k]||0)+n;};
@@ -654,7 +780,7 @@ function strike(o){
   let dmg=0,crit=false;
   for(let i=0;i<(o.hits||1);i++){
     let d=Math.max(1,Math.round((atk()+rnd(0,8))*o.mult));
-    if(o.crit||Math.random()<C.crit){d*=2;crit=true;}
+    if(o.crit||Math.random()<C.crit+gs('crit')){d*=2;crit=true;}
     dmg+=d;
   }
   let heal='';
@@ -668,6 +794,7 @@ function strike(o){
     delete S.mh[e.id];S.cd[e.id]=Date.now();S.stats.kills++;S.stats.kt[m.tier]=(S.stats.kt[m.tier]||0)+1;{const hr=new Date().getHours();if(hr>=22||hr<4)S.stats.night++;}S.stun=0;
     const got=[];
     for(const dr of m.drops){if(Math.random()<(dr.c??1)){const q=rnd(dr.min,dr.max);add(dr.i,q);S.stats.col[dr.i]=(S.stats.col[dr.i]||0)+q;got.push('+'+q+' '+ITEMS[dr.i].n);}}
+    const gd=rollGear(m.tier);if(gd)got.push('🎁 '+gNameT(gd.g)+(gd.auto?' (angelegt)':''));
     addXP(m.xp);
     toast('💥 '+m.n+' besiegt! '+got.join(', '));
     deselect();refreshWorld();checkQuests();
@@ -767,12 +894,10 @@ function updateSkillUI(){
 }
 function craft(id){
   const r=RECIPES.find(x=>x.id===id);if(!r)return;
-  if(r.kind==='armor'&&S.stats.crafted[id]){toast('Schon hergestellt');return;}
   for(const k in r.cost)if(have(k)<r.cost[k]){toast('Material fehlt');return;}
   for(const k in r.cost)S.inv[k]-=r.cost[k];
   if(r.kind==='tool')S.tools.push({id:r.id,type:r.type,dur:r.dur});
   else if(r.kind==='item')add(r.id,1);
-  else if(r.kind==='armor')S.def+=r.def;
   S.stats.crafted[id]=(S.stats.crafted[id]||0)+1;
   toast('🔨 '+ITEMS[id].n+' hergestellt');
   checkQuests();save();openSheet('craft');
@@ -816,10 +941,10 @@ function claimQuest(id){
 }
 
 /* ---------- Menüs ---------- */
-let curSheet=null,confirmReset=false,qtab='cur',pickCls=null,pickPath=null;
+let curSheet=null,confirmReset=false,qtab='cur',pickCls=null,pickPath=null,gSlot='waffe',ctab='tool';
 function openSheet(s){
   curSheet=s;
-  const titles={inv:'Inventar',craft:'Herstellen',quests:'Quests',char:'Charakter',set:'Mehr',class:'Klasse wählen',up:'Klassenentwicklung'};
+  const titles={inv:'Inventar',craft:'Herstellen',quests:'Quests',char:'Charakter',set:'Mehr',class:'Klasse wählen',up:'Klassenentwicklung',gear:'Ausrüstung'};
   $('#shT').textContent=titles[s];
   let h='';
   if(s==='inv'){
@@ -830,12 +955,24 @@ function openSheet(s){
     if(have('trank')>0)h+='<h3>Benutzen</h3><button class="btn" data-a="use" data-id="trank">🧪 Heiltrank trinken ('+have('trank')+')</button>';
   }
   if(s==='craft'){
-    h+=RECIPES.map(r=>{
-      const ok=Object.keys(r.cost).every(k=>have(k)>=r.cost[k]),done=r.kind==='armor'&&S.stats.crafted[r.id];
+    h+='<div class="tabs"><button class="tab'+(ctab==='tool'?' on':'')+'" data-a="ctab" data-t="tool">Werkzeug & Tränke</button><button class="tab'+(ctab==='gear'?' on':'')+'" data-a="ctab" data-t="gear">Ausrüstung</button></div>';
+    if(ctab==='tool')h+=RECIPES.map(r=>{
+      const ok=Object.keys(r.cost).every(k=>have(k)>=r.cost[k]);
       const cost=Object.keys(r.cost).map(k=>'<span class="'+(have(k)>=r.cost[k]?'good':'bad')+'">'+ITEMS[k].i+' '+have(k)+'/'+r.cost[k]+'</span>').join(' · ');
-      const info=r.kind==='tool'?'Haltbarkeit '+r.dur:r.kind==='armor'?'+'+r.def+' Verteidigung':'Heilt 40 Leben';
-      return '<div class="rec"><div class="t">'+ITEMS[r.id].i+' '+ITEMS[r.id].n+'</div><div class="c">'+cost+'</div><small>'+info+'</small><br><button class="btn" style="margin-top:6px" data-a="craft" data-id="'+r.id+'" '+((!ok||done)?'disabled':'')+'>'+(done?'Schon vorhanden':'Herstellen')+'</button></div>';
+      const info=r.kind==='tool'?'Haltbarkeit '+r.dur:'Heilt 40 Leben';
+      return '<div class="rec"><div class="t">'+ITEMS[r.id].i+' '+ITEMS[r.id].n+'</div><div class="c">'+cost+'</div><small>'+info+'</small><br><button class="btn" style="margin-top:6px" data-a="craft" data-id="'+r.id+'" '+(!ok?'disabled':'')+'>Herstellen</button></div>';
     }).join('');
+    else{
+      h+='<p style="font-size:13px;margin-top:0">Qualität wird beim Herstellen ausgewürfelt (meist Gewöhnlich, selten besser). Gezeigt wird, was deine Klasse tragen kann.</p>';
+      for(let t=1;t<=3;t++){
+        h+='<h3>Stufe '+GT[t].r+' <small>(ab Level '+GT[t].lv+')</small></h3>';
+        h+=GR.filter(r=>getBase(r.id).t===t&&grUsable(r)).map(r=>{
+          const b=getBase(r.id),ok=Object.keys(r.cost).every(k=>have(k)>=r.cost[k])&&S.lv>=b.lv;
+          const cost=Object.keys(r.cost).map(k=>'<span class="'+(have(k)>=r.cost[k]?'good':'bad')+'">'+ITEMS[k].i+' '+have(k)+'/'+r.cost[k]+'</span>').join(' ');
+          return '<div class="rec" style="padding:8px"><div class="t">'+b.i+' '+b.n+' <small>'+SLOTS.find(x=>x[0]===b.slot)[1]+'</small></div><div class="c">'+cost+'<br><small>'+gStr(Object.assign({def:0,atk:0,hp:0,crit:0},b.st))+'</small></div><button class="btn" data-a="cgear" data-id="'+r.id+'"'+(ok?'':' disabled')+'>'+(S.lv<b.lv?'Ab Level '+b.lv:'Herstellen')+'</button></div>';
+        }).join('');
+      }
+    }
   }
   if(s==='quests'){
     const readyL=QUESTS.filter(q=>S.qready.includes(q.id));
@@ -869,6 +1006,26 @@ function openSheet(s){
     }
   }
 
+  if(s==='gear'){
+    const sl=gSlot,eqg=gearOf(S.eq[sl]);
+    h+='<div class="kv"><span>⚔️ Angriff '+atk()+'</span><span>🛡️ Verteidigung '+defense()+'</span></div><div class="kv"><span>❤️ Max. Leben '+maxHP()+'</span><span>🎯 Krit '+Math.round((C0().crit+gs('crit'))*100)+'%</span></div>';
+    h+='<div class="grid" style="grid-template-columns:repeat(5,1fr);margin:8px 0">'+SLOTS.map(([k,l])=>{const g=gearOf(S.eq[k]);
+      return '<button class="it" data-a="gslot" data-slot="'+k+'" style="border:2px solid '+(k===sl?'var(--acc)':(g?QC[g.q]:'var(--line)'))+(k===sl?';background:#ffe9c4':'')+'"><span>'+(g?getBase(g.b).i:SLOTIC[k])+'</span><small>'+l+'</small></button>';}).join('')+'</div>';
+    h+='<h3>'+SLOTS.find(x=>x[0]===sl)[1]+'</h3>';
+    const bag=S.gear.filter(g=>getBase(g.b).slot===sl);
+    if(!bag.length)h+='<p style="font-size:14px">Nichts in diesem Slot. Stelle Ausrüstung her oder besiege stärkere Monster.</p>';
+    const cur=eqg?gStats(eqg):{def:0,atk:0,hp:0,crit:0};
+    h+=bag.sort((a,b)=>(b.u===S.eq[sl])-(a.u===S.eq[sl])||b.q-a.q).map(g=>{
+      const b=getBase(g.b),st=gStats(g),on=S.eq[sl]===g.u,why=canEquip(g);
+      const dif=['def','atk','hp','crit'].filter(k=>st[k]!==cur[k]&&!on).map(k=>{const d=st[k]-cur[k];const lab={def:'🛡️',atk:'⚔️',hp:'❤️',crit:'🎯'}[k];const v=k==='crit'?Math.round(d*100)+'%':Math.round(d);return '<span class="'+(d>0?'good':'bad')+'">'+lab+(d>0?' +':' ')+v+'</span>';}).join(' ');
+      const c=g.p<5?UPCOST(g.p):null,okU=c&&Object.keys(c).every(k=>have(k)>=c[k]);
+      const cs=c?Object.keys(c).map(k=>'<span class="'+(have(k)>=c[k]?'good':'bad')+'">'+ITEMS[k].i+' '+have(k)+'/'+c[k]+'</span>').join(' '):'';
+      return '<div class="rec" style="border-color:'+QC[g.q]+(on?';background:#ffe9c4':'')+'"><div class="t">'+gName(g)+(on?' <small>(angelegt)</small>':'')+'</div>'
+        +'<div class="c"><small style="color:'+QC[g.q]+'">'+QN[g.q]+(b.type&&WTN[b.type]?' · '+WTN[b.type]:(ARMN[b.type]?' · '+ARMN[b.type]:''))+' · ab Lv '+b.lv+'</small><br>'+gStr(st)+(dif?'<br>'+dif:'')+'</div>'
+        +(on?'<button class="btn sec" data-a="gunequip" data-slot="'+sl+'">Ablegen</button> ':'<button class="btn" data-a="gequip" data-id="'+g.u+'"'+(why?' disabled':'')+'>'+(why||'Anlegen')+'</button> ')
+        +(c?'<button class="btn sec" data-a="gup" data-id="'+g.u+'"'+(okU?'':' disabled')+'>⬆️ +'+(g.p+1)+' '+cs+'</button>':'<small>Maximal verbessert</small>')+'</div>';
+    }).join('');
+  }
   if(s==='up'){
     const base=CLASSES[S.cls];
     h+='<p style="margin-top:0"><b>'+C0().i+' '+C0().n+'</b> <small>· Stufe '+S.tier+' von 3</small></p>';
@@ -898,10 +1055,11 @@ function openSheet(s){
       +'<div class="kv"><span>Erfahrung</span><b>'+Math.floor(S.xp)+' / '+need+'</b></div>'
       +'<div class="kv"><span>Leben</span><b>'+Math.floor(S.hp)+' / '+maxHP()+'</b></div>'
       +'<div class="kv"><span>Angriff</span><b>'+atk()+'</b></div>'
-      +'<div class="kv"><span>Verteidigung</span><b>'+S.def+' <small>(durch Ausrüstung)</small></b></div>'
+      +'<div class="kv"><span>Verteidigung</span><b>'+defense()+'</b></div>'
       +'<div class="kv"><span>Besiegte Monster</span><b>'+S.stats.kills+'</b></div>'
       +'<h3>Ausrüstung</h3><div class="grid" style="grid-template-columns:repeat(5,1fr)">'
-      +SLOTS.map(([k,l])=>{const e=equipped(k);return '<div class="it"'+(e?'':' style="opacity:.5"')+'><span>'+(e?e.i:'➕')+'</span><small>'+l+'</small><small>'+(e?e.n:'leer')+'</small></div>';}).join('')+'</div>'
+      +SLOTS.map(([k,l])=>{const g=gearOf(S.eq[k]);return '<button class="it" data-a="gearopen" data-slot="'+k+'" style="'+(g?'border:2px solid '+QC[g.q]:'opacity:.55')+'"><span>'+(g?getBase(g.b).i:SLOTIC[k])+'</span><small>'+l+'</small><small>'+(g?getBase(g.b).n+(g.p?' +'+g.p:''):'leer')+'</small></button>';}).join('')+'</div>'
+      +'<button class="btn" data-a="gearopen" data-slot="waffe" style="margin-top:8px;width:100%">🎒 Ausrüstung verwalten ('+S.gear.length+')</button>'
       +'<h3>Lebensfertigkeiten</h3>'
       +Object.keys(SKILLNAME).map(k=>'<div class="kv"><span>'+SKILLNAME[k]+'</span><b>Stufe '+sl(k)+' <small>('+(S.skills[k]%10)+'/10)</small></b></div>').join('')
       +'';
@@ -967,6 +1125,13 @@ document.addEventListener('click',ev=>{
       if(!confirmReset){confirmReset=true;openSheet('set');}
       else{try{localStorage.removeItem(KEY);}catch(e){}location.reload();}
       break;
+    case 'gearopen':gSlot=b.dataset.slot||'waffe';openSheet('gear');break;
+    case 'gslot':gSlot=b.dataset.slot;openSheet('gear');break;
+    case 'gequip':if(equip(+b.dataset.id)){save();hud();openSheet('gear');}break;
+    case 'gunequip':delete S.eq[b.dataset.slot];save();hud();openSheet('gear');break;
+    case 'gup':upgradeGear(+b.dataset.id);break;
+    case 'ctab':ctab=b.dataset.t;openSheet('craft');break;
+    case 'cgear':craftGear(b.dataset.id);break;
     case 'uppath':pickPath=b.dataset.id;openSheet('up');break;
     case 'upok':{
       if(S.tier===2&&S.lv>=UP_LV[2]&&upQuestDone()&&!SECRET[S.path].ok()){toast('❓ Etwas fehlt noch… die Hinweise verraten mehr.');break;}
@@ -975,7 +1140,8 @@ document.addEventListener('click',ev=>{
       S.tier++;S.qb=cnt();S.scd={};S.shield=0;S.stun=0;
       const st=PATHS[S.path].st[S.tier-1];
       closeSheet();buildSkillBar();S.hp=maxHP();
-      toast((S.tier===3?'🌟 Verborgene Klasse erweckt: ':'⬆️ Aufstieg: ')+st.i+' '+st.n+'! Neue Fähigkeit: '+st.sk.n);
+      const qw=addGear('q|'+S.path+'|'+S.tier,0);
+      toast((S.tier===3?'🌟 Verborgene Klasse erweckt: ':'⬆️ Aufstieg: ')+st.i+' '+st.n+'! Neue Fähigkeit: '+st.sk.n+' · 🎁 '+gNameT(qw.g));
       save();hud();renderCard();updateNear();
       break;}
     case 'cheatup':{
@@ -987,7 +1153,7 @@ document.addEventListener('click',ev=>{
     case 'clsok':
       if(pickCls&&CLASSES[pickCls]&&S.lv>=CLASS_LV&&S.cls==='wanderer'){
         const c=CLASSES[pickCls];S.cls=pickCls;S.path='';S.tier=0;S.qb=cnt();S.scd={};S.shield=0;S.stun=0;closeSheet();buildSkillBar();
-        S.hp=maxHP();toast(c.i+' Du bist jetzt '+c.n+'! Neue Fähigkeit: '+c.sk[0].n);
+        fixGear();S.hp=maxHP();toast(c.i+' Du bist jetzt '+c.n+'! Neue Fähigkeit: '+c.sk[0].n);
         save();hud();renderCard();updateNear();
       }
       break;
