@@ -178,8 +178,6 @@ const CLASSES={
   wanderer:{n:'Wanderer',i:'🧭',w:'Schleuder',wi:'🪃',act:'Schleuder abfeuern',range:30,dmg:.8,en:2,crit:.1,blurb:'Noch keine Klasse.'},
   krieger:{n:'Krieger',i:'⚔️',w:'Schwert & Schild',wi:'⚔️',act:'Zuschlagen',range:20,dmg:1.3,en:2,crit:.1,hpb:.2,def:2,
     blurb:'Robust und stark im Nahkampf. +20 % Leben, +2 Verteidigung, hoher Schaden. Du musst nah ran.'},
-  moench:{n:'Mönch',i:'🥋',w:'Fäuste',wi:'👊',act:'Fäuste einsetzen',range:20,dmg:.6,hits:2,en:1,crit:.1,enreg:1.25,
-    blurb:'Schnelle Doppelschläge, spart Energie und erholt sich 25 % schneller. Nahkampf.'},
   bogen:{n:'Bogenschütze',i:'🏹',w:'Bogen',wi:'🏹',act:'Pfeil abschießen',range:60,dmg:1,en:2,crit:.2,
     blurb:'Größte Reichweite und hohe Chance auf kritische Treffer. Bleibt auf Abstand.'},
   magier:{n:'Elementarmagier',i:'🔮',w:'Zauberstab',wi:'🪄',act:'Zauber wirken',range:45,dmg:1.25,en:3,crit:.1,
@@ -187,7 +185,7 @@ const CLASSES={
   heiler:{n:'Heiler',i:'✨',w:'Stab des Lichts',wi:'🌟',act:'Lichtstrahl wirken',range:45,dmg:.8,en:2,crit:.1,heal:3,
     blurb:'Weniger Schaden, dafür heilt jeder Angriff dich um 3 Leben. Ideal für lange Wege.'}
 };
-const PICK=['krieger','moench','bogen','magier','heiler'];
+const PICK=['krieger','bogen','magier','heiler'];
 const C0=()=>CLASSES[S.cls]||CLASSES.wanderer;
 const atkRange=()=>C0().range;
 
@@ -199,6 +197,7 @@ try{
   const raw=localStorage.getItem(KEY);
   if(raw){const o=JSON.parse(raw);S=Object.assign(def(),o);S.stats=Object.assign(def().stats,o.stats||{});S.skills=Object.assign(def().skills,o.skills||{});}
 }catch(e){}
+if(!CLASSES[S.cls])S.cls='wanderer';
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 
 const maxHP=()=>Math.round((100+10*(S.lv-1))*(1+(C0().hpb||0)));
