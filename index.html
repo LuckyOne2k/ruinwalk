@@ -77,6 +77,29 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 #react:not(.boss) .bonly{display:none}
 .rb{width:60px;height:60px;border-radius:50%;border:2px solid #c0392b;background:var(--card);box-shadow:0 2px 8px rgba(0,0,0,.3);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0;line-height:1;font-size:22px}.rb small{font-size:9px;margin-top:2px}.rb.hot{background:#ffd9a8;border-color:#ff6a00;animation:pulse .5s infinite alternate}
 @keyframes pulse{to{transform:scale(1.12)}}
+/* ---- Kampf-Layout (V2 Daumenzone) ---- */
+body.cbt #gps,body.cbt #cu,body.cbt #loc,body.cbt #attr{display:none}
+body.cbt:not(.nv) #nav{display:none}
+body.cbt #nav{z-index:900}
+body.cbt #skills{display:none!important}
+body.cbt #card{top:calc(12px + var(--st));bottom:auto;padding:10px 12px}
+body.cbt #card .ch .ci{width:40px;height:40px;font-size:24px}
+body.cbt #card .dt{display:none}
+body.cbt #card.inf .dt{display:block}
+body.cbt #hud{top:calc(128px + var(--st));left:10px}
+body.cbt #tele{top:calc(190px + var(--st))}
+#mbtn,#ibtn{display:none}
+body.cbt #mbtn{display:flex;position:absolute;right:12px;top:calc(128px + var(--st));z-index:650;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--card);box-shadow:0 2px 8px rgba(0,0,0,.25);align-items:center;justify-content:center;font-size:20px;padding:0}
+body.cbt #card #cAct{position:fixed;right:16px;bottom:calc(16px + var(--sb));width:104px;height:104px;border-radius:50%;margin:0;padding:6px;font-size:14px;line-height:1.15;z-index:660;box-shadow:0 4px 14px rgba(0,0,0,.35)}
+body.cbt #card .skrow{position:static;display:block;margin:0}
+body.cbt #card .skrow .sk{position:fixed;z-index:660;width:46px;height:46px}
+body.cbt #react{left:14px!important;top:auto!important;bottom:calc(16px + var(--sb))!important;transform:none;width:176px;height:176px;display:block!important}
+body.cbt #react .rb{position:absolute;width:64px;height:64px}
+body.cbt #react [data-a=potion]{left:0;bottom:0}
+body.cbt #react [data-a=guard]{left:0;bottom:84px}
+body.cbt #react [data-a=intr]{left:84px;bottom:52px}
+body.cbt #react:not(.boss) [data-a=potion]{left:0;bottom:0}
+
 #skills.many .sk{width:46px;height:46px}
 #skills{position:absolute;right:12px;bottom:calc(136px + var(--sb));z-index:500;display:none;flex-direction:column-reverse;gap:8px}
 .sk{width:54px;height:54px;border-radius:50%;border:2px solid var(--acc);background:var(--card);box-shadow:0 2px 8px rgba(0,0,0,.3);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0;line-height:1}
@@ -138,6 +161,7 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 <div id="react"><button class="rb bonly" data-a="guard"><span>🛡️</span><small>Abwehr</small></button><button class="rb" data-a="potion" data-pot="1" style="border-color:var(--acc)"><span class="si">:i_trank:</span><small class="sc"></small></button><button class="rb bonly" data-a="intr"><span>⚡</span><small>Stören</small></button></div>
 <div id="skills"></div>
 <div id="card"></div>
+<button id="mbtn" data-a="menu" aria-label="Menü">☰</button>
 
 <nav id="nav">
   <button data-a="open" data-s="inv"><b>🎒</b>Inventar</button>
@@ -1094,13 +1118,13 @@ function renderCard(){
       if(ds>RANGE)label='Zu weit – noch '+Math.ceil(ds-RANGE)+' m';else dis=false;
     }else if(isMob){
       const mx=d.hp,hp=S.mh[e.id]??mx;
-      body='<div class="row">❤️ '+hp+' / '+mx+'<div class="hpbar"><i style="width:'+(100*hp/mx)+'%"></i></div>'+C0().w+' · Reichweite '+atkRange()+' m · Energie '+C0().en
+      body='<div class="row">❤️ '+hp+' / '+mx+'<div class="hpbar"><i style="width:'+(100*hp/mx)+'%"></i></div><span class="dt">'+C0().w+' · Reichweite '+atkRange()+' m · Energie '+C0().en
         +'<br>Empfohlen: Stufe '+d.rec+(S.lv+2<d.rec?' <span class="bad">⚠️ sehr gefährlich</span>':'')
         +'<br>Verhalten: '+(d.tier==='area'?'<b>Gebietsboss</b> · greift erst an, wenn du ihn angreifst':d.ag?'<b class="bad">😡 Aggressiv</b>':'🕊️ Friedlich, wehrt sich nur')
         +'<br>'+HAB[d.hab==='*'?'w':d.hab[0]].i+' Lebensraum: '+(d.hab==='*'?'überall':[...d.hab].map(h=>HAB[h].n).join(', '))
         +(BFX[e.type]?'<br>⚠️ Spezialangriffe: '+BFX[e.type].a.map(x=>x.n).join(', ')+' (🛡️ gegen Wucht, ⚡ gegen Zauber)':'')
         +(d.ab?'<br>'+ABIL[d.ab][0]+' <b>'+ABIL[d.ab][1]+'</b>: '+ABIL[d.ab][2]:'')
-        +'<br>Beute: '+d.drops.map(x=>ITEMS[x.i].i+(x.c?'?':'')).join(' ')+'</div>'+skRow();
+        +'<br>Beute: '+d.drops.map(x=>ITEMS[x.i].i+(x.c?'?':'')).join(' ')+'</span></div>'+skRow();
       action='shoot';label=C0().i+' '+C0().act;
       if(ds>atkRange())label='Zu weit – noch '+fmtDist(ds-atkRange());
       else if(Date.now()<S.exh)label='😵 Erschöpft – noch '+fmtT(S.exh-Date.now());
@@ -1120,7 +1144,7 @@ function renderCard(){
     }
   }
   const subH='<small id="cSub">'+sub+'</small>',btnTail='>'+label+'</button>';
-  const html='<div class="ch"><div class="ci">'+d.i+'</div><div><b>'+dn+'</b>'+subH+'</div><button class="x" data-a="close">✕</button></div>'
+  const html='<div class="ch"><div class="ci">'+d.i+'</div><div><b>'+dn+'</b>'+subH+'</div>'+(isMob?'<button class="x" data-a="info" aria-label="Info" style="margin-right:6px">ⓘ</button>':'')+'<button class="x" data-a="close">✕</button></div>'
     +body+'<button id="cAct" class="act" data-a="'+(action||'close')+'" '+(dis?'disabled':'')+btnTail;
   const key=html.replace(subH,'').replace(btnTail,'></button>');
   if(c._k!==key){c.innerHTML=html;c._k=key;}
@@ -1353,6 +1377,12 @@ function useSkill(i){
   S.scd[sk.id]=now+sk.cd*1000;
   save();hud();updateSkillUI();
 }
+function fanSkills(){
+  const els=[...document.querySelectorAll('#card .skrow .sk')],n=els.length,sb=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sb'))||0;
+  const r=n>5?132:122,a0=180,a1=92;
+  els.forEach((el,i)=>{const a=(n>1?a0+(a1-a0)*i/(n-1):135)*Math.PI/180,dx=r*Math.cos(a),dy=r*Math.sin(a);
+    el.style.right=(68-dx-23)+'px';el.style.bottom=(68+dy-23+sb)+'px';});
+}
 function skBtn(i){return '<button class="sk" data-a="skill" data-i="'+i+'" data-sk="'+i+'"><span class="si">'+C0().sk[i].i+'</span><small class="sc"></small></button>';}
 function skPot(){return '<button class="sk" data-a="potion" data-pot="1"><span class="si">:i_trank:</span><small class="sc"></small></button>';}
 function skRow(){const C=C0();return (C.sk&&C.sk.length)?'<div class="skrow">'+C.sk.map((x,i)=>skBtn(i)).join('')+'</div>':'';}
@@ -1360,6 +1390,8 @@ function buildSkillBar(){const C=C0();const sf=(C.sk||[]).filter(x=>x.self);$('#
 function updateSkillUI(){
   const C=C0(),sk=C.sk||[],now=Date.now();
   const cardShown=$('#card').style.display==='block';
+  const cbt=cardShown&&sel&&sel.kind==='mob';document.body.classList.toggle('cbt',!!cbt);if(!cbt)document.body.classList.remove('nv');
+  if(cbt)fanSkills();
   $('#skills').style.display=(sk.some(x=>x.self)&&!cardShown)?'flex':'none';
   for(const el of document.querySelectorAll('[data-pot]')){const cd=Math.ceil((potCd-now)/1000),n=have('trank');const sc=el.querySelector('.sc');if(sc)sc.textContent=cd>0?cd+' s':'×'+n;el.classList.toggle('off',n<=0||cd>0);}
   const list=document.querySelectorAll?document.querySelectorAll('[data-sk]'):[];
@@ -1648,6 +1680,8 @@ document.addEventListener('click',ev=>{
     case 'start':startGPS();break;
     case 'starttest':$('#start').style.display='none';setTest(true);break;
     case 'close':deselect();break;
+    case 'info':$('#card').classList.toggle('inf');break;
+    case 'menu':document.body.classList.toggle('nv');break;
     case 'collect':collect();break;
     case 'shoot':shoot();break;
     case 'faintok':$('#faint').style.display='none';break;
