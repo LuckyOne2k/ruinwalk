@@ -1,0 +1,253 @@
+/* Ruin Walk – Pixel-Grafiken (16x16), komplett als Code gezeichnet.
+   Jedes Bild ist eine Liste von Formen: e=Ellipse cx,cy,rx,ry · r=Rechteck x,y,b,h · l=Linie x1,y1,x2,y2 · t=Dreieck x1,y1,x2,y2,x3,y3 · p=Punkt x,y
+   jeweils gefolgt von einem Farbbuchstaben (_ = radieren). Kontur und Licht/Schatten kommen automatisch. */
+const PX_PAL={w:'#f4f1e8',g:'#a3a9b3',G:'#5b6270',k:'#1b1420',b:'#a8723f',B:'#5e3b20',t:'#dcc08e',r:'#d9413f',R:'#8c2230',o:'#ef8d2c',y:'#f4d03f',Y:'#b8902a',l:'#6fd354',L:'#2f7d3b',c:'#59d8e3',C:'#2a8c9c',u:'#4585e6',U:'#26428f',p:'#a65fdc',P:'#5c3190',m:'#f48fbc',s:'#cdd7e3',S:'#7b8999',n:'#ebc9a2',e:'#4a9a63',d:'#7d5532',h:'#ffffff'};
+const PX_SPR={
+/* ---- Monster ---- */
+'🐺':'e9,9,5,3g;e4,7,3,2g;t3,6,5,6,4,3G;r1,8,3,1g;p1,8k;p4,7y;r5,11,1,3G;r7,11,1,3G;r11,11,1,3G;r13,11,1,3G;l14,8,15,5g;e8,9,3,1G',
+'🪲':'e8,9,5,4G;e8,9,5,1_;l8,5,8,13B;e8,6,3,2g;p6,3,8,3;l5,3,3,1G;l11,3,13,1G;l3,8,2,10G;l13,8,14,10G;l3,12,2,14G;l13,12,14,14G;p7,6k;p9,6k;e6,9,2,2B;e10,9,2,2B',
+'🐗':'e9,9,5,4B;e4,9,3,3b;t3,6,5,6,4,4B;e1,10,1,1w;p2,9,k;p4,8y;r4,11,1,3B;r7,12,1,2B;r11,12,1,2B;r13,11,1,3B;l14,8,15,6B;l6,9,6,11t;l7,9,7,10B',
+'🐇':'e8,10,4,4w;e5,7,3,3w;t4,6,3,1,5,2w;t6,6,6,1,7,2w;l4,4,4,1w;l6,4,6,1w;p4,7,k;p3,7m;e12,10,1,1h;r5,13,2,2w;r9,13,3,2w',
+'👺':'e8,9,5,5l;t3,6,0,3,4,8l;t12,6,15,3,11,8l;p6,8,y;p10,8,y;p6,8k;p10,8k;r6,11,4,2k;p6,11w;p9,11w;l7,5,8,3L;r4,14,3,2B;r9,14,3,2B',
+'🕷️':'e8,8,3,3B;e8,12,3,3B;e8,12,2,2R;p7,7y;p9,7y;l5,8,1,6k;l5,10,2,13k;l11,8,15,6k;l11,10,14,13k;l5,9,1,10k;l11,9,15,10k;l6,11,3,14k;l10,11,13,14k',
+'🦇':'e8,8,2,3G;t6,6,5,3,5,6G;t10,6,11,3,11,6G;t6,8,0,5,4,12G;t10,8,15,5,12,12G;l2,8,5,12k;p7,7,r;p9,7r;p7,10w;p9,10w',
+'🐀':'e8,10,5,3G;e4,9,3,2g;t3,8,3,6,5,7g;t4,6,2,4,5,5m;p4,8k;p1,9m;l12,10,15,7g;l10,12,15,12m;r5,12,1,2G;r8,12,1,2G;r11,12,1,2G',
+'🐍':'r3,4,9,2e;r10,6,3,2e;r4,8,9,2e;r4,10,2,2e;r4,12,9,2e;e3,4,2,2e;p2,3y;p0,5r;p3,4k',
+'🐸':'e8,10,6,4l;e5,6,2,2l;e11,6,2,2l;p5,6w;p11,6w;p5,6k;p11,6k;r4,11,8,1L;e3,14,2,1L;e13,14,2,1L;e8,12,3,2y;l3,10,3,13L',
+'🪱':'e4,12,3,3m;e8,10,3,3m;e12,7,3,3m;e12,7,2,2R;p11,6k;p13,6k;l1,12,15,6R;e8,10,1,1R;e4,12,1,1R',
+'🦟':'e8,9,2,3G;e8,5,2,2G;l8,4,8,0k;t7,7,2,1,4,6c;t9,7,14,1,12,6c;l7,10,4,14k;l9,10,12,14k;l8,12,8,15k;p7,5r;p9,5r',
+'🦀':'e8,10,5,3r;e8,10,3,1R;l4,10,1,6r;e2,5,2,2r;l12,10,15,6r;e14,5,2,2r;p6,7k;p10,7k;l6,7,6,6k;l10,7,10,6k;l4,12,2,14r;l12,12,14,14r;l5,13,3,15r;l11,13,13,15r',
+'🐿️':'e9,10,3,4b;e6,6,3,3b;t5,3,6,3,5,5b;p6,6k;p4,7k;l11,12,15,5B;l12,11,15,3b;e14,6,2,4b;r8,13,2,2B;e8,10,2,2t',
+'🐐':'e9,9,5,3w;e4,6,3,3w;t3,4,1,0,4,3S;t5,4,7,0,6,3S;p4,6k;l1,8,3,10w;r5,11,1,3w;r7,11,1,3w;r11,11,1,3w;r13,11,1,3w;l14,8,15,6w;l3,9,3,11w',
+'🦂':'e8,11,4,3o;e5,11,1,1o;l11,11,14,8o;l14,8,12,5o;t11,4,13,3,13,6r;l3,9,1,6o;e1,6,2,2o;l5,9,3,6o;e3,6,2,1o;p4,10k;p6,10k;r5,13,1,2o;r8,13,1,2o;r11,13,1,2o',
+'🦔':'e8,9,6,5B;e8,9,5,3b;e3,10,3,2n;p2,9k;p1,10k;l5,6,4,3k;l8,4,8,2k;l11,6,12,3k;l14,9,15,7k;r5,13,2,2n;r10,13,2,2n',
+'🐦':'e8,9,4,4k;e5,6,3,3k;t1,6,4,5,4,8y;p4,5y;p4,5w;t12,9,15,7,15,13G;r6,13,1,2o;r9,13,1,2o;e8,9,3,2G',
+'👿':'e8,9,5,5p;t3,5,2,1,6,4P;t13,5,14,1,10,4P;p6,8y;p10,8y;p6,8k;p10,8k;r6,11,4,2k;p6,12w;p9,12w;l12,13,15,15P;t14,13,15,15,13,15p',
+'🦊':'e9,9,5,3o;e4,7,3,2o;t3,6,2,2,5,5o;t6,6,6,3,7,5o;r1,8,3,1w;p1,8k;p4,7k;r5,11,1,3k;r7,11,1,3k;r11,11,1,3k;r13,11,1,3k;e14,8,2,2o;p15,7w;e5,9,2,1w',
+'🦌':'e9,9,4,3b;e4,6,2,3b;r3,7,2,3t;p4,6k;l3,3,1,1d;l3,3,5,0d;l5,3,7,1d;l4,2,3,0d;r5,11,1,3B;r7,11,1,3B;r11,11,1,3B;r13,11,1,3B;e9,10,2,1t',
+'🦉':'e8,9,4,5b;e8,5,4,3b;p5,2,b;t4,4,5,1,6,4B;t12,4,11,1,10,4B;e6,6,1,1w;e10,6,1,1w;p6,6y;p10,6y;p8,8o;e8,11,2,2t;r6,14,1,1o;r10,14,1,1o',
+'🕸️':'l8,1,8,15w;l1,8,15,8w;l2,2,14,14w;l14,2,2,14w;l8,4,12,8w;l12,8,8,12w;l8,12,4,8w;l4,8,8,4w;l8,2,14,8w;l14,8,8,14w;l8,14,2,8w;l2,8,8,2w',
+'🧙‍♀️':'t8,1,3,7,13,7P;r3,7,10,1P;e8,10,3,3n;t4,14,12,14,8,9p;p7,10k;p9,10k;l8,12,9,12R;t4,15,12,15,8,11P;r6,13,4,2p',
+'🦅':'e8,9,3,4b;e5,5,3,2w;t1,6,4,5,4,7y;p4,5k;t6,8,0,3,2,9b;t10,8,15,3,13,9b;t7,13,5,15,9,15B;r7,12,1,2o;r9,12,1,2o',
+'👻':'e8,7,5,5w;r3,7,10,7w;t3,14,5,14,4,12w;t7,14,9,14,8,12w;t11,14,13,14,12,12w;p6,7k;p10,7k;e8,10,2,1k;e8,7,5,5_;e8,7,5,5s;r3,7,10,7s;e8,7,4,4w;r4,7,8,6w',
+'🥷':'e8,8,4,4k;r4,7,8,2n;p6,8k;p10,8k;e8,13,4,2k;r5,11,6,4k;l3,11,0,15s;r7,11,2,1r',
+'🦎':'e9,10,5,2e;e4,9,3,2e;p3,8k;p2,9y;l14,10,15,13e;l12,10,15,7e;r6,12,1,2e;r9,12,1,2e;r11,12,1,2e;r5,12,1,2e;l7,8,7,9L;l10,8,10,9L;l9,8,9,9L',
+'🐂':'e9,9,5,4B;e4,8,3,3B;t2,6,0,3,3,5w;t6,6,8,3,6,5w;p3,7k;e2,10,1,1m;r5,12,1,3B;r7,12,1,3B;r11,12,1,3B;r13,12,1,3B;l14,8,15,12B',
+'🗿':'e8,9,5,6S;r4,2,8,6G;r4,2,8,6S;r5,6,2,2k;r9,6,2,2k;p6,7r;p10,7r;r6,10,4,2k;r3,10,2,4S;r11,10,2,4S;r5,14,3,2G;r9,14,3,2G;r4,3,8,1g',
+'💀':'e8,7,5,5w;r5,11,6,3w;r5,7,2,3k;r9,7,2,3k;p8,9k;r6,13,1,2k;r8,13,1,2k;r10,13,1,2k;r5,14,6,1w',
+'🐉':'e8,10,5,4r;e4,6,3,2r;t3,4,2,1,5,4R;p3,6y;p3,6k;t6,5,10,1,12,5R;t3,10,0,6,5,8R;t11,6,15,3,13,10r;l13,12,15,14r;l5,5,5,3r;e8,11,3,2o;l1,6,0,6o',
+'🧟':'e8,6,4,4e;r4,6,8,2e;p6,6k;p10,6k;r6,9,4,1k;r4,10,8,5L;r1,10,3,2e;r12,10,3,2e;r5,14,2,2B;r9,14,2,2B;p6,6r',
+'🐻':'e8,10,5,4B;e8,5,4,3B;e5,2,1,1B;e11,2,1,1B;e8,6,2,1t;p6,5k;p10,5k;p8,6k;r4,13,3,2B;r9,13,3,2B;r3,9,2,3B;r11,9,2,3B',
+'🐊':'e9,10,5,2e;e4,9,3,2e;r1,9,4,2e;p3,7y;p3,7k;p1,10w;p3,10w;t6,8,7,6,8,8L;t9,8,10,6,11,8L;l14,10,15,13e;r6,12,1,2L;r10,12,1,2L',
+'🐢':'e8,9,5,4L;e8,9,5,1_;e8,8,4,2e;e8,8,2,1_;l5,7,3,9L;l11,7,13,9L;e3,8,2,2e;p2,7k;r4,12,2,2e;r10,12,2,2e;r12,12,1,1e;e8,9,5,4L;e8,9,3,2e',
+'🧛':'e8,6,4,4n;r4,4,8,3k;t4,4,3,0,6,4k;t12,4,13,0,10,4k;p6,6r;p10,6r;p7,9w;p9,9w;t2,15,8,8,14,15R;r5,11,6,3k;r7,12,2,2r',
+'🦣':'e9,8,6,5B;e4,8,3,3B;l3,10,1,14w;l2,9,0,12w;p4,7k;r5,12,2,3B;r9,12,2,3B;r13,12,1,3B;e9,4,3,2d',
+'🦖':'e8,10,5,4G;e4,6,3,3G;r1,7,2,2G;r2,9,6,1G;p4,5y;p5,5y;l11,11,15,9G;l12,11,15,7G;r6,13,2,2G;r10,13,2,2G;r3,9,1,1w;r5,9,1,1w;l1,9,6,9k',
+'🧌':'e8,9,5,6l;e8,4,4,3l;p6,4y;p10,4y;p6,4k;p10,4k;r6,7,4,1L;p6,7w;p10,7w;e8,3,5,3L;e8,5,5,4l;e3,10,2,3l;e13,10,2,3l;r5,14,2,2L;r9,14,2,2L;l3,12,1,15d',
+'🌳':'r7,9,2,6B;e8,5,5,4L;e5,7,3,3L;e11,7,3,3L;e8,5,3,2l;p7,6k;p9,6k;r7,8,2,1k;e8,4,2,1l',
+'✨':'l8,1,8,15y;l1,8,15,8y;l4,4,12,12y;l4,12,12,4y;e8,8,3,3w;e8,8,1,1h',
+'🐝':'e9,10,4,3y;l7,8,7,12k;l10,8,10,12k;e6,6,3,2w;e11,6,3,2w;e4,10,2,2G;p3,9k;t13,10,15,10,13,12G',
+'🐾':'e5,6,1,2G;e11,6,1,2G;e8,5,1,2G;e3,10,1,1G;e8,11,4,3G',
+'🐕':'e9,9,5,3b;e4,7,3,2b;t3,5,4,3,5,6B;t6,5,7,3,7,6B;r1,8,3,1b;p1,8k;p4,7k;r5,11,1,3B;r7,11,1,3B;r11,11,1,3B;r13,11,1,3B;l14,8,15,6b',
+'🥢':'l3,13,13,3d;l3,12,12,3d',
+'🪨':'e8,10,5,4g;e6,9,2,2s;p10,10G;p9,12G',
+'🌿':'l4,14,12,3L;e6,9,2,1l;e10,6,2,1l;e8,11,2,1l;e5,12,1,1l;e12,4,1,1l',
+'🪵':'r3,5,10,7b;e3,8,2,3t;e3,8,1,1B;l5,7,12,7B;l5,10,12,10B',
+'🟫':'e8,10,5,4G;p6,8o;p9,10o;p10,7o;p7,12o;p5,11o;e7,7,2,1g',
+'☘️':'e6,6,2,2l;e10,6,2,2l;e8,9,2,2l;l8,10,8,14L',
+'🧶':'e8,8,5,4b;e5,6,2,2b;e11,6,2,2b;e8,11,4,2B;l5,8,6,10t;l10,8,11,10t;l8,6,8,9t',
+'🦷':'t4,3,10,3,7,14w;l6,4,7,11s',
+'🪶':'t13,2,4,9,8,13w;t13,2,8,13,12,9s;l3,14,8,9d',
+'🧥':'r4,3,8,11b;r2,4,3,7b;r11,4,3,7b;l8,3,8,14B;r6,2,4,2t',
+'🧪':'r6,2,4,3d;r7,4,2,2g;e8,10,4,4r;e8,10,3,3m;p6,9h',
+'🦴':'l4,12,12,4w;l5,12,12,5w;e3,12,1,1w;e5,14,1,1w;e11,2,1,1w;e13,4,1,1w',
+'🧿':'e8,8,5,5U;e8,8,4,4u;e8,8,2,2c;p6,6h',
+'🔶':'t8,1,15,8,8,15o;t8,1,1,8,8,15o;t8,4,12,8,8,12y',
+'❤️':'e5,6,3,3r;e11,6,3,3r;t2,8,14,8,8,15r;p4,5h',
+'💎':'t2,6,5,2,11,2c;t5,2,11,2,14,6c;t2,6,14,6,8,15c;l2,6,14,6C;l5,2,8,6C;l11,2,8,6C',
+'💠':'t8,1,14,8,8,15u;t8,1,2,8,8,15u;t8,5,11,8,8,11c',
+'📜':'r3,4,10,9t;e3,8,1,5y;e13,8,1,5y;l5,6,11,6B;l5,8,11,8B;l5,10,11,10B',
+'🪙':'e8,8,5,5y;e8,8,3,3Y;l8,6,8,10y',
+'🪓':'l3,14,11,5d;l4,14,12,5d;t9,2,14,4,12,9s;t9,2,12,9,8,8S',
+'⛏️':'l4,14,12,5d;l3,5,8,2s;l8,2,14,6s;l3,5,3,7s;l14,6,14,8s',
+'🔨':'l5,14,10,6d;l6,14,11,6d;r5,2,9,4S',
+'🗡️':'l4,12,13,3s;l5,12,13,4s;l3,10,6,13d;e3,13,1,1Y',
+'⚔️':'l3,3,13,13s;l13,3,3,13s;l4,3,13,12s;l12,3,3,12s;l3,11,5,13d;l13,11,11,13d',
+'🏹':'l6,2,3,6d;l3,6,3,10d;l3,10,6,14d;l6,2,6,14w;l6,8,14,8d;t14,8,12,7,12,9s',
+'🪃':'l8,14,8,9d;l8,9,4,3d;l8,9,12,3d;l4,3,12,3r',
+'🪄':'l3,13,12,4d;e12,3,2,2y;p14,1,h;p10,1,y;p14,5,y',
+'🔮':'e8,8,5,5p;e8,8,3,3m;p6,6h;r5,13,6,2G',
+'🛡️':'r3,2,10,6S;t3,8,13,8,8,15S;r4,3,8,6u;t5,8,11,8,8,13u;l8,3,8,13y',
+'⛑️':'e8,8,5,5S;r3,8,10,5S;r5,9,6,2k;e8,6,3,2s',
+'🧤':'r5,8,7,6b;r5,3,1,5b;r7,2,1,6b;r9,3,1,5b;r11,5,1,4b;r3,9,2,2b',
+'👢':'r6,2,4,10b;r4,11,9,3b;r4,13,9,1B',
+'👖':'r4,2,8,3U;r4,5,3,9U;r9,5,3,9U;r7,5,2,3U',
+'💍':'e8,10,4,4y;e8,10,2,2_;e8,5,2,2c',
+'📿':'l3,2,7,9Y;l13,2,9,9Y;e8,11,2,2r',
+'😵':'e8,8,6,6y;l4,6,6,8k;l6,6,4,8k;l10,6,12,8k;l12,6,10,8k;r5,11,6,1k',
+'🎯':'e8,8,6,6r;e8,8,4,4w;e8,8,2,2r',
+'⭐':'t8,1,10,7,6,7y;t1,6,15,6,8,11y;t3,15,8,9,13,15y;t5,10,11,10,8,14y',
+'🎁':'r3,6,10,8r;r2,4,12,3R;r7,4,2,10y;e6,3,2,1y;e10,3,2,1y',
+'⬆️':'t8,1,14,8,2,8l;r6,8,4,6l',
+'👑':'r3,9,10,4y;t3,9,3,3,6,9y;t6,9,8,2,10,9y;t10,9,13,3,13,9y;p3,3r;p13,3r',
+'🎒':'r3,4,10,10b;r5,2,6,3B;r5,9,6,4t;p8,9y',
+'🌲':'t8,1,13,7,3,7L;t8,5,14,11,2,11L;r7,11,2,4B',
+'⛰️':'t8,2,15,14,1,14G;t8,2,11,7,5,7w',
+'🌾':'l5,15,5,4y;l8,15,8,2y;l11,15,11,4y;e5,4,1,2y;e8,2,1,2y;e11,4,1,2y',
+'💧':'t8,1,12,9,4,9c;e8,10,4,4c;p6,9h',
+'🏚️':'r3,7,10,7G;t2,7,8,1,14,7R;r6,10,2,4k;r10,9,2,2c;l12,7,14,4k',
+'🏪':'r3,6,10,8t;r2,4,12,3r;r2,4,3,3w;r8,4,3,3w;r7,9,3,5B',
+'🏰':'r3,5,10,9G;r3,3,2,3G;r7,3,2,3G;r11,3,2,3G;r7,10,2,4k',
+'⛪':'r4,8,8,6w;t8,1,12,8,4,8s;r7,10,2,4B;l8,0,8,3Y',
+'📍':'e8,6,4,4r;t8,15,5,9,11,9r;e8,6,1,1w',
+'⚙️':'e8,8,5,5S;e8,8,2,2_;r7,1,2,3S;r7,12,2,3S;r1,7,3,2S;r12,7,3,2S',
+'📖':'r2,4,6,9w;r8,4,6,9w;l8,4,8,13G;l3,7,6,7S;l3,9,6,9S;l9,7,12,7S;l9,9,12,9S',
+'⏳':'r2,1,12,1d;r2,14,12,1d;t3,2,13,2,8,8c;t3,14,13,14,8,8y;l8,8,8,13y',
+'🔒':'r4,7,8,7y;e8,5,3,3G;e8,6,2,2_;p8,10k',
+'⚠️':'t8,1,15,14,1,14y;r7,6,2,5k;p8,12,k',
+'❓':'r5,2,6,2y;r10,4,2,3y;r8,7,3,2y;r7,9,2,2y;r7,12,2,2y',
+'❗':'r7,2,3,8r;r7,12,3,2r',
+'❌':'l3,3,13,13r;l13,3,3,13r;l4,3,13,12r;l12,3,3,12r',
+'✅':'r2,2,12,12l;l5,8,7,11w;l7,11,11,5w;l5,9,7,12w',
+'🌞':'e8,8,3,3y;l8,1,8,3y;l8,13,8,15y;l1,8,3,8y;l13,8,15,8y;l3,3,5,5y;l11,11,13,13y;l13,3,11,5y;l3,13,5,11y',
+'🌙':'e8,8,5,5y;e11,7,4,4_',
+'🌑':'e8,8,5,5G;p6,6g;p10,10G',
+'❄️':'l8,1,8,15c;l1,8,15,8c;l3,3,13,13c;l13,3,3,13c;e8,8,1,1w',
+'🧊':'r3,3,10,10c;r4,4,3,3w;r3,3,10,10C',
+'🔥':'t8,1,12,8,4,8r;e8,10,4,4r;e8,11,2,3y',
+'⚡':'t9,1,3,9,8,9y;t7,8,13,8,6,15y',
+'🌋':'t8,4,15,14,1,14B;e8,4,2,1r;l8,1,8,4o;l5,2,5,4o;l11,2,11,4o',
+'🌀':'e8,8,5,5c;e8,8,3,3_;e8,8,1,1c;l8,3,13,8c',
+'🌊':'l1,9,4,5u;l4,5,8,9u;l8,9,12,5u;l12,5,15,9u;l1,12,15,12c',
+'🌪️':'r3,2,10,2g;r4,5,8,2g;r5,8,6,2g;r7,11,3,3g',
+'⛈️':'e6,6,3,3g;e10,6,3,3g;r4,6,8,3g;t9,9,5,9,8,9y;t7,9,10,9,6,15y',
+'🌩️':'e6,6,3,3g;e10,6,3,3g;r4,6,8,3g;t9,9,5,9,8,9y;t7,9,10,9,6,15y',
+'🌧️':'e6,5,3,3g;e10,5,3,3g;r4,5,8,3g;l5,10,4,13c;l8,10,7,13c;l11,10,10,13c',
+'🌨️':'e6,5,3,3g;e10,5,3,3g;r4,5,8,3g;p5,11w;p8,13w;p11,11w;p6,14w',
+'🌬️':'l1,5,11,5c;l1,9,14,9c;l1,13,9,13c;e12,4,2,2c',
+'🍃':'t3,13,13,3,13,10l;t3,13,13,3,6,3l;l3,13,12,4L',
+'🌱':'l8,15,8,8L;e5,6,3,2l;e11,6,3,2l',
+'🥇':'e8,9,5,5y;e8,9,3,3Y;r6,1,4,4r',
+'🙏':'t8,2,12,9,4,9n;r5,9,6,5n;l8,3,8,9B',
+'🙌':'r4,8,8,6n;l5,8,3,2n;l11,8,13,2n;e3,2,1,1n;e13,2,1,1n',
+'👊':'e8,8,5,4n;l5,7,11,7B;l5,9,11,9B;r4,11,8,3n',
+'🧘':'e8,4,2,2n;e8,10,5,3c;r6,6,4,4c;l3,12,13,12c;p7,4k;p9,4k',
+'💃':'e8,3,2,2n;t8,6,3,14,13,14r;r7,5,2,2m;l5,7,2,4n;l11,7,14,5n',
+'🤺':'e6,3,2,2n;r4,6,5,6c;r4,12,2,3B;r7,12,2,3B;l9,8,15,4s;l9,9,15,5s',
+'🧭':'e8,8,6,6Y;e8,8,5,5w;t8,3,10,8,6,8r;t8,13,10,8,6,8S',
+'📯':'t2,7,2,9,13,3y;t2,9,13,3,13,14y;e13,9,2,3Y',
+'⚜️':'e8,8,2,6y;e4,8,2,2y;e12,8,2,2y;r6,13,4,2Y',
+'☯️':'e8,8,6,6k;e8,8,5,5w;r8,2,5,12k;e8,5,2,2w;e8,11,2,2k;e8,5,1,1k;e8,11,1,1w',
+'💢':'l3,3,7,7r;l7,3,3,7r;l9,9,13,13r;l13,9,9,13r;l9,3,13,7r',
+'⛓️':'e5,8,3,2g;e11,8,3,2g;e5,8,1,0_;e8,8,2,1G;l5,6,11,6G',
+'⬜':'r2,2,12,12w',
+'➰':'e8,8,5,5p;e8,8,3,3_',
+'🎉':'t2,14,6,6,10,10y;l8,3,8,5m;l12,5,14,7c;l11,2,13,4r;l13,10,15,10l',
+'🪤':'r2,11,12,3S;t2,11,4,6,6,11g;t6,11,8,6,10,11g;t10,11,12,6,14,11g',
+'☄️':'e11,5,3,3y;l2,14,9,7o;l4,14,10,9o',
+'🖐️':'r5,8,7,6n;r5,3,1,5n;r7,2,1,6n;r9,3,1,5n;r11,5,1,4n;r3,9,2,2n',
+'🌵':'r6,4,4,11l;r3,6,3,2l;r3,6,2,5l;r10,7,3,2l;r11,5,2,4l;p7,3y;l8,4,8,14L',
+'💨':'l1,5,11,5w;l3,9,14,9w;l1,13,9,13w;e12,4,2,2w;e13,9,1,1w',
+};
+const PX_ALIAS={
+  '🟡':['🪙',''],'⚪':['🪙','y>s,Y>S'],'🟤':['🪙','y>o,Y>b'],
+  '💖':['❤️','r>m'],'💚':['❤️','r>l'],'💜':['❤️','r>p'],
+  '📗':['📜','t>l'],'📘':['📜','t>u'],'📙':['📜','t>o'],'📕':['📜','t>r'],
+  '🧫':['🧪','r>l,m>L'],'🧣':['🧶','b>s,B>S,t>w'],'🦺':['🧥','b>e,B>L'],'🥋':['🧥','b>w,B>g'],
+  '🌟':['⭐','y>w'],'🌠':['☄️','y>w'],'💫':['✨','y>c'],'💥':['✨','y>o'],
+  '🧙':['🧙‍♀️','p>u,P>U'],'☀️':['🌞',''],'🌅':['🌞','y>o'],
+  '😡':['😵','y>r'],'😤':['😵','y>o'],'🥶':['😵','y>c'],'😇':['😵','y>w'],
+  '🥀':['🌱','l>b'],'🏅':['🥇','y>s,Y>S'],'👹':['👺','l>r,L>R'],'💀x':['💀',''],
+  '☠️':['💀','w>g'],'🕊️':['🪶',''],'🩸':['💧','c>r'],'📢':['📯',''],'🔗':['⛓️',''],'⚔':['⚔️',''],'🪱x':['🪱','']
+};
+/* ---------- Engine ---------- */
+function pxRaster(def){
+  const N=16,g=new Array(N*N).fill(null),shade=new Array(N*N).fill(1);
+  const put=(x,y,c)=>{x=Math.round(x);y=Math.round(y);if(x<0||y<0||x>=N||y>=N)return;g[y*N+x]=c==='_'?null:c;};
+  for(const op of def.split(';')){
+    const m=/^([ertlp])([-\d.,]+)([A-Za-z_])$/.exec(op.trim());if(!m)continue;
+    const a=m[2].split(',').map(Number),c=m[3];
+    if(m[1]==='e'){const[cx,cy,rx,ry]=a;for(let y=0;y<N;y++)for(let x=0;x<N;x++)if(((x-cx)/(rx+.5))**2+((y-cy)/(ry+.5))**2<=1)put(x,y,c);}
+    else if(m[1]==='r'){const[x0,y0,w,h]=a;for(let y=0;y<h;y++)for(let x=0;x<w;x++)put(x0+x,y0+y,c);}
+    else if(m[1]==='p'){put(a[0],a[1],c);}
+    else if(m[1]==='l'){const[x0,y0,x1,y1]=a,n=Math.max(Math.abs(x1-x0),Math.abs(y1-y0),1);for(let i=0;i<=n;i++)put(x0+(x1-x0)*i/n,y0+(y1-y0)*i/n,c);}
+    else if(m[1]==='t'){
+      const[x0,y0,x1,y1,x2,y2]=a,d=(y1-y2)*(x0-x2)+(x2-x1)*(y0-y2);if(!d)continue;
+      for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+        const u=((y1-y2)*(x-x2)+(x2-x1)*(y-y2))/d,v=((y2-y0)*(x-x2)+(x0-x2)*(y-y2))/d,w=1-u-v,e=-.12;
+        if(u>=e&&v>=e&&w>=e)put(x,y,c);
+      }
+    }
+  }
+  return g;
+}
+function pxHex(h,f){const n=parseInt(h.slice(1),16);let r=n>>16,gg=(n>>8)&255,b=n&255;
+  if(f>1){r+=(255-r)*(f-1);gg+=(255-gg)*(f-1);b+=(255-b)*(f-1);}else{r*=f;gg*=f;b*=f;}
+  return [Math.round(r),Math.round(gg),Math.round(b)];}
+function pxPixels(def,swap){
+  const N=16,g=pxRaster(def),out=new Uint8ClampedArray(N*N*4),at=(x,y)=>x<0||y<0||x>=N||y>=N?null:g[y*N+x];
+  const K=pxHex(PX_PAL.k,1);
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const c=g[y*N+x],i=(y*N+x)*4;
+    if(c){
+      let col=swap&&swap[c]?swap[c]:c,f=1;
+      const up=!at(x,y-1),lf=!at(x-1,y),dn=!at(x,y+1),rt=!at(x+1,y);
+      if((up||lf)&&!(dn||rt))f=1.28;else if((dn||rt)&&!(up||lf))f=.78;
+      const rgb=pxHex(PX_PAL[col]||'#ff00ff',f);out[i]=rgb[0];out[i+1]=rgb[1];out[i+2]=rgb[2];out[i+3]=255;
+    }else if(at(x-1,y)||at(x+1,y)||at(x,y-1)||at(x,y+1)){out[i]=K[0];out[i+1]=K[1];out[i+2]=K[2];out[i+3]=255;}
+  }
+  return out;
+}
+function pxDef(key){
+  if(PX_SPR[key])return [PX_SPR[key],null];
+  const a=PX_ALIAS[key];if(!a)return null;
+  const sw={};if(a[1])for(const p of a[1].split(','))sw[p[0]]=p[2];
+  const base=PX_SPR[a[0]];return base?[base,sw]:null;
+}
+if(typeof module!=='undefined')module.exports={PX_SPR,PX_ALIAS,pxPixels,pxDef,PX_PAL};
+
+/* ---------- Browser: Emojis im Spiel automatisch durch die Pixelbilder ersetzen ---------- */
+const PX_NORM=s=>s.replace(/️/g,'');
+const PX_KEYS=(()=>{const m={};for(const k of Object.keys(PX_SPR).concat(Object.keys(PX_ALIAS)))m[PX_NORM(k)]=k;return m;})();
+const PX_RE=new RegExp(Object.keys(PX_KEYS).sort((a,b)=>b.length-a.length).map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\uFE0F?').join('|'),'g');
+const PX_URL={};
+function pxUrl(emo){
+  const k=PX_KEYS[PX_NORM(emo)];if(!k)return null;
+  if(PX_URL[k])return PX_URL[k];
+  const d=pxDef(k);if(!d)return null;
+  const cv=document.createElement('canvas');cv.width=cv.height=16;
+  const cx=cv.getContext('2d'),im=cx.createImageData(16,16);im.data.set(pxPixels(d[0],d[1]));cx.putImageData(im,0,0);
+  return PX_URL[k]=cv.toDataURL('image/png');
+}
+if(typeof document!=='undefined'&&typeof MutationObserver!=='undefined'){
+  const SKIP={SCRIPT:1,STYLE:1,TEXTAREA:1,TITLE:1,OPTION:1};
+  function pxText(n){
+    const t=n.nodeValue;if(!t||!t.match(PX_RE))return;
+    const p=n.parentNode;if(!p||SKIP[p.nodeName])return;
+    const f=document.createDocumentFragment();let last=0,m;PX_RE.lastIndex=0;
+    while((m=PX_RE.exec(t))){
+      const u=pxUrl(m[0]);if(!u)continue;
+      if(m.index>last)f.appendChild(document.createTextNode(t.slice(last,m.index)));
+      const i=document.createElement('i');i.className='px';i.setAttribute('role','img');i.style.backgroundImage='url('+u+')';f.appendChild(i);
+      last=m.index+m[0].length;
+    }
+    if(!last)return;
+    if(last<t.length)f.appendChild(document.createTextNode(t.slice(last)));
+    p.replaceChild(f,n);
+  }
+  function pxWalk(root){
+    if(root.nodeType===3){pxText(root);return;}
+    if(root.nodeType!==1||SKIP[root.nodeName])return;
+    const w=document.createTreeWalker(root,4),list=[];let n;while((n=w.nextNode()))list.push(n);
+    list.forEach(pxText);
+  }
+  const st=document.createElement('style');
+  st.textContent='.px{display:inline-block;width:1.1em;height:1.1em;vertical-align:-.2em;background-size:100% 100%;background-repeat:no-repeat;image-rendering:pixelated}'
+   +'.ent.t-area::after{content:"";width:24px;height:24px;background:url('+pxUrl('👑')+') center/contain no-repeat;image-rendering:pixelated}'
+   +'.ent.alert::before{content:"";width:20px;height:20px;background:url('+pxUrl('❗')+') center/contain no-repeat;image-rendering:pixelated}';
+  document.head.appendChild(st);
+  const go=()=>{pxWalk(document.body);
+    new MutationObserver(ms=>{for(const m of ms){if(m.type==='characterData')pxText(m.target);else m.addedNodes.forEach(pxWalk);}})
+      .observe(document.body,{childList:true,subtree:true,characterData:true});};
+  if(document.body)go();else document.addEventListener('DOMContentLoaded',go);
+}
