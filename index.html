@@ -213,7 +213,7 @@ body.cbt #react:not(.boss) [data-a=potion]{left:0;bottom:0}
 <script src="sprites_chars.js?v=4"></script>
 <script src="sprites_figs.js?v=1"></script>
 <script src="figs/manifest.js?v=3"></script>
-<script src="items/manifest.js?v=6"></script>
+<script src="items/manifest.js?v=7"></script>
 <script src="pxdom.js?v=49"></script>
 <script>
 (()=>{
@@ -410,7 +410,6 @@ const SETS=[
 {id:'moosgnade',n:'Moosgnade',cls:'heiler',ty:'leicht',lv:25,mul:1.1,boss:'schildkroete',p:['Moosgeflecht-Kappe','Gnadenrobe','Farnbeinkleid','Pilzhandschuhe','Quellschuhe','Tuch der stillen Teiche'],w:'Quellstab',o:'Talisman der Mooswacht',b2:{healHit:3},b4:{hpb:.10},b6:{healMul:.2},bw:{def:4}},
 {id:'ahnenhain',n:'Ahnenhain',cls:'heiler',ty:'leicht',lv:45,mul:1.2,boss:'baumriese',p:['Wurzelkranz','Rindenrobe der Ahnen','Astbeinkleid','Blütenhandschuhe','Wurzelschuhe','Blättermantel'],w:'Ahnenast',o:'Talisman des Hains',b2:{hpb:.15},b4:{healHit:5},b6:{rescue:.25},bw:{enreg:.10}}
 ];
-const SETD={};SETS.forEach(x=>SETD[x.id]=x);
 const SSLOTS=['kopf','brust','beine','haende','fuesse','umhang'];
 const SETDROP={boss:.2,area:.35};
 const BTXT={hpb:v=>'+'+Math.round(v*100)+' % Leben',def:v=>'+'+v+' Verteidigung',healHit:v=>'+'+v+' Heilung pro Treffer',crit:v=>'+'+Math.round(v*100)+' % Krit-Chance',lifesteal:v=>'Lebensraub: heilt '+Math.round(v*100)+' % deines Schadens',steinhaut:v=>'Steinhaut: jeder '+v+'. Treffer gegen dich richtet nur 1 Schaden an',miss:v=>Math.round(v*100)+' % Chance, dass das Monster verfehlt',range:v=>'+'+v+' m Reichweite',poisonShot:v=>'Jeder '+v+'. Treffer vergiftet: +40 % Schaden',poisonRes:v=>Math.round(v*100)+' % weniger Giftschaden',dm:v=>'+'+Math.round(v*100)+' % Schaden',burn:v=>'Krit-Treffer verbrennen: +30 % Schaden',enreg:v=>'+'+Math.round(v*100)+' % Energie-Regeneration',enCost:v=>'Fähigkeiten kosten '+v+' Energie weniger',dbl:v=>'Jeder '+v+'. Angriff trifft doppelt',healMul:v=>'Heilungen +'+Math.round(v*100)+' %',rescue:v=>'Unter 30 % Leben: einmal pro Kampf '+Math.round(v*100)+' % heilen',dmgPanzer:v=>'+'+Math.round(v*100)+' % Schaden gegen Gepanzerte',dmgBoss:v=>'+'+Math.round(v*100)+' % Schaden gegen Bosse',dmgFar:v=>'+'+Math.round(v*100)+' % Schaden gegen Ziele über 50 m',critHeal:v=>'Krit-Treffer heilen '+Math.round(v*100)+' % deines max. Lebens',critDmg:v=>'+'+Math.round(v*100)+' % Krit-Schaden',first:v=>'Erster Angriff +'+Math.round(v*100)+' % Schaden',skillDm:v=>'Fähigkeiten +'+Math.round(v*100)+' % Schaden'};
@@ -420,8 +419,9 @@ function getBase(id){
   if(_gb[id])return _gb[id];
   const p=id.split('|'),k=p[0];let b=null;
   if(k==='s'){const sd=SETD[p[1]],ix=+p[2];let r;
-    if(ix<6)r=ix<5?getBase('a|'+SSLOTS[ix]+'|'+sd.ty+'|3'):getBase('u|3');
-    else if(ix===6)r=getBase('w|'+WPN[sd.cls]+'|3');else r=getBase('o|'+OFF[sd.cls]+'|3');
+    const bt=sd.bt||3;
+    if(ix<6)r=ix<5?getBase('a|'+SSLOTS[ix]+'|'+sd.ty+'|'+bt):getBase('u|'+bt);
+    else if(ix===6)r=getBase('w|'+(sd.wk||WPN[sd.cls])+'|'+bt);else r=getBase('o|'+(sd.ok||OFF[sd.cls])+'|'+bt);
     const st={};for(const q in r.st)st[q]=q==='crit'?Math.round(r.st[q]*sd.mul*1000)/1000:Math.round(r.st[q]*sd.mul);
     b={n:ix<6?sd.p[ix]:(ix===6?sd.w:sd.o),i:':i_set_'+sd.id+'_'+ix+':',slot:r.slot,type:r.type,t:3,st,set:sd.id,lvReq:sd.lv};}
   else if(k==='a'){const slot=p[1],ty=p[2],t=+p[3],a=ARM[slot],s=GT[t].s,tm={schwer:1.4,mittel:1,leicht:.6}[ty];
@@ -476,18 +476,26 @@ function rollSet(e,m){
   const d=SETS.find(x=>x.boss===e.type);if(!d)return null;
   return addGear('s|'+d.id+'|'+rnd(0,7),rollQ(DROPQ[m.tier]));
 }
+function rollPathSet(m){
+  const ch=(SETDROP[m.tier]||0)*.6;if(!ch||!S.path||!S.tier||Math.random()>=ch)return null;
+  const st=[];for(let t=1;t<=S.tier;t++)if(S.lv>=UP_LV[t-1])st.push(t);if(!st.length)return null;
+  const t=Math.random()<.7?st[st.length-1]:st[rnd(0,st.length-1)],d=SETD['p_'+S.path+'_'+t];
+  let ix=rnd(0,7);if(ix===6&&d.wk!==wK())ix=rnd(0,5);if(ix===7&&(!d.ok||d.ok!==oK()))ix=rnd(0,5);
+  return addGear('s|'+d.id+'|'+ix,rollQ(DROPQ[m.tier]));
+}
 let hitTaken=0,atkCnt=0,psCnt=0,rescueUsed=false;
 function gs(k){let v=0;for(const sl in S.eq){const g=gearOf(S.eq[sl]);if(g)v+=gStats(g)[k]||0;}return v;}
 function canEquip(g){
   const b=getBase(g.b);
   if(S.lv<b.lv)return 'Ab Level '+b.lv;
+  if(b.set&&SETD[b.set].path&&(S.path!==SETD[b.set].path||S.tier<SETD[b.set].stage))return 'Nur für '+PATHS[SETD[b.set].path].st[SETD[b.set].stage-1].n+'-Pfad (Stufe '+SETD[b.set].stage+')';
   const setOk=b.set&&SETD[b.set].cls===S.cls;
   if(b.slot==='waffe'&&b.type!==wK()&&!(setOk&&b.type===WPN[S.cls]))return 'Falsche Waffenart';
   if(b.slot==='nebenhand'&&b.type!==oK()&&!(setOk&&b.type===OFF[S.cls]&&oK()))return oK()?'Passt nicht zu deiner Klasse':(S.cls?'Zweihandwaffe: keine Nebenhand':'Erst mit einer Klasse');
   if(ARM[b.slot]&&!ARMT[S.cls].includes(b.type))return ARMN[b.type]+' nicht erlaubt';
   return '';
 }
-function fixEq(){for(const sl of['waffe','nebenhand']){const g=gearOf(S.eq[sl]);if(!g)continue;const b=getBase(g.b),setOk=b.set&&SETD[b.set].cls===S.cls;
+function fixEq(){for(const sl in S.eq){const g=gearOf(S.eq[sl]);if(!g)continue;const b=getBase(g.b);if(b.set&&SETD[b.set].path&&(S.path!==SETD[b.set].path||S.tier<SETD[b.set].stage))S.eq[sl]=null;}for(const sl of['waffe','nebenhand']){const g=gearOf(S.eq[sl]);if(!g)continue;const b=getBase(g.b),setOk=b.set&&SETD[b.set].cls===S.cls;
   const ok=sl==='waffe'?(b.type===wK()||(setOk&&b.type===WPN[S.cls])):(oK()&&(b.type===oK()||(setOk&&b.type===OFF[S.cls])));if(!ok)S.eq[sl]=null;}}
 function equip(uid,quiet){
   const g=gearOf(uid);if(!g)return false;
@@ -653,7 +661,6 @@ CLASSES.heiler.sk=[
 
 /* ---------- Klassen-Pfade (Stufe 15 / 30 / 50 verborgen) ---------- */
 const UP_LV=[15,30,50];
-/* m = Werte der Stufe gegenüber der Grundklasse (gesamt): dm=Schadensfaktor, crit=+Krit, hpb=Leben-Bonus (ersetzt), def=Verteidigung (ersetzt), heal=Heilung pro Angriff, range=Reichweite, hits=Treffer pro Angriff, enreg=Energie-Regeneration */
 const PATHS={
  ritter:{b:'krieger',t:'Tank mit Schild',st:[
   {n:'Ritter',i:':st_ritter:',m:{hpb:.35,def:4,dm:1.1},sk:{id:'bollwerk',n:'Bollwerk',i:':sk_bollwerk:',en:6,cd:45,shield:5,self:true,d:'Die nächsten 5 Treffer eines Monsters richten 70 % weniger Schaden an.'}},
@@ -704,6 +711,18 @@ const PATHS={
   {n:'Druide',i:':st_druide:',m:{heal:6,enreg:1.6,dm:1.2,hpb:.1},sk:{id:'dornenranke',n:'Dornenranken',i:':sk_dornenranke:',en:9,cd:30,mult:1.8,stun:2,d:'1,8-facher Schaden, das Monster verfehlt 2 Angriffe.'}},
   {n:'Weltenbaum-Hüter',i:':st_weltenbaumhueter:',m:{heal:9,enreg:2,dm:1.5,hpb:.3},sk:{id:'weltenbaum',n:'Segen des Weltenbaums',i:':sk_weltenbaum:',en:14,cd:60,mult:2.4,healPct:.35,shield:3,d:'2,4-facher Schaden, heilt 35 % und schützt vor 3 Treffern.'}}]}
 };
+/* ---- Pfad-Sets: 12 Pfade x 3 Stufen (Lv 15/30/50) ---- */
+const PSN={ritter:['Ritterehre','Heiliger Schwur','Sonnenaegis'],berserker:['Blutrausch','Kriegstrommel','Weltenbruch'],duellant:['Fechtmeister','Klingentanz','Phantomschritt'],scharf:['Weitblick','Meisterzug','Falkenblick'],jaeger:['Fährtenleser','Rudelführer','Wildnisruf'],falle:['Fangeisen','Schattenpfad','Nachtjagd'],feuer:['Glutfunke','Flammenmantel','Phönixasche'],frost:['Reifhauch','Eisschwur','Ewigwinter'],sturm:['Gewitterhauch','Donnerruf','Himmelsriss'],priester:['Gebetskleid','Heiliges Licht','Himmelsstrahl'],moench:['Faustorden','Tausendfaust','Erleuchtung'],natur:['Kräutergarten','Dornenhain','Weltenbaumkrone']};
+const PSB={ritter:[{hpb:.06},{def:3},{steinhaut:[6,5,4]},{dmgPanzer:.08}],berserker:[{dm:.05},{crit:.05},{lifesteal:.04},{critDmg:.08}],duellant:[{crit:.04},{dm:.05},{first:.15},{critDmg:.08}],scharf:[{range:6},{crit:.05},{dmgFar:.08},{critDmg:.08}],jaeger:[{hpb:.05},{dm:.05},{poisonShot:[5,4,3]},{dmgBoss:.08}],falle:[{poisonRes:.2},{miss:.04},{dbl:[8,7,6]},{first:.15}],feuer:[{dm:.05},{enreg:.06},{burn:[1,1,1]},{skillDm:.08}],frost:[{def:2},{enreg:.06},{enCost:[1,1,2]},{skillDm:.08}],sturm:[{enreg:.06},{crit:.04},{dbl:[8,7,6]},{first:.15}],priester:[{healHit:2},{hpb:.06},{healMul:.1},{def:2}],moench:[{hpb:.05},{crit:.04},{rescue:.12},{dm:.05}],natur:[{healHit:2},{hpb:.06},{rescue:.12},{enreg:.06}]};
+const PSNOUN={schwer:['Helm','Harnisch','Beinschienen','Panzerhandschuhe','Stiefel','Umhang'],mittel:['Kapuze','Wams','Hose','Handschuhe','Stiefel','Umhang'],leicht:['Haube','Robe','Beinkleid','Handschuhe','Schuhe','Mantel']};
+const PSMUL=[1.2,1.15,1.6],PSBT=[2,3,3],PSF=[1,1.6,2.3],PSINT=['def','healHit','range'];
+for(const pid in PATHS){for(let t=1;t<=3;t++){
+  const pa=PATHS[pid],nm=PSN[pid][t-1],ty=ARMT[pa.b][0],ck=CW[stageK(pid,t)],bb=PSB[pid].map(o=>{const r={};for(const k in o){const v=o[k];r[k]=Array.isArray(v)?v[t-1]:(PSINT.includes(k)?Math.max(1,Math.round(v*PSF[t-1])):Math.round(v*PSF[t-1]*1000)/1000);}return r;});
+  SETS.push({id:'p_'+pid+'_'+t,n:nm,cls:pa.b,path:pid,stage:t,ty,lv:UP_LV[t-1],mul:PSMUL[t-1],bt:PSBT[t-1],wk:ck[0],ok:ck[1],boss:null,p:PSNOUN[ty].map(x=>nm+'-'+x),w:nm+'-'+WTN[ck[0]],o:ck[1]?nm+'-'+WTN[ck[1]]:'',b2:bb[0],b4:bb[1],b6:bb[2],bw:bb[3]});}}
+const SETD={};SETS.forEach(x=>SETD[x.id]=x);
+
+/* m = Werte der Stufe gegenüber der Grundklasse (gesamt): dm=Schadensfaktor, crit=+Krit, hpb=Leben-Bonus (ersetzt), def=Verteidigung (ersetzt), heal=Heilung pro Angriff, range=Reichweite, hits=Treffer pro Angriff, enreg=Energie-Regeneration */
+
 /* Geheime Bedingungen der verborgenen Klassen (Hinweis = rätselhaft, Fortschritt bleibt unsichtbar) */
 const SECRET={
  ritter:{h:'Das Licht erkennt jene, die den Mächtigen standhalten.',ok:()=>S.stats.kt.elite>=5},
@@ -1344,7 +1363,7 @@ function strike(o){
     {const cr=COIN[m.tier]||[1,3],cc=rnd(cr[0],cr[1]);earn(cc);got.push(fmtM(cc));}
     if(Math.random()<(RDROPCH[m.tier]||0)){const rq=rollQ(RDROPQ[m.tier]);add('rune'+rq,1);got.push('📜 '+ITEMS['rune'+rq].n);}
     const gd=rollGear(m.tier);if(gd)got.push('🎁 '+gNameT(gd.g)+(gd.auto?' (angelegt)':''));
-    const sd=rollSet(e,m);if(sd)got.push('✨ '+gNameT(sd.g)+(sd.auto?' (angelegt)':''));
+    const sd=rollSet(e,m)||rollPathSet(m);if(sd)got.push('✨ '+gNameT(sd.g)+(sd.auto?' (angelegt)':''));
     addXP(m.xp);
     toast('💥 '+m.n+' besiegt! '+got.join(', '));
     deselect();refreshWorld();checkQuests();
