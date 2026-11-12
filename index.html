@@ -74,6 +74,7 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 .sk.off{opacity:.45;border-color:#b9a78f}
 .skrow{display:flex;gap:12px;justify-content:center;margin-top:10px}
 /* Entities */
+.leaflet-map-pane:not(.leaflet-zoom-anim) .leaflet-marker-icon.roam{transition:transform 1s linear}
 .ent.t-rare{border-color:#9b5de5;background:#f1e6ff}
 .ent.t-elite{border-color:#f5a623;border-width:3px;background:#fff0d2;box-shadow:0 0 10px 3px rgba(245,166,35,.65);font-size:26px}
 .ent.t-boss{border-color:#c1121f;border-width:3px;background:#ffe0e0;box-shadow:0 0 14px 4px rgba(193,18,31,.55);font-size:32px}
@@ -195,6 +196,8 @@ const MOBS={
   sumpfsaurier:{n:'Sumpfsaurier',i:'🦖',tier:'area',hp:2800,min:30,max:52,xp:1400,rec:24,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'moorperle',min:2,max:3},{i:'trank',min:3,max:3}]}
 };
 const TIERS={normal:{l:'Monster',sz:44},rare:{l:'💜 Seltenes Monster',sz:48},elite:{l:'⭐ Elite',sz:54},boss:{l:'👹 Boss',sz:62},area:{l:'👑 Gebietsboss',sz:74}};
+const SPEED={normal:1.0,rare:.7,elite:.4};   // m/s beim Wandern
+const LEASH=60, CHASE_MULT=1.5, CHASE_STOP=10, DISENGAGE_M=150, DISENGAGE_MS=60000;
 const SPAWN={normal:[['rohling',5],['kaefer',3],['keiler',2]],rare:[['silberfuchs',1],['kristallhirsch',1],['nachtkauz',1]],
   elite:[['alpharohling',1],['steinwaechter',1]],boss:[['waldtyrann',1],['moorkoenigin',1]],area:[['aschedrache',1],['bergtroll',1],['sumpfsaurier',1]]};
 const REGION=12, AREA_DIST=4000; // Gebiet = 12x12 Zellen (ca. 2 x 3 km)
@@ -335,6 +338,10 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribu
 
 let P=null,acc=null,pm=null,pc=null,pr=null,follow=true,watchId=null,lastGps=null,lastCell='';
 const ents=new Map();
+const roam=new Map(), eng=new Map();   // laufende Monsterpositionen / Kampf-Zeitpunkte
+function strHash(t){let h=0;for(let i=0;i<t.length;i++)h=(h*31+t.charCodeAt(i))|0;return Math.abs(h);}
+function canRoam(e){return e.kind==='mob'&&SPEED[MOBS[e.type].tier]!==undefined&&strHash(e.id)%10<6;}
+function ep(e){return roam.get(e.id)||e;}
 let sel=null;
 
 function setPos(lat,lon,a){
@@ -385,9 +392,47 @@ map.on('click',e=>{if(S.test){setPos(e.latlng.lat,e.latlng.lng,5);}else{deselect
 function mk(e){
   const d=def2(e),tier=e.kind==='mob'?d.tier:'',sz=e.kind==='mob'?TIERS[tier].sz:44;
   const html='<div class="ent '+e.kind+(tier?' t-'+tier:'')+'" style="width:'+sz+'px;height:'+sz+'px">'+d.i+(e.kind==='mob'?'<b class="mhp"><u></u></b>':'')+'</div>';
-  const m=L.marker([e.lat,e.lon],{icon:L.divIcon({className:'',html,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),zIndexOffset:e.kind==='mob'?(tier==='area'?900:500):100}).addTo(map);
+  const pe=ep(e);
+  const m=L.marker([pe.lat,pe.lon],{icon:L.divIcon({className:canRoam(e)?'roam':'',html,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),zIndexOffset:e.kind==='mob'?(tier==='area'?900:500):100}).addTo(map);
   m.on('click',ev=>{L.DomEvent.stopPropagation(ev);select(e.id);});
   return m;
+}
+function roamTick(dt){
+  const now=Date.now(),cosf=lat=>Math.cos(lat*Math.PI/180);
+  for(const [id,o] of ents){
+    const r=roam.get(id);if(!r)continue;
+    const e=o.e,tier=MOBS[e.type].tier,sp=SPEED[tier];
+    let tlat,tlon,speed=sp,stopAt=0.8;
+    const ea=eng.get(id);
+    let chasing=false;
+    if(ea!==undefined){
+      if(P&&now-ea<DISENGAGE_MS&&dist(P,r)<DISENGAGE_M)chasing=true;
+      else eng.delete(id);
+    }
+    if(chasing){tlat=P.lat;tlon=P.lon;speed=sp*CHASE_MULT;stopAt=CHASE_STOP;r.tlat=null;r.wait=rnd(2,6);}
+    else{
+      if(r.wait>0){r.wait-=dt;continue;}
+      if(r.tlat===null){
+        const away=dist(r,e)>LEASH;
+        if(away){r.tlat=e.lat;r.tlon=e.lon;}
+        else{
+          const a=Math.random()*2*Math.PI,rad=Math.random()*LEASH;
+          r.tlat=e.lat+Math.sin(a)*rad/111320;
+          r.tlon=e.lon+Math.cos(a)*rad/(111320*cosf(e.lat));
+        }
+      }
+      tlat=r.tlat;tlon=r.tlon;
+    }
+    const dy=(tlat-r.lat)*111320,dx=(tlon-r.lon)*111320*cosf(r.lat),d=Math.hypot(dx,dy);
+    if(d<=stopAt){
+      if(!chasing){r.tlat=null;r.wait=rnd(4,20);}
+      continue;
+    }
+    const step=Math.min(speed*dt,d-(chasing?stopAt:0));
+    r.lat+=dy/d*step/111320;
+    r.lon+=dx/d*step/(111320*cosf(r.lat));
+    o.m.setLatLng([r.lat,r.lon]);
+  }
 }
 function refreshWorld(){
   if(!P)return;
@@ -395,8 +440,8 @@ function refreshWorld(){
   for(let dx=-VIEW;dx<=VIEW;dx++)for(let dy=-VIEW;dy<=VIEW;dy++)
     for(const e of cellEnts(cx+dx,cy+dy))if(alive(e)&&dist(P,e)<=SHOW_DIST)want.set(e.id,e);
   for(const e of areaEnts())if(alive(e)&&dist(P,e)<=AREA_DIST)want.set(e.id,e);
-  for(const [id,o] of ents){if(!want.has(id)){map.removeLayer(o.m);ents.delete(id);if(sel&&sel.id===id)deselect();}}
-  for(const [id,e] of want){if(!ents.has(id))ents.set(id,{e,m:mk(e)});}
+  for(const [id,o] of ents){if(!want.has(id)){map.removeLayer(o.m);ents.delete(id);roam.delete(id);eng.delete(id);if(sel&&sel.id===id)deselect();}}
+  for(const [id,e] of want){if(!ents.has(id)){if(canRoam(e)&&!roam.has(id))roam.set(id,{lat:e.lat,lon:e.lon,tlat:null,tlon:null,wait:rnd(0,15)});ents.set(id,{e,m:mk(e)});}}
   for(const [id,o] of ents){
     if(o.e.kind==='mob'){
       const el=o.m.getElement();if(!el)continue;
@@ -411,7 +456,7 @@ function updateNear(){
   for(const [id,o] of ents){
     const el=o.m.getElement();if(!el||!el.firstElementChild)continue;
     const n=el.firstElementChild,r=o.e.kind==='mob'?atkRange():RANGE;
-    n.classList.toggle('near',dist(P,o.e)<=r);
+    n.classList.toggle('near',dist(P,ep(o.e))<=r);
     n.classList.toggle('sel',!!sel&&sel.id===id);
   }
 }
@@ -426,7 +471,7 @@ function renderCard(){
   let sub,body='',label,dis=true,action='';
   if(!P){sub='Warte auf Position…';label='Kein GPS';}
   else{
-    const ds=dist(P,e);
+    const ds=dist(P,ep(e));
     sub=(isMob?TIERS[d.tier].l:'Ressource')+' · '+fmtDist(ds)+' entfernt';
     if(isMob){
       const mx=d.hp,hp=S.mh[e.id]??mx;
@@ -449,9 +494,12 @@ function renderCard(){
       else dis=false;
     }
   }
-  const html='<div class="ch"><div class="ci">'+d.i+'</div><div><b>'+d.n+'</b><small>'+sub+'</small></div><button class="x" data-a="close">✕</button></div>'
-    +body+'<button class="act" data-a="'+(action||'close')+'" '+(dis?'disabled':'')+'>'+label+'</button>';
-  if(c._h!==html){c.innerHTML=html;c._h=html;}
+  const subH='<small id="cSub">'+sub+'</small>',btnTail='>'+label+'</button>';
+  const html='<div class="ch"><div class="ci">'+d.i+'</div><div><b>'+d.n+'</b>'+subH+'</div><button class="x" data-a="close">✕</button></div>'
+    +body+'<button id="cAct" class="act" data-a="'+(action||'close')+'" '+(dis?'disabled':'')+btnTail;
+  const key=html.replace(subH,'').replace(btnTail,'></button>');
+  if(c._k!==key){c.innerHTML=html;c._k=key;}
+  else{const a=$('#cSub'),b=$('#cAct');if(a)a.textContent=sub;if(b)b.textContent=label;}
   c.style.display='block';updateSkillUI();
 }
 
@@ -459,7 +507,7 @@ function renderCard(){
 function collect(){
   const e=sel;if(!e||e.kind!=='node'||!P)return;
   const t=NODES[e.type];
-  if(dist(P,e)>RANGE){toast('Zu weit weg');return;}
+  if(dist(P,ep(e))>RANGE){toast('Zu weit weg');return;}
   let tool=null;
   if(t.tool){tool=findTool(t.tool);if(!tool){toast('Dir fehlt das Werkzeug');return;}}
   if(S.en<t.en){toast('Zu erschöpft');return;}
@@ -480,7 +528,8 @@ function collect(){
 function strike(o){
   const e=sel;if(!e||e.kind!=='mob'||!P)return false;
   const m=MOBS[e.type],C=C0();
-  if(dist(P,e)>(C.range+(o.rangeBonus||0))){toast('Zu weit weg');return false;}
+  if(dist(P,ep(e))>(C.range+(o.rangeBonus||0))){toast('Zu weit weg');return false;}
+  eng.set(e.id,Date.now());
   if(S.en<o.en){toast('Zu erschöpft');return false;}
   S.en-=o.en;
   let dmg=0,crit=false;
@@ -512,7 +561,7 @@ function strike(o){
     }
     if(S.hp<=0){
       S.hp=Math.round(maxHP()*.3);S.mh[e.id]=m.hp;S.shield=0;S.stun=0;
-      msg='😵 Du bist zusammengebrochen. '+m.n+' erholt sich.';
+      msg='😵 Du bist zusammengebrochen. '+m.n+' erholt sich.';eng.delete(e.id);
       deselect();
     }
     toast(msg);refreshWorld();
@@ -752,6 +801,8 @@ let tc=0;
 setInterval(()=>{
   const now=Date.now(),dt=(now-S.last)/1000;S.last=now;
   regen(dt);hud();tc++;
+  roamTick(Math.min(3,dt>0?dt:1));
+  if(P)updateNear();
   if(tc%10===0)refreshWorld();
   if(sel)renderCard();
   updateSkillUI();
