@@ -1195,7 +1195,7 @@ function reactDo(kind){
 function bossUI(bf){
   const tl=$('#tele'),rc=$('#react'),cd=$('#card'),cs=cd.style.display==='block'&&sel&&sel.kind==='mob';
   rc.classList.toggle('boss',!!bf);
-  rc.style.display=(bf||cs)?'flex':'none';
+  rc.style.display='flex';
   if(cs){rc.style.bottom='auto';rc.style.top=Math.max(60,cd.offsetTop-rc.offsetHeight-10)+'px';}else{rc.style.top='auto';rc.style.bottom='';}
   if(!bf){tl.style.display='none';return;}
   const ch=[];if(bf.adds>0)ch.push('🌱 Sprösslinge: '+bf.adds+' (angreifen!)');if(bf.haut)ch.push('🪨 Harte Haut: Krit-Treffer bricht sie');if(bf.fly>Date.now())ch.push('🐲 Flugphase: nur Fernkämpfer treffen');
