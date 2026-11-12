@@ -217,7 +217,9 @@ const MOBS={
 const TIERS={normal:{l:'Monster',sz:44},rare:{l:'💜 Seltenes Monster',sz:48},elite:{l:'⭐ Elite',sz:54},boss:{l:'👹 Boss',sz:62},area:{l:'👑 Gebietsboss',sz:74}};
 const EXH_MS=180000;  // Erschöpfung nach Ohnmacht
 function fmtT(ms){const t=Math.ceil(ms/1000);return Math.floor(t/60)+':'+String(t%60).padStart(2,'0');}
-const SPEED={normal:1.0,rare:.7,elite:.4};   // m/s beim Wandern
+const SPEED={normal:1.6,rare:1.2,elite:.8};   // m/s beim Wandern (nur Normal bis Elite)
+const CHASE_SPD={normal:3.2,rare:2.8,elite:2.2,boss:2.4,area:2.0};   // m/s bei Verfolgung
+const MELEE=14, ATK_CD={normal:3,rare:3,elite:3.5,boss:4,area:4.5};   // Reichweite / Sekunden zwischen Monsterangriffen
 const LEASH=60, CHASE_MULT=1.5, CHASE_STOP=10, DISENGAGE_M=150, DISENGAGE_MS=60000;
 const SPAWN={normal:[['rohling',5],['kaefer',3],['keiler',2]],rare:[['silberfuchs',1],['kristallhirsch',1],['nachtkauz',1]],
   elite:[['alpharohling',1],['steinwaechter',1]],boss:[['waldtyrann',1],['moorkoenigin',1]],area:[['aschedrache',1],['bergtroll',1],['sumpfsaurier',1]]};
@@ -418,14 +420,14 @@ const gBuyPrice=bid=>gVal({b:bid,q:0,p:0});
 function earn(c){S.cu=(S.cu||0)+c;}
 /* ---------- Klassen ---------- */
 const CLASSES={
-  wanderer:{n:'Wanderer',i:'🧭',w:'Schleuder',wi:'🪃',act:'Schleuder abfeuern',range:30,dmg:.8,en:2,crit:.1,blurb:'Noch keine Klasse.'},
-  krieger:{n:'Krieger',i:'⚔️',w:'Schwert & Schild',wi:'⚔️',act:'Zuschlagen',range:20,dmg:1.3,en:2,crit:.1,hpb:.2,def:2,
+  wanderer:{cd:1.8,n:'Wanderer',i:'🧭',w:'Schleuder',wi:'🪃',act:'Schleuder abfeuern',range:30,dmg:.8,en:2,crit:.1,blurb:'Noch keine Klasse.'},
+  krieger:{cd:1.4,n:'Krieger',i:'⚔️',w:'Schwert & Schild',wi:'⚔️',act:'Zuschlagen',range:20,dmg:1.3,en:2,crit:.1,hpb:.2,def:2,
     blurb:'Robust und stark im Nahkampf. +20 % Leben, +2 Verteidigung, hoher Schaden. Du musst nah ran.'},
-  bogen:{n:'Bogenschütze',i:'🏹',w:'Bogen',wi:'🏹',act:'Pfeil abschießen',range:60,dmg:1,en:2,crit:.2,
+  bogen:{cd:1.6,n:'Bogenschütze',i:'🏹',w:'Bogen',wi:'🏹',act:'Pfeil abschießen',range:60,dmg:1,en:2,crit:.2,
     blurb:'Größte Reichweite und hohe Chance auf kritische Treffer. Bleibt auf Abstand.'},
-  magier:{n:'Elementarmagier',i:'🔮',w:'Zauberstab',wi:'🪄',act:'Zauber wirken',range:45,dmg:1.25,en:3,crit:.1,
+  magier:{cd:2.0,n:'Elementarmagier',i:'🔮',w:'Zauberstab',wi:'🪄',act:'Zauber wirken',range:45,dmg:1.25,en:3,crit:.1,
     blurb:'Mächtige Elementarzauber mit hohem Schaden, kostet aber mehr Energie.'},
-  heiler:{n:'Heiler',i:'✨',w:'Stab des Lichts',wi:'🌟',act:'Lichtstrahl wirken',range:45,dmg:.8,en:2,crit:.1,heal:3,
+  heiler:{cd:1.8,n:'Heiler',i:'✨',w:'Stab des Lichts',wi:'🌟',act:'Lichtstrahl wirken',range:45,dmg:.8,en:2,crit:.1,heal:3,
     blurb:'Weniger Schaden, dafür heilt jeder Angriff dich um 3 Leben. Ideal für lange Wege.'}
 };
 const PICK=['krieger','bogen','magier','heiler'];
@@ -583,7 +585,8 @@ function addXP(n){
 }
 function regen(dt){
   S.hp=Math.min(maxHP(),S.hp+dt/5);
-  S.en=Math.min(100,S.en+dt/6*(C0().enreg||1));
+  let fight=false;try{fight=eng.size>0;}catch(e){}
+  S.en=Math.min(100,S.en+dt*(fight?.6:2)*(C0().enreg||1));
 }
 regen(Math.min(8*3600,Math.max(0,(Date.now()-S.last)/1000)));
 S.last=Date.now();
@@ -647,7 +650,8 @@ let P=null,acc=null,pm=null,pc=null,pr=null,follow=true,watchId=null,lastGps=nul
 const ents=new Map();
 const roam=new Map(), eng=new Map();   // laufende Monsterpositionen / Kampf-Zeitpunkte
 function strHash(t){let h=0;for(let i=0;i<t.length;i++)h=(h*31+t.charCodeAt(i))|0;return Math.abs(h);}
-function canRoam(e){return e.kind==='mob'&&SPEED[MOBS[e.type].tier]!==undefined&&strHash(e.id)%10<6;}
+function canRoam(e){return e.kind==='mob';}   // alle Monster können sich im Kampf bewegen
+function idleRoam(e){return SPEED[MOBS[e.type].tier]!==undefined&&strHash(e.id)%10<6;}   // im Ruhezustand wandern nur manche
 function ep(e){return roam.get(e.id)||e;}
 let sel=null;
 
@@ -709,16 +713,19 @@ function roamTick(dt){
   const now=Date.now(),cosf=lat=>Math.cos(lat*Math.PI/180);
   for(const [id,o] of ents){
     const r=roam.get(id);if(!r)continue;
-    const e=o.e,tier=MOBS[e.type].tier,sp=SPEED[tier];
-    let tlat,tlon,speed=sp,stopAt=0.8;
+    const e=o.e,tier=MOBS[e.type].tier,idle=idleRoam(e);
+    let tlat,tlon,speed=idle?SPEED[tier]:1.2,stopAt=0.8;
     const ea=eng.get(id);
     let chasing=false;
     if(ea!==undefined){
       if(P&&now-ea<DISENGAGE_MS&&dist(P,r)<DISENGAGE_M)chasing=true;
-      else eng.delete(id);
+      else{eng.delete(id);r.atk=undefined;}
     }
-    if(chasing){tlat=P.lat;tlon=P.lon;speed=sp*CHASE_MULT;stopAt=CHASE_STOP;r.tlat=null;r.wait=rnd(2,6);}
-    else{
+    if(chasing){tlat=P.lat;tlon=P.lon;speed=CHASE_SPD[tier];stopAt=CHASE_STOP;r.tlat=null;r.wait=rnd(2,6);}
+    else if(!idle){
+      if(dist(r,e)<=3){continue;}
+      tlat=e.lat;tlon=e.lon;stopAt=2;
+    }else{
       if(r.wait>0){r.wait-=dt;continue;}
       if(r.tlat===null){
         const away=dist(r,e)>LEASH;
@@ -733,7 +740,7 @@ function roamTick(dt){
     }
     const dy=(tlat-r.lat)*111320,dx=(tlon-r.lon)*111320*cosf(r.lat),d=Math.hypot(dx,dy);
     if(d<=stopAt){
-      if(!chasing){r.tlat=null;r.wait=rnd(4,20);}
+      if(!chasing&&idle){r.tlat=null;r.wait=rnd(2,10);}
       continue;
     }
     const step=Math.min(speed*dt,d-(chasing?stopAt:0));
@@ -741,6 +748,29 @@ function roamTick(dt){
     r.lon+=dx/d*step/(111320*cosf(r.lat));
     o.m.setLatLng([r.lat,r.lon]);
   }
+  /* Monster greifen von selbst an, sobald sie im Kampf sind und nah genug dran */
+  if(P){
+    for(const [id,o] of ents){
+      const r=roam.get(id);if(!r||eng.get(id)===undefined)continue;
+      if(dist(P,r)>MELEE){r.atk=undefined;continue;}
+      const m=MOBS[o.e.type];
+      r.atk=(r.atk===undefined?rnd(1,2):r.atk)-dt;
+      if(r.atk>0)continue;
+      r.atk=ATK_CD[m.tier]||3;
+      monsterHit(m,o.e);
+      if(S.hp<=0||!ents.has(id))break;
+    }
+  }
+}
+function monsterHit(m,e){
+  if(S.stun>0){S.stun--;toast('😵 '+m.n+' ist gelähmt');return;}
+  if(Math.random()<.15){toast(m.i+' '+m.n+' verfehlt dich');return;}
+  let h=Math.max(1,rnd(m.min,m.max)-defense());
+  if(S.shield>0){S.shield--;h=Math.max(1,Math.round(h*.3));}
+  S.hp-=h;fMe('-'+h,'dmg',0);
+  if(S.hp<=0)faint(m,e);
+  else toast(m.i+' '+m.n+' trifft dich: -'+h);
+  hud();
 }
 function refreshWorld(){
   if(!P)return;
@@ -794,6 +824,7 @@ function renderCard(){
       action='shoot';label=C0().i+' '+C0().act;
       if(ds>atkRange())label='Zu weit – noch '+fmtDist(ds-atkRange());
       else if(Date.now()<S.exh)label='😵 Erschöpft – noch '+fmtT(S.exh-Date.now());
+      else if(Date.now()<nextAtk)label='⏳ '+((nextAtk-Date.now())/1000).toFixed(1).replace('.',',')+' s';
       else if(S.en<C0().en)label='Zu erschöpft';
       else dis=false;
     }else{
@@ -873,14 +904,8 @@ function strike(o){
   }else{
     S.mh[e.id]=hp;
     let msg=(crit?'💥 Kritisch! ':(o.icon||C.i)+' ')+dmg+' Schaden'+heal;
-    if(S.stun>0){S.stun--;msg+=' · '+m.n+' ist gelähmt';}
-    else if(Math.random()<.6){
-      let h=Math.max(1,rnd(m.min,m.max)-defense());
-      if(S.shield>0){S.shield--;h=Math.max(1,Math.round(h*.3));}
-      S.hp-=h;msg+=' · '+m.n+' trifft dich: -'+h;fMe('-'+h,'dmg',350);
-    }
-    if(S.hp<=0)faint(m,e);
-    else toast(msg);
+    if(S.stun>0)msg+=' · '+m.n+' ist gelähmt';
+    toast(msg);
     refreshWorld();
   }
   save();hud();renderCard();
@@ -923,9 +948,11 @@ function exhUI(){
   const r=S.exh-Date.now(),el=$('#exh');
   if(r>0){el.textContent='😵 Erschöpft '+fmtT(r)+' · tippen: beenden';el.style.display='block';}else el.style.display='none';
 }
+let nextAtk=0;
 function shoot(){
   const C=C0();
-  strike({mult:C.dmg,hits:C.hits,en:C.en,heal:C.heal});
+  if(Date.now()<nextAtk)return;
+  if(strike({mult:C.dmg,hits:C.hits,en:C.en,heal:C.heal}))nextAtk=Date.now()+(C.cd||1.5)*1000;
 }
 function useSkill(i){
   const C=C0(),sk=(C.sk||[])[i];if(!sk)return;
@@ -935,6 +962,7 @@ function useSkill(i){
   if(S.en<sk.en){toast('Zu erschöpft');return;}
   if(sk.mult){
     if(!strike({mult:sk.mult,hits:sk.hits,crit:sk.crit,en:sk.en,rangeBonus:sk.rangeBonus,heal:sk.heal,healPct:sk.healPct,stun:sk.stun,shield:sk.shield,icon:sk.i}))return;
+    nextAtk=Math.max(nextAtk,Date.now()+800);
   }else{
     S.en-=sk.en;
     if(sk.heal){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+sk.heal+(sk.perLv||0)*S.lv);toast(sk.i+' '+sk.n+': +'+Math.round(S.hp-b0)+' Leben');fMe('+'+Math.round(S.hp-b0),'heal',0);}
@@ -1293,6 +1321,7 @@ setInterval(()=>{
   updateSkillUI();exhUI();
   if(tc%5===0)save();
 },1000);
+setInterval(()=>{if(sel&&sel.kind==='mob'&&Date.now()<nextAtk+300)renderCard();},250);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)save();});
 window.addEventListener('pagehide',save);
 
