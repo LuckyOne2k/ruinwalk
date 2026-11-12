@@ -182,6 +182,7 @@ const ITEMS={
   kristall:{n:'Kristallsplitter',i:'💎'}, nachtfeder:{n:'Nachtfeder',i:'🪶'}, alphafell:{n:'Alphafell',i:'🧥'},
   steinherz:{n:'Steinherz',i:'💠'}, tyrannenzahn:{n:'Tyrannenzahn',i:'🦴'}, moorperle:{n:'Moorperle',i:'🧿'},
   drachenschuppe:{n:'Drachenschuppe',i:'🔶'}, gebietsherz:{n:'Gebietsherz',i:'💖'},
+  gift:{n:'Giftdrüse',i:'🧫'}, knochen:{n:'Knochensplitter',i:'🦴'}, haut:{n:'Schuppenhaut',i:'🐍'}, geist:{n:'Geisterstaub',i:'👻'}, horn:{n:'Horn',i:'🐂'}, feder:{n:'Feder',i:'🕊️'},
   kaeferhelm:{n:'Käferpanzer-Helm',i:'⛑️'}, keilerhandschuhe:{n:'Keiler-Handschuhe',i:'🧤'}, silberstiefel:{n:'Silberfell-Stiefel',i:'👢'},
   rune0:{n:'Gewöhnliche Schmiederune',i:'📜'}, rune1:{n:'Ungewöhnliche Schmiederune',i:'📗'}, rune2:{n:'Seltene Schmiederune',i:'📘'}, rune3:{n:'Epische Schmiederune',i:'📙'}, rune4:{n:'Legendäre Schmiederune',i:'📕'},
   axt:{n:'Holzfälleraxt',i:'🪓'}, spitzhacke:{n:'Spitzhacke',i:'⛏️'}, fellweste:{n:'Fellweste',i:'🦺'}
@@ -195,30 +196,76 @@ const NODES={
   baum:{n:'Baum',i:'🌲',w:14,drop:'holz',min:2,max:3,en:4,xp:3,skill:'holz',tool:'holz',res:12*60e3},
   erz:{n:'Eisenerzvorkommen',i:'⛰️',w:19,drop:'eisenerz',min:1,max:2,en:5,xp:4,skill:'berg',tool:'berg',res:15*60e3}
 };
+const HAB={w:{n:'Wald',i:'🌲'},g:{n:'Wiese & Feld',i:'🌾'},s:{n:'Sumpf & Wasser',i:'💧'},f:{n:'Fels & Berg',i:'⛰️'},r:{n:'Ruinen & Siedlung',i:'🏚️'}};
+const ABIL={
+  gift:['☠️','Gift','Vergiftet dich: Schaden über Zeit.'],
+  bruell:['📢','Brüllen','Betäubt dich gelegentlich für ein paar Sekunden.'],
+  schwarm:['🐝','Schwarm','Greift mit mehreren schnellen Treffern an.'],
+  wut:['😤','Wut','Unter 30 % Leben schlägt er härter und schneller zu.'],
+  panzer:['🛡️','Panzer','Nimmt 35 % weniger Schaden.'],
+  heil:['💚','Regeneration','Heilt sich im Kampf selbst.'],
+  fern:['🎯','Fernangriff','Greift aus 40 m Entfernung an.'],
+  dieb:['🪙','Diebstahl','Stiehlt Münzen und flieht.'],
+  flucht:['💨','Scheu','Rennt vor dir davon.'],
+  dorn:['🌵','Dornen','Verletzt dich, wenn du zuschlägst.'],
+  saug:['🩸','Aussaugen','Heilt sich mit deinem Blut.']
+};
 const MOBS={
-  // normal (häufig)
-  rohling:{ag:1,n:'Rohling',i:'🐺',tier:'normal',hp:30,min:3,max:8,xp:8,rec:1,res:15*60e3,drops:[{i:'fell',min:1,max:2}]},
-  kaefer:{ag:1,n:'Riesenkäfer',i:'🪲',tier:'normal',hp:38,min:3,max:7,xp:10,rec:2,res:15*60e3,drops:[{i:'kaefer',min:1,max:2}]},
-  keiler:{ag:1,n:'Wildkeiler',i:'🐗',tier:'normal',hp:50,min:4,max:9,xp:12,rec:3,res:15*60e3,drops:[{i:'hauer',min:1,max:1},{i:'fell',min:1,max:1,c:.5}]},
-  hase:{n:'Feldhase',i:'🐇',tier:'normal',hp:15,min:1,max:3,xp:3,rec:1,res:15*60e3,drops:[{i:'fell',min:1,max:1,c:.6}]},
-  goblin:{ag:1,n:'Goblin',i:'👺',tier:'normal',hp:45,min:4,max:9,xp:12,rec:3,res:15*60e3,drops:[{i:'fell',min:1,max:1},{i:'eisenerz',min:1,max:1,c:.3}]},
+  // normal (häufig) · hab: w Wald, g Wiese & Feld, s Sumpf & Wasser, f Fels & Berg, r Ruinen & Siedlung, * überall · w = Häufigkeit
+  rohling:{ag:1,hab:'wg',w:5,n:'Rohling',i:'🐺',tier:'normal',hp:30,min:3,max:8,xp:8,rec:1,res:15*60e3,drops:[{i:'fell',min:1,max:2}]},
+  kaefer:{ag:1,hab:'wg',w:3,ab:'panzer',n:'Riesenkäfer',i:'🪲',tier:'normal',hp:38,min:3,max:7,xp:10,rec:2,res:15*60e3,drops:[{i:'kaefer',min:1,max:2}]},
+  keiler:{ag:1,hab:'w',w:2,ab:'wut',n:'Wildkeiler',i:'🐗',tier:'normal',hp:50,min:4,max:9,xp:12,rec:3,res:15*60e3,drops:[{i:'hauer',min:1,max:1},{i:'fell',min:1,max:1,c:.5}]},
+  hase:{hab:'g',w:3,ab:'flucht',n:'Feldhase',i:'🐇',tier:'normal',hp:15,min:1,max:3,xp:3,rec:1,res:15*60e3,drops:[{i:'fell',min:1,max:1,c:.6}]},
+  goblin:{ag:1,hab:'fr',w:2,ab:'dieb',n:'Goblin',i:'👺',tier:'normal',hp:45,min:4,max:9,xp:12,rec:3,res:15*60e3,drops:[{i:'fell',min:1,max:1},{i:'eisenerz',min:1,max:1,c:.3}]},
+  waldspinne:{ag:1,hab:'w',w:3,ab:'gift',n:'Waldspinne',i:'🕷️',tier:'normal',hp:34,min:3,max:7,xp:10,rec:2,res:15*60e3,drops:[{i:'gift',min:1,max:1,c:.7}]},
+  fledermaus:{ag:1,hab:'fr',w:3,ab:'saug',n:'Riesenfledermaus',i:'🦇',tier:'normal',hp:24,min:2,max:6,xp:8,rec:2,res:15*60e3,drops:[{i:'knochen',min:1,max:1,c:.5}]},
+  ratte:{ag:1,hab:'r',w:3,ab:'schwarm',n:'Kanalratte',i:'🐀',tier:'normal',hp:20,min:2,max:5,xp:6,rec:1,res:15*60e3,drops:[{i:'fell',min:1,max:1,c:.5},{i:'knochen',min:1,max:1,c:.3}]},
+  giftschlange:{ag:1,hab:'gs',w:2,ab:'gift',n:'Giftschlange',i:'🐍',tier:'normal',hp:32,min:3,max:8,xp:10,rec:3,res:15*60e3,drops:[{i:'haut',min:1,max:1},{i:'gift',min:1,max:1,c:.4}]},
+  frosch:{hab:'s',w:3,ab:'flucht',n:'Riesenfrosch',i:'🐸',tier:'normal',hp:14,min:1,max:3,xp:3,rec:1,res:15*60e3,drops:[{i:'kraut',min:1,max:1,c:.5}]},
+  blutegel:{ag:1,hab:'s',w:3,ab:'saug',n:'Blutegel',i:'🪱',tier:'normal',hp:28,min:3,max:6,xp:9,rec:2,res:15*60e3,drops:[{i:'haut',min:1,max:1,c:.6}]},
+  muecken:{ag:1,hab:'s',w:2,ab:'schwarm',n:'Mückenschwarm',i:'🦟',tier:'normal',hp:22,min:2,max:5,xp:7,rec:2,res:15*60e3,drops:[{i:'kraut',min:1,max:1,c:.4}]},
+  krebs:{ag:1,hab:'s',w:2,ab:'panzer',n:'Schlammkrebs',i:'🦀',tier:'normal',hp:44,min:4,max:8,xp:11,rec:3,res:15*60e3,drops:[{i:'kaefer',min:1,max:1,c:.8}]},
+  eichhoernchen:{hab:'w',w:3,ab:'flucht',n:'Eichhörnchen',i:'🐿️',tier:'normal',hp:12,min:1,max:2,xp:3,rec:1,res:15*60e3,drops:[{i:'fell',min:1,max:1,c:.5}]},
+  bergziege:{ag:1,hab:'f',w:3,ab:'wut',n:'Bergziege',i:'🐐',tier:'normal',hp:48,min:4,max:9,xp:12,rec:3,res:15*60e3,drops:[{i:'horn',min:1,max:1},{i:'fell',min:1,max:1,c:.5}]},
+  skorpion:{ag:1,hab:'fg',w:2,ab:'gift',n:'Steinskorpion',i:'🦂',tier:'normal',hp:36,min:4,max:8,xp:11,rec:3,res:15*60e3,drops:[{i:'gift',min:1,max:1,c:.7},{i:'kaefer',min:1,max:1,c:.3}]},
+  igel:{hab:'wg',w:2,ab:'dorn',n:'Waldigel',i:'🦔',tier:'normal',hp:18,min:1,max:3,xp:4,rec:1,res:15*60e3,drops:[{i:'fell',min:1,max:1,c:.6}]},
+  irrlicht:{ag:1,hab:'sr',w:2,ab:'fern',n:'Irrlicht',i:'✨',tier:'normal',hp:26,min:3,max:7,xp:9,rec:3,res:15*60e3,drops:[{i:'geist',min:1,max:1,c:.7}]},
+  streuner:{ag:1,hab:'gr',w:3,ab:'schwarm',n:'Streunender Hund',i:'🐕',tier:'normal',hp:32,min:3,max:7,xp:10,rec:2,res:15*60e3,drops:[{i:'fell',min:1,max:1},{i:'knochen',min:1,max:1,c:.4}]},
+  kraehe:{ag:1,hab:'*',w:3,ab:'dieb',n:'Aaskrähe',i:'🐦',tier:'normal',hp:18,min:2,max:5,xp:7,rec:2,res:15*60e3,drops:[{i:'feder',min:1,max:1,c:.6}]},
   // selten
-  goblinfuehrer:{ag:1,n:'Goblin-Anführer',i:'👿',tier:'rare',hp:100,min:6,max:12,xp:34,rec:6,res:30*60e3,drops:[{i:'eisenerz',min:1,max:3},{i:'fell',min:1,max:2},{i:'trank',min:1,max:1,c:.3}]},
-  silberfuchs:{n:'Silberfuchs',i:'🦊',tier:'rare',hp:80,min:5,max:11,xp:30,rec:5,res:30*60e3,drops:[{i:'silberfell',min:1,max:2},{i:'fell',min:1,max:2,c:.5}]},
-  kristallhirsch:{n:'Kristallhirsch',i:'🦌',tier:'rare',hp:110,min:6,max:12,xp:40,rec:6,res:30*60e3,drops:[{i:'kristall',min:1,max:2}]},
-  nachtkauz:{n:'Nachtkauz',i:'🦉',tier:'rare',hp:90,min:6,max:13,xp:35,rec:6,res:30*60e3,drops:[{i:'nachtfeder',min:1,max:3}]},
+  goblinfuehrer:{ag:1,hab:'fr',ab:'schwarm',n:'Goblin-Anführer',i:'👿',tier:'rare',hp:100,min:6,max:12,xp:34,rec:6,res:30*60e3,drops:[{i:'eisenerz',min:1,max:3},{i:'fell',min:1,max:2},{i:'trank',min:1,max:1,c:.3}]},
+  silberfuchs:{hab:'wg',ab:'flucht',n:'Silberfuchs',i:'🦊',tier:'rare',hp:80,min:5,max:11,xp:30,rec:5,res:30*60e3,drops:[{i:'silberfell',min:1,max:2},{i:'fell',min:1,max:2,c:.5}]},
+  kristallhirsch:{hab:'wf',ab:'flucht',n:'Kristallhirsch',i:'🦌',tier:'rare',hp:110,min:6,max:12,xp:40,rec:6,res:30*60e3,drops:[{i:'kristall',min:1,max:2}]},
+  nachtkauz:{hab:'w',ab:'flucht',n:'Nachtkauz',i:'🦉',tier:'rare',hp:90,min:6,max:13,xp:35,rec:6,res:30*60e3,drops:[{i:'nachtfeder',min:1,max:3}]},
+  schattenwolf:{ag:1,hab:'w',ab:'wut',n:'Schattenwolf',i:'🐺',tier:'rare',hp:105,min:6,max:13,xp:38,rec:6,res:30*60e3,drops:[{i:'silberfell',min:1,max:1,c:.5},{i:'fell',min:1,max:2},{i:'knochen',min:1,max:2}]},
+  koenigsspinne:{ag:1,hab:'w',ab:'gift',n:'Königsspinne',i:'🕸️',tier:'rare',hp:95,min:6,max:12,xp:36,rec:6,res:30*60e3,drops:[{i:'gift',min:1,max:2},{i:'haut',min:1,max:1,c:.5}]},
+  sumpfhexe:{ag:1,hab:'s',ab:'heil',n:'Sumpfhexe',i:'🧙‍♀️',tier:'rare',hp:100,min:6,max:13,xp:40,rec:6,res:30*60e3,drops:[{i:'geist',min:1,max:2},{i:'kraut',min:2,max:3}]},
+  steinadler:{ag:1,hab:'f',ab:'fern',n:'Steinadler',i:'🦅',tier:'rare',hp:90,min:6,max:12,xp:36,rec:6,res:30*60e3,drops:[{i:'feder',min:2,max:3},{i:'nachtfeder',min:1,max:1,c:.4}]},
+  kettengeist:{ag:1,hab:'r',ab:'saug',n:'Kettengeist',i:'👻',tier:'rare',hp:105,min:6,max:13,xp:40,rec:7,res:30*60e3,drops:[{i:'geist',min:2,max:3},{i:'eisenerz',min:1,max:2,c:.5}]},
+  wegelagerer:{ag:1,hab:'gr',ab:'dieb',n:'Wegelagerer',i:'🥷',tier:'rare',hp:110,min:6,max:14,xp:42,rec:7,res:30*60e3,drops:[{i:'eisenerz',min:1,max:2},{i:'trank',min:1,max:1,c:.3}]},
+  salamander:{ag:1,hab:'fs',ab:'gift',n:'Feuersalamander',i:'🦎',tier:'rare',hp:95,min:6,max:12,xp:36,rec:6,res:30*60e3,drops:[{i:'haut',min:1,max:2},{i:'gift',min:1,max:1,c:.5}]},
+  stier:{ag:1,hab:'g',ab:'bruell',n:'Wilder Stier',i:'🐂',tier:'rare',hp:120,min:7,max:13,xp:40,rec:7,res:30*60e3,drops:[{i:'horn',min:1,max:2},{i:'fell',min:1,max:2}]},
   // Elite
-  alpharohling:{ag:1,n:'Alpha-Rohling',i:'🐺',tier:'elite',hp:260,min:10,max:20,xp:90,rec:8,res:60*60e3,drops:[{i:'alphafell',min:1,max:2},{i:'fell',min:2,max:4},{i:'trank',min:1,max:1,c:.3}]},
-  steinwaechter:{ag:1,n:'Steinwächter',i:'🗿',tier:'elite',hp:320,min:12,max:22,xp:110,rec:10,res:60*60e3,drops:[{i:'steinherz',min:1,max:1},{i:'eisenerz',min:2,max:4}]},
-  urhirsch:{n:'Uralter Hirsch',i:'🦌',tier:'elite',hp:280,min:10,max:18,xp:100,rec:9,res:60*60e3,drops:[{i:'kristall',min:2,max:3},{i:'alphafell',min:1,max:1,c:.5}]},
+  alpharohling:{ag:1,hab:'wg',ab:'schwarm',n:'Alpha-Rohling',i:'🐺',tier:'elite',hp:260,min:10,max:20,xp:90,rec:8,res:60*60e3,drops:[{i:'alphafell',min:1,max:2},{i:'fell',min:2,max:4},{i:'trank',min:1,max:1,c:.3}]},
+  steinwaechter:{ag:1,hab:'f',ab:'panzer',n:'Steinwächter',i:'🗿',tier:'elite',hp:320,min:12,max:22,xp:110,rec:10,res:60*60e3,drops:[{i:'steinherz',min:1,max:1},{i:'eisenerz',min:2,max:4}]},
+  urhirsch:{hab:'w',ab:'dorn',n:'Uralter Hirsch',i:'🦌',tier:'elite',hp:280,min:10,max:18,xp:100,rec:9,res:60*60e3,drops:[{i:'kristall',min:2,max:3},{i:'alphafell',min:1,max:1,c:.5}]},
+  urkeiler:{ag:1,hab:'w',ab:'wut',n:'Urkeiler',i:'🐗',tier:'elite',hp:290,min:11,max:20,xp:100,rec:9,res:60*60e3,drops:[{i:'hauer',min:2,max:3},{i:'alphafell',min:1,max:1,c:.5},{i:'trank',min:1,max:1,c:.3}]},
+  skelettritter:{ag:1,hab:'r',ab:'saug',n:'Skelettritter',i:'💀',tier:'elite',hp:300,min:12,max:21,xp:105,rec:10,res:60*60e3,drops:[{i:'knochen',min:2,max:3},{i:'eisenerz',min:2,max:4},{i:'geist',min:1,max:2,c:.5}]},
+  moorhydra:{ag:1,hab:'s',ab:'heil',n:'Moorhydra',i:'🐉',tier:'elite',hp:330,min:11,max:20,xp:110,rec:10,res:60*60e3,drops:[{i:'gift',min:2,max:3},{i:'moorperle',min:1,max:1,c:.3},{i:'kraut',min:2,max:3}]},
+  greif:{ag:1,hab:'f',ab:'fern',n:'Greif',i:'🦅',tier:'elite',hp:270,min:11,max:20,xp:100,rec:9,res:60*60e3,drops:[{i:'feder',min:2,max:3},{i:'nachtfeder',min:1,max:2},{i:'kristall',min:1,max:1,c:.4}]},
+  oger:{ag:1,hab:'gr',ab:'bruell',n:'Oger',i:'🧟',tier:'elite',hp:340,min:13,max:23,xp:115,rec:11,res:60*60e3,drops:[{i:'horn',min:2,max:3},{i:'alphafell',min:1,max:1,c:.4},{i:'trank',min:1,max:1,c:.4}]},
   // Boss
-  schildkroete:{n:'Mooswächter-Schildkröte',i:'🐢',tier:'boss',hp:750,min:14,max:26,xp:320,rec:15,res:3*3600e3,drops:[{i:'moorperle',min:1,max:1},{i:'steinherz',min:1,max:2},{i:'trank',min:2,max:2}]},
-  waldtyrann:{ag:1,n:'Waldtyrann',i:'🐻',tier:'boss',hp:700,min:18,max:32,xp:300,rec:14,res:3*3600e3,drops:[{i:'tyrannenzahn',min:1,max:2},{i:'fell',min:5,max:8},{i:'trank',min:2,max:2}]},
-  moorkoenigin:{ag:1,n:'Moorkönigin',i:'🐊',tier:'boss',hp:800,min:20,max:34,xp:340,rec:16,res:3*3600e3,drops:[{i:'moorperle',min:1,max:1},{i:'kristall',min:2,max:3},{i:'trank',min:2,max:2}]},
-  // Gebietsboss (einer pro Gebiet)
-  aschedrache:{n:'Aschedrache',i:'🐉',tier:'area',hp:3000,min:30,max:55,xp:1500,rec:25,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'drachenschuppe',min:3,max:5},{i:'trank',min:4,max:4}]},
-  bergtroll:{n:'Bergtroll',i:'🧌',tier:'area',hp:2600,min:28,max:50,xp:1300,rec:22,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'steinherz',min:3,max:3},{i:'trank',min:3,max:3}]},
-  sumpfsaurier:{n:'Sumpfsaurier',i:'🦖',tier:'area',hp:2800,min:30,max:52,xp:1400,rec:24,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'moorperle',min:2,max:3},{i:'trank',min:3,max:3}]}
+  waldtyrann:{ag:1,hab:'wg',ab:'wut',n:'Waldtyrann',i:'🐻',tier:'boss',hp:700,min:18,max:32,xp:300,rec:14,res:3*3600e3,drops:[{i:'tyrannenzahn',min:1,max:2},{i:'fell',min:5,max:8},{i:'trank',min:2,max:2}]},
+  moorkoenigin:{ag:1,hab:'s',ab:'gift',n:'Moorkönigin',i:'🐊',tier:'boss',hp:800,min:20,max:34,xp:340,rec:16,res:3*3600e3,drops:[{i:'moorperle',min:1,max:1},{i:'kristall',min:2,max:3},{i:'trank',min:2,max:2}]},
+  schildkroete:{hab:'s',ab:'panzer',n:'Mooswächter-Schildkröte',i:'🐢',tier:'boss',hp:750,min:14,max:26,xp:320,rec:15,res:3*3600e3,drops:[{i:'moorperle',min:1,max:1},{i:'steinherz',min:1,max:2},{i:'trank',min:2,max:2}]},
+  vampirfuerst:{ag:1,hab:'r',ab:'saug',n:'Vampirfürst',i:'🧛',tier:'boss',hp:780,min:19,max:33,xp:330,rec:15,res:3*3600e3,drops:[{i:'geist',min:2,max:3},{i:'tyrannenzahn',min:1,max:1,c:.5},{i:'trank',min:2,max:2}]},
+  felswurm:{ag:1,hab:'f',ab:'bruell',n:'Felswurm',i:'🪱',tier:'boss',hp:820,min:20,max:34,xp:340,rec:16,res:3*3600e3,drops:[{i:'steinherz',min:1,max:2},{i:'haut',min:2,max:3},{i:'trank',min:2,max:2}]},
+  // Gebietsboss (einer pro Lebensraum-Gebiet, greift erst an wenn du ihn angreifst)
+  baumriese:{hab:'w',ab:'heil',n:'Uralter Baumriese',i:'🌳',tier:'area',hp:2800,min:28,max:50,xp:1350,rec:23,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'tyrannenzahn',min:1,max:2},{i:'trank',min:3,max:3}]},
+  urmammut:{hab:'g',ab:'bruell',n:'Urmammut',i:'🦣',tier:'area',hp:3000,min:30,max:52,xp:1450,rec:24,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'horn',min:3,max:4},{i:'trank',min:3,max:3}]},
+  sumpfsaurier:{hab:'s',ab:'gift',n:'Sumpfsaurier',i:'🦖',tier:'area',hp:2800,min:30,max:52,xp:1400,rec:24,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'moorperle',min:2,max:3},{i:'trank',min:3,max:3}]},
+  bergtroll:{hab:'f',ab:'panzer',n:'Bergtroll',i:'🧌',tier:'area',hp:2600,min:28,max:50,xp:1300,rec:22,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'steinherz',min:3,max:3},{i:'trank',min:3,max:3}]},
+  aschedrache:{hab:'r',ab:'fern',n:'Aschedrache',i:'🐉',tier:'area',hp:3000,min:30,max:55,xp:1500,rec:25,res:12*3600e3,drops:[{i:'gebietsherz',min:1,max:1},{i:'drachenschuppe',min:3,max:5},{i:'trank',min:4,max:4}]}
 };
 const TIERS={normal:{l:'Monster',sz:44},rare:{l:'💜 Seltenes Monster',sz:48},elite:{l:'⭐ Elite',sz:54},boss:{l:'👹 Boss',sz:62},area:{l:'👑 Gebietsboss',sz:74}};
 const EXH_MS=180000;  // Erschöpfung nach Ohnmacht
@@ -228,8 +275,17 @@ const CHASE_SPD={normal:3.2,rare:2.8,elite:2.2,boss:2.4,area:2.0};   // m/s bei 
 const AGGRO_R={normal:20,rare:25,elite:30,boss:40}, NOTICE_S=2;   // Entdeckungsradius (m) und Sekunden bis zum Angriff
 const MELEE=14, ATK_CD={normal:3,rare:3,elite:3.5,boss:4,area:4.5};   // Reichweite / Sekunden zwischen Monsterangriffen
 const LEASH=60, CHASE_MULT=1.5, CHASE_STOP=10, DISENGAGE_M=150, DISENGAGE_MS=60000;
-const SPAWN={normal:[['rohling',5],['kaefer',3],['keiler',2],['hase',3],['goblin',2]],rare:[['silberfuchs',1],['kristallhirsch',1],['nachtkauz',1],['goblinfuehrer',1]],
-  elite:[['alpharohling',1],['steinwaechter',1],['urhirsch',1]],boss:[['waldtyrann',1],['moorkoenigin',1],['schildkroete',1]],area:[['aschedrache',1],['bergtroll',1],['sumpfsaurier',1]]};
+const MOBLIST={};
+function pickMob(tier,hab,x){
+  const key=tier+hab;let L=MOBLIST[key];
+  if(!L){
+    const all=Object.keys(MOBS).filter(k=>MOBS[k].tier===tier);
+    L=all.filter(k=>MOBS[k].hab==='*'||MOBS[k].hab.includes(hab));
+    if(!L.length)L=all;
+    MOBLIST[key]=L=L.map(k=>[k,MOBS[k].w||1]);
+  }
+  return pickW(L,x);
+}
 const REGION=12, AREA_DIST=4000; // Gebiet = 12x12 Zellen (ca. 2 x 3 km)
 function fmtDist(d){return d>=1000?(d/1000).toFixed(1).replace('.',',')+' km':Math.round(d)+' m';}
 const RECIPES=[
@@ -400,7 +456,7 @@ function fmtM(c){
   c=Math.max(0,Math.floor(c));const g=Math.floor(c/10000),s=Math.floor(c%10000/100),k=c%100,a=[];
   if(g)a.push('🟡'+g);if(s)a.push('⚪'+s);if(k||!a.length)a.push('🟤'+k);return a.join(' ');
 }
-const SELL={stock:1,stein:1,ranke:2,holz:3,kraut:4,fell:5,eisenerz:6,kaefer:8,hauer:10,silberfell:25,nachtfeder:30,kristall:40,alphafell:60,steinherz:90,tyrannenzahn:200,moorperle:200,drachenschuppe:400,gebietsherz:800,trank:15,rune0:20,rune1:60,rune2:200,rune3:600,rune4:2000};
+const SELL={stock:1,stein:1,ranke:2,holz:3,kraut:4,fell:5,eisenerz:6,kaefer:8,hauer:10,silberfell:25,nachtfeder:30,kristall:40,alphafell:60,steinherz:90,tyrannenzahn:200,moorperle:200,drachenschuppe:400,gebietsherz:800,gift:12,knochen:6,haut:15,geist:35,horn:18,feder:10,trank:15,rune0:20,rune1:60,rune2:200,rune3:600,rune4:2000};
 const BUY={trank:40,stock:3,stein:3,ranke:5,holz:8,kraut:10,rune0:80};
 const COIN={normal:[3,8],rare:[20,35],elite:[80,130],boss:[300,450],area:[1200,1800]};
 const QV=[1,2,4,8,16];
@@ -590,8 +646,10 @@ function addXP(n){
     const ns=(C0().sk||[]).find(k=>k.lv===S.lv);if(ns)msg+=' Neue Fähigkeit: '+ns.n+'!';
     toast(msg);}
 }
+let psn=null,myStun=0;   // Gift (Schaden/s, Restzeit) und Betäubung durch Monster (nicht gespeichert)
 function regen(dt){
   S.hp=Math.min(maxHP(),S.hp+dt/5);
+  if(psn&&dt<5){S.hp=Math.max(1,S.hp-psn.dps*dt);psn.t-=dt;if(psn.t<=0)psn=null;}
   let fight=false;try{fight=eng.size>0;}catch(e){}
   S.en=Math.min(100,S.en+dt*(fight?.6:2)*(C0().enreg||1));
 }
@@ -612,6 +670,97 @@ function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a
 const WT=Object.values(NODES).reduce((s,n)=>s+n.w,0);
 function pickType(r){let v=r()*WT;for(const k in NODES){v-=NODES[k].w;if(v<=0)return k;}return 'stock';}
 function pickW(list,x){const t=list.reduce((a,b)=>a+b[1],0);let v=x*t;for(const [k,w] of list){v-=w;if(v<=0)return k;}return list[0][0];}
+/* ---------- Lebensräume (echte OpenStreetMap-Daten, Ersatz: Zonen) ---------- */
+const HK='ruinwalk_hab', CH=8;   // Chunk = 8x8 Zellen (ca. 1,3 km)
+let habData={};try{habData=JSON.parse(localStorage.getItem(HK)||'{}');}catch(e){habData={};}
+function fbHab(cx,cy){const v=hash(Math.floor(cx/4)+101,Math.floor(cy/4)+57)%100;return v<35?'w':v<65?'g':v<78?'s':v<90?'f':'r';}
+function habAt(cx,cy){
+  const chx=Math.floor(cx/CH),chy=Math.floor(cy/CH),d=habData[chx+'_'+chy];
+  if(d){const c=d[(cy-chy*CH)*CH+(cx-chx*CH)];if(c&&c!=='.')return c;}
+  return fbHab(cx,cy);
+}
+const HPRI={g:1,r:2,w:3,f:4,s:5};
+function habClass(t){
+  if(!t)return null;
+  const L=t.landuse,N=t.natural,W=t.waterway,Le=t.leisure;
+  if(N==='water'||N==='wetland'||N==='bay'||L==='basin'||L==='reservoir'||W==='riverbank')return 's';
+  if(N==='bare_rock'||N==='scree'||N==='rock'||N==='cliff'||N==='stone'||L==='quarry')return 'f';
+  if(N==='wood'||N==='scrub'||L==='forest')return 'w';
+  if(L==='residential'||L==='commercial'||L==='industrial'||L==='retail'||L==='railway'||L==='construction'||L==='brownfield'||L==='garages'||L==='military'||L==='cemetery')return 'r';
+  if(L==='meadow'||L==='grass'||L==='farmland'||L==='farmyard'||L==='orchard'||L==='vineyard'||L==='allotments'||L==='village_green'||L==='recreation_ground'||N==='grassland'||N==='heath'||Le==='park'||Le==='garden'||Le==='pitch'||Le==='nature_reserve')return 'g';
+  return null;
+}
+function pip(lat,lon,ring){let ins=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const a=ring[i],b=ring[j];if((a.lat>lat)!==(b.lat>lat)&&lon<(b.lon-a.lon)*(lat-a.lat)/(b.lat-a.lat)+a.lon)ins=!ins;}return ins;}
+function buildChunk(chx,chy,els){
+  const cx0=chx*CH,cy0=chy*CH,best=new Array(CH*CH).fill(0),bld=new Array(CH*CH).fill(0),sym=['.','g','r','w','f','s'];
+  const mark=(i,c)=>{if(HPRI[c]>best[i])best[i]=HPRI[c];};
+  const cell=(lat,lon)=>{const x=Math.floor(lon/DLON)-cx0,y=Math.floor(lat/DLAT)-cy0;return x>=0&&y>=0&&x<CH&&y<CH?y*CH+x:-1;};
+  const poly=(ring,c)=>{
+    let a=1e9,b=-1e9,l=1e9,r=-1e9;
+    for(const p of ring){if(p.lat<a)a=p.lat;if(p.lat>b)b=p.lat;if(p.lon<l)l=p.lon;if(p.lon>r)r=p.lon;}
+    const x0=Math.max(0,Math.floor(l/DLON)-cx0),x1=Math.min(CH-1,Math.floor(r/DLON)-cx0),y0=Math.max(0,Math.floor(a/DLAT)-cy0),y1=Math.min(CH-1,Math.floor(b/DLAT)-cy0);
+    for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)if(pip((cy0+y+.5)*DLAT,(cx0+x+.5)*DLON,ring))mark(y*CH+x,c);
+  };
+  const line=(g,c)=>{
+    for(let k=1;k<g.length;k++){
+      const p=g[k-1],q=g[k],n=Math.max(1,Math.ceil(Math.hypot((q.lat-p.lat)*111320,(q.lon-p.lon)*74000)/40));
+      for(let s=0;s<=n;s++){const i=cell(p.lat+(q.lat-p.lat)*s/n,p.lon+(q.lon-p.lon)*s/n);if(i>=0)mark(i,c);}
+    }
+  };
+  const closed=g=>g&&g.length>=4&&g[0].lat===g[g.length-1].lat&&g[0].lon===g[g.length-1].lon;
+  for(const el of els){
+    if(!el.tags&&el.center){const i=cell(el.center.lat,el.center.lon);if(i>=0)bld[i]++;continue;}
+    const t=el.tags||{};
+    if(el.type==='way'){
+      const g=el.geometry;if(!g)continue;
+      if(t.waterway==='river'||t.waterway==='canal'){line(g,'s');continue;}
+      if(t.natural==='cliff'){line(g,'f');continue;}
+      const c=habClass(t);if(c&&closed(g))poly(g,c);
+    }else if(el.type==='relation'){
+      const c=habClass(t);if(!c)continue;
+      for(const m of el.members||[])if(m.role==='outer'&&closed(m.geometry))poly(m.geometry,c);
+    }
+  }
+  let out='';
+  for(let i=0;i<CH*CH;i++){
+    if(bld[i]>=3&&HPRI.r>best[i])best[i]=HPRI.r;
+    out+=best[i]?sym[best[i]]:'g';
+  }
+  return out;
+}
+const habQ=[],habSeen=new Set(),habFail={};let habBusy=false;
+function habWant(chx,chy){
+  const k=chx+'_'+chy;
+  if(habData[k]||habSeen.has(k)||Date.now()<(habFail[k]||0))return;
+  habSeen.add(k);habQ.push([chx,chy]);habNext();
+}
+async function habNext(){
+  if(habBusy||!habQ.length)return;
+  habBusy=true;
+  const [chx,chy]=habQ.shift(),k=chx+'_'+chy;
+  try{
+    const bb=(chy*CH*DLAT)+','+(chx*CH*DLON)+','+((chy+1)*CH*DLAT)+','+((chx+1)*CH*DLON);
+    const q='[out:json][timeout:25];(way[landuse]('+bb+');way[natural]('+bb+');way[waterway~"river|canal"]('+bb+');way[leisure~"park|garden|pitch|nature_reserve"]('+bb+');relation[type=multipolygon][natural~"water|wood|wetland|scrub|grassland|bare_rock"]('+bb+');relation[type=multipolygon][landuse~"forest|meadow|residential|farmland|industrial|commercial|grass"]('+bb+'););out geom tags;way[building]('+bb+');out center qt;';
+    const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),30000);
+    const res=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'},signal:ctl.signal});
+    clearTimeout(to);
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const js=await res.json();
+    habData[k]=buildChunk(chx,chy,js.elements||[]);
+    const ks=Object.keys(habData);while(ks.length>200)delete habData[ks.shift()];
+    try{localStorage.setItem(HK,JSON.stringify(habData));}catch(e){}
+    cellCache.clear();refreshWorld();
+  }catch(e){habFail[k]=Date.now()+90e3;habSeen.delete(k);}
+  habBusy=false;
+  setTimeout(habNext,1200);
+}
+function ensureHab(){
+  if(!P)return;
+  const cx=Math.floor(P.lon/DLON),cy=Math.floor(P.lat/DLAT),px=Math.floor(cx/CH),py=Math.floor(cy/CH);
+  habWant(px,py);
+  for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)habWant(px+dx,py+dy);
+  for(const e of areaEnts()){const c=Math.floor(e.lon/DLON),d=Math.floor(e.lat/DLAT);habWant(Math.floor(c/CH),Math.floor(d/CH));}
+}
 const cellCache=new Map();
 function areaEnts(){
   if(!P)return [];
@@ -619,7 +768,7 @@ function areaEnts(){
   for(let rx=rx0-1;rx<=rx0+1;rx++)for(let ry=ry0-1;ry<=ry0+1;ry++){
     const r=mulberry(hash(rx*7919+13,ry*104729+7)),
       cx=rx*REGION+Math.floor(r()*REGION),cy=ry*REGION+Math.floor(r()*REGION);
-    out.push({id:'g'+rx+'_'+ry,kind:'mob',type:pickW(SPAWN.area,r()),lat:(cy+.1+r()*.8)*DLAT,lon:(cx+.1+r()*.8)*DLON});
+    out.push({id:'g'+rx+'_'+ry,kind:'mob',type:pickMob('area',habAt(cx,cy),r()),lat:(cy+.1+r()*.8)*DLAT,lon:(cx+.1+r()*.8)*DLON});
   }
   return out;
 }
@@ -632,10 +781,10 @@ function cellEnts(cx,cy){
     out.push({id:'n'+key+'_'+i,kind:'node',type,lat:(cy+.1+r()*.8)*DLAT,lon:(cx+.1+r()*.8)*DLON});
   }
   if(r()<.7)out.push({id:'m'+key,kind:'mob',type:'rohling',lat:(cy+.1+r()*.8)*DLAT,lon:(cx+.1+r()*.8)*DLON});
-  const tn=r();const lastM=out[out.length-1];if(lastM&&lastM.kind==='mob')lastM.type=pickW(SPAWN.normal,tn);
+  const tn=r(),hb=habAt(cx,cy);const lastM=out[out.length-1];if(lastM&&lastM.kind==='mob')lastM.type=pickMob('normal',hb,tn);
   const rareChance=[['r',.12,'rare'],['e',.04,'elite'],['b',.01,'boss']];
   for(const [pre,ch,tier] of rareChance){
-    if(r()<ch)out.push({id:pre+key,kind:'mob',type:pickW(SPAWN[tier],r()),lat:(cy+.1+r()*.8)*DLAT,lon:(cx+.1+r()*.8)*DLON});
+    if(r()<ch)out.push({id:pre+key,kind:'mob',type:pickMob(tier,hb,r()),lat:(cy+.1+r()*.8)*DLAT,lon:(cx+.1+r()*.8)*DLON});
   }
   {const bx=Math.floor(cx/6),by=Math.floor(cy/6),rr=mulberry(hash(bx*31+1,by*17+2));
    const sx=bx*6+Math.floor(rr()*6),sy=by*6+Math.floor(rr()*6);
@@ -728,7 +877,12 @@ function roamTick(dt){
       if(P&&now-ea<DISENGAGE_MS&&dist(P,r)<DISENGAGE_M)chasing=true;
       else{eng.delete(id);r.atk=undefined;}
     }
-    if(chasing){tlat=P.lat;tlon=P.lon;speed=CHASE_SPD[tier];stopAt=CHASE_STOP;r.tlat=null;r.wait=rnd(2,6);}
+    const md=MOBS[e.type];
+    if(md.ab==='flucht'&&P&&dist(P,r)<22&&dist(r,e)<90){
+      const an=Math.atan2((r.lat-P.lat)*111320,(r.lon-P.lon)*111320*cosf(r.lat));
+      tlat=r.lat+Math.sin(an)*30/111320;tlon=r.lon+Math.cos(an)*30/(111320*cosf(r.lat));speed=2.6;stopAt=1;r.tlat=null;chasing=false;
+    }
+    else if(chasing){tlat=P.lat;tlon=P.lon;speed=CHASE_SPD[tier];stopAt=md.ab==='fern'?30:CHASE_STOP;r.tlat=null;r.wait=rnd(2,6);}
     else if(!idle){
       if(dist(r,e)<=3){continue;}
       tlat=e.lat;tlon=e.lon;stopAt=2;
@@ -770,8 +924,8 @@ function roamTick(dt){
   if(P){
     for(const [id,o] of ents){
       const r=roam.get(id);if(!r||eng.get(id)===undefined)continue;
-      if(dist(P,r)>MELEE){r.atk=undefined;continue;}
       const m=MOBS[o.e.type];
+      if(m.ab==='flucht'||dist(P,r)>(m.ab==='fern'?40:MELEE)){r.atk=undefined;continue;}
       r.atk=(r.atk===undefined?rnd(1,2):r.atk)-dt;
       if(r.atk>0)continue;
       r.atk=ATK_CD[m.tier]||3;
@@ -782,22 +936,41 @@ function roamTick(dt){
 }
 function monsterHit(m,e){
   if(S.stun>0){S.stun--;toast('😵 '+m.n+' ist gelähmt');return;}
+  const r=roam.get(e.id)||{},hpNow=S.mh[e.id]??m.hp;
+  r.n=(r.n||0)+1;
+  if(m.ab==='heil'&&hpNow<m.hp*.6&&r.n%3===0){
+    S.mh[e.id]=Math.min(m.hp,Math.round(hpNow+m.hp*.08));
+    fMob(e,'+'+Math.round(m.hp*.08),'heal',0);toast(m.i+' '+m.n+' heilt sich');refreshWorld();return;
+  }
   if(Math.random()<.15){toast(m.i+' '+m.n+' verfehlt dich');return;}
   let h=Math.max(1,rnd(m.min,m.max)-defense());
+  if(m.ab==='wut'&&hpNow<m.hp*.3)h=Math.round(h*1.5);
+  if(m.ab==='schwarm')h=Math.max(1,Math.round(h*.6));
   if(S.shield>0){S.shield--;h=Math.max(1,Math.round(h*.3));}
+  if(m.ab==='schwarm')h*=2;
   eng.set(e.id,Date.now());
   S.hp-=h;fMe('-'+h,'dmg',0);
-  if(S.hp<=0)faint(m,e);
-  else toast(m.i+' '+m.n+' trifft dich: -'+h);
+  if(S.hp<=0){faint(m,e);hud();return;}
+  let extra='';
+  if(m.ab==='gift'&&Math.random()<.4){psn={dps:Math.max(1,Math.round(m.max*.1)),t:8};extra=' · ☠️ vergiftet';}
+  else if(m.ab==='bruell'&&r.n%4===0&&Date.now()>=myStun){myStun=Date.now()+2500;extra=' · 😵 betäubt';}
+  else if(m.ab==='saug'){const g=Math.round(h*.5);S.mh[e.id]=Math.min(m.hp,hpNow+g);extra=' · 🩸 saugt '+g;refreshWorld();}
+  else if(m.ab==='dieb'&&S.cu>0&&Math.random()<.35){
+    const st=Math.min(S.cu,Math.max(2,Math.round(S.cu*.06)));S.cu-=st;
+    toast(m.i+' '+m.n+' stiehlt dir '+fmtM(st)+' und flieht!');
+    S.cd[e.id]=Date.now();delete S.mh[e.id];eng.delete(e.id);if(sel&&sel.id===e.id)deselect();refreshWorld();hud();return;
+  }
+  toast(m.i+' '+m.n+' trifft dich: -'+h+extra);
   hud();
 }
 function refreshWorld(){
   if(!P)return;
+  ensureHab();
   const cx=Math.floor(P.lon/DLON),cy=Math.floor(P.lat/DLAT),want=new Map();
   for(let dx=-VIEW;dx<=VIEW;dx++)for(let dy=-VIEW;dy<=VIEW;dy++)
     for(const e of cellEnts(cx+dx,cy+dy))if(alive(e)&&dist(P,e)<=SHOW_DIST)want.set(e.id,e);
   for(const e of areaEnts())if(alive(e)&&dist(P,e)<=AREA_DIST)want.set(e.id,e);
-  for(const [id,o] of ents){if(!want.has(id)){map.removeLayer(o.m);ents.delete(id);roam.delete(id);eng.delete(id);if(sel&&sel.id===id)deselect();}}
+  for(const [id,o] of ents){const w=want.get(id),chg=w&&w.type!==o.e.type&&!eng.has(id);if(!w||chg){map.removeLayer(o.m);ents.delete(id);roam.delete(id);eng.delete(id);if(chg)delete S.mh[id];if(sel&&sel.id===id)deselect();}}
   for(const [id,e] of want){if(!ents.has(id)){if(canRoam(e)&&!roam.has(id))roam.set(id,{lat:e.lat,lon:e.lon,tlat:null,tlon:null,wait:rnd(0,15)});ents.set(id,{e,m:mk(e)});}}
   for(const [id,o] of ents){
     if(o.e.kind==='mob'){
@@ -841,6 +1014,8 @@ function renderCard(){
       body='<div class="row">❤️ '+hp+' / '+mx+'<div class="hpbar"><i style="width:'+(100*hp/mx)+'%"></i></div>'+C0().w+' · Reichweite '+atkRange()+' m · Energie '+C0().en
         +'<br>Empfohlen: Stufe '+d.rec+(S.lv+2<d.rec?' <span class="bad">⚠️ sehr gefährlich</span>':'')
         +'<br>Verhalten: '+(d.tier==='area'?'<b>Gebietsboss</b> · greift erst an, wenn du ihn angreifst':d.ag?'<b class="bad">😡 Aggressiv</b>':'🕊️ Friedlich, wehrt sich nur')
+        +'<br>'+HAB[d.hab==='*'?'w':d.hab[0]].i+' Lebensraum: '+(d.hab==='*'?'überall':[...d.hab].map(h=>HAB[h].n).join(', '))
+        +(d.ab?'<br>'+ABIL[d.ab][0]+' <b>'+ABIL[d.ab][1]+'</b>: '+ABIL[d.ab][2]:'')
         +'<br>Beute: '+d.drops.map(x=>ITEMS[x.i].i+(x.c?'?':'')).join(' ')+'</div>'+skRow();
       action='shoot';label=C0().i+' '+C0().act;
       if(ds>atkRange())label='Zu weit – noch '+fmtDist(ds-atkRange());
@@ -895,6 +1070,7 @@ function strike(o){
   const e=sel;if(!e||e.kind!=='mob'||!P)return false;
   const m=MOBS[e.type],C=C0();
   if(Date.now()<S.exh){toast('😵 Du bist noch erschöpft ('+fmtT(S.exh-Date.now())+')');return false;}
+  if(Date.now()<myStun){toast('😵 Du bist benommen ('+Math.ceil((myStun-Date.now())/1000)+' s)');return false;}
   if(dist(P,ep(e))>(C.range+(o.rangeBonus||0))){toast('Zu weit weg');return false;}
   eng.set(e.id,Date.now());
   if(S.en<o.en){toast('Zu erschöpft');return false;}
@@ -905,12 +1081,14 @@ function strike(o){
     if(o.crit||Math.random()<C.crit+gs('crit')){d*=2;crit=true;}
     dmg+=d;
   }
+  if(m.ab==='panzer')dmg=Math.max(1,Math.round(dmg*.65));
   let heal='';
   const hv=(o.heal||0)+(o.healPct?maxHP()*o.healPct:0);
   if(hv){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+hv);if(S.hp>b0){heal=' · +'+Math.round(S.hp-b0)+' ❤️';fMe('+'+Math.round(S.hp-b0),'heal',0);}}
   if(o.shield)S.shield=o.shield;
   if(o.stun)S.stun=o.stun;
   fMob(e,'-'+dmg,'dmg'+(crit?' crit':''),0);
+  if(m.ab==='dorn'){const rf=Math.max(1,Math.round(dmg*.12));S.hp=Math.max(1,S.hp-rf);fMe('-'+rf,'dmg',0);}
   const hp=(S.mh[e.id]??m.hp)-dmg;
   if(hp<=0){
     delete S.mh[e.id];S.cd[e.id]=Date.now();S.stats.kills++;S.stats.kt[m.tier]=(S.stats.kt[m.tier]||0)+1;{const hr=new Date().getHours();if(hr>=22||hr<4)S.stats.night++;}S.stun=0;
