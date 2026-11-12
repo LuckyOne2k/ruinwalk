@@ -162,8 +162,8 @@ h3{margin:16px 0 6px;font-size:15px;border-bottom:1px dashed var(--line);padding
 <script src="sprites_chars.js?v=4"></script>
 <script src="sprites_figs.js?v=1"></script>
 <script src="figs/manifest.js?v=3"></script>
-<script src="items/manifest.js?v=3"></script>
-<script src="pxdom.js?v=19"></script>
+<script src="items/manifest.js?v=4"></script>
+<script src="pxdom.js?v=20"></script>
 <script>
 (()=>{
 'use strict';
@@ -308,7 +308,7 @@ const RECIPES=[
 const SKILLNAME={holz:'Holzfällen',berg:'Bergbau',sammeln:'Sammeln'};
 /* ---------- Ausrüstung ---------- */
 const SLOTS=[['waffe','Waffe'],['nebenhand','Nebenhand'],['kopf','Kopf'],['brust','Brust'],['beine','Beine'],['haende','Hände'],['fuesse','Füße'],['umhang','Umhang'],['ring','Ring'],['amulett','Amulett']];
-const SLOTIC={waffe:':g_w_schwert_1:',nebenhand:':g_o_schild_1:',kopf:':g_kopf_schwer_1:',brust:':g_brust_schwer_1:',beine:':g_beine_schwer_1:',haende:':g_haende_schwer_1:',fuesse:':g_fuesse_schwer_1:',umhang:':g_umhang_1:',ring:':g_ring_1:',amulett:':g_amulett_1:'};
+const SLOTIC={waffe:':g_w_schwert_1:',nebenhand:':g_o_schild_1:',kopf:':g_kopf_schwer_1:',brust:':g_brust_schwer_1:',beine:':g_beine_schwer_1:',haende:':g_haende_schwer_1:',fuesse:':g_fuesse_schwer_1:',umhang:':g_umhang_1:',ring:':i_ring_1:',amulett:':i_amulett_1:'};
 const QN=['Gewöhnlich','Ungewöhnlich','Selten','Episch','Legendär'];
 const QC=['#7d8590','#2f9e4f','#2f6fdb','#9b4dd6','#e08a00'];
 const QM=[1,1.25,1.6,2,2.6];
@@ -362,8 +362,8 @@ function getBase(id){
   else if(k==='o'){const ty=p[1],t=+p[2],s=GT[t].s;const st={schild:{def:Math.round(3*s),hp:Math.round(4*s)},koecher:{crit:.02*t,atk:Math.round(s)},buch:{atk:Math.round(2.5*s)},talisman:{hp:Math.round(10*s),def:Math.round(s)}}[ty];
     b={n:ONM[ty][t],i:':g_o_'+ty+'_'+t+':',slot:'nebenhand',type:ty,t,st};}
   else if(k==='u'){const t=+p[1],s=GT[t].s;b={n:UNM[t],i:':g_umhang_'+t+':',slot:'umhang',type:'',t,st:{def:Math.round(s),hp:Math.round(3*s)}};}
-  else if(k==='r'){const t=+p[1],s=GT[t].s;b={n:RNM[t],i:':g_ring_'+t+':',slot:'ring',type:'',t,st:{atk:Math.round(1.2*s),crit:.01*t}};}
-  else if(k==='m'){const t=+p[1],s=GT[t].s;b={n:MNM[t],i:':g_amulett_'+t+':',slot:'amulett',type:'',t,st:{hp:Math.round(6*s)}};}
+  else if(k==='r'){const t=+p[1],s=GT[t].s;b={n:RNM[t],i:':i_ring_'+t+':',slot:'ring',type:'',t,st:{atk:Math.round(1.2*s),crit:.01*t}};}
+  else if(k==='m'){const t=+p[1],s=GT[t].s;b={n:MNM[t],i:':i_amulett_'+t+':',slot:'amulett',type:'',t,st:{hp:Math.round(6*s)}};}
   else if(k==='q'){const pa=PATHS[p[1]],t=+p[2],st=pa.st[t-1],ty=WPN[pa.b],s=GT[Math.min(3,t+1)].s;
     const stt={atk:Math.round(3.5*s)};if(ty==='bogen')stt.crit=.02*t;if(ty==='heilstab')stt.hp=Math.round(6*s);
     b={n:st.n.replace(/ /g,'-')+'-'+WTN[ty],i:':g_w_'+ty+'_'+Math.min(3,t+1)+':',slot:'waffe',type:ty,t:Math.min(3,t+1),st:stt,fixedQ:[2,3,4][t-1],lvReq:UP_LV[t-1]};}

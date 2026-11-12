@@ -2,7 +2,7 @@
 const PX_NORM=s=>s.replace(/️/g,'');
 let PX_KEYS={},PX_RE=null;
 function pxBuild(){PX_KEYS={};for(const k of Object.keys(PX_SPR).concat(Object.keys(PX_ALIAS),Object.keys(PX_SPR32),Object.keys(PX_ALIAS32)))PX_KEYS[PX_NORM(k)]=k;
-if(typeof PX_ITEMS!=='undefined')for(const n of PX_ITEMS)if(n.indexOf('set_')===0)PX_KEYS[':i_'+n+':']=':i_'+n+':';
+if(typeof PX_ITEMS!=='undefined')for(const n of PX_ITEMS)if(/^(set_|ring_|amulett_)/.test(n))PX_KEYS[':i_'+n+':']=':i_'+n+':';
 PX_RE=new RegExp(Object.keys(PX_KEYS).sort((a,b)=>b.length-a.length).map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\uFE0F?').join('|'),'g');}
 const PX_URL={};
 function pxUrl(emo){
