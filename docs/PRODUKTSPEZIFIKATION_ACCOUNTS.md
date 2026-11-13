@@ -256,7 +256,7 @@ Der konkrete Zahlungsanbieter und der Verkaufspreis werden später festgelegt.
 - Ist Platz 1 oder Platz 2 frei, kann der Spieler den gesperrten Charakter dorthin verschieben. Spielstand, Charakter-ID und Sicherungen bleiben dabei unverändert; der Charakter ist danach ohne Berechtigung spielbar. Verschieben ist nur von Platz 3 auf einen freien kostenlosen Platz möglich und überschreibt nie einen belegten Platz.
 - Sind beide kostenlosen Plätze belegt, bleibt der Charakter samt Spielstand sicher gespeichert. Nach erneuter Freischaltung (erneuter Kauf oder Wiederherstellung der Berechtigung) ist er ohne Datenverlust wieder zugänglich.
 - Ohne gültige Berechtigung kann auf Platz 3 kein neuer Charakter erstellt werden, auch dann nicht, wenn der Platz gerade leer ist.
-- Löscht der Spieler einen gesperrten Charakter selbst, folgt dies den normalen Löschregeln (zusätzliche Bestätigung, Protokoll, letzte Sicherung bleibt erhalten).
+- Der Besitzer darf einen gesperrten Charakter manuell löschen (bestätigt): es gelten die normalen Löschregeln mit ausdrücklicher Bestätigung, Protokoll und erhaltener letzter Sicherung. Eine automatische Löschung bleibt ausgeschlossen.
 - Verschieben und Berechtigungsänderungen werden protokolliert.
 
 7. Übernahme bestehender Spielstände

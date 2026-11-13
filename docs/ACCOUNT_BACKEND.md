@@ -9,7 +9,7 @@ Grundlage: Produktspezifikation „Accountsystem, Charakterauswahl und Charakter
 - **Zahlung (Phase 5):** Zahlungsanbieter ruft eine Edge Function (Webhook) auf, sie prüft die Signatur und schreibt mit der Service-Role `account_entitlements`. Der Browser kann nie schreiben. `payment_events.provider_event_id` ist Primärschlüssel, dadurch doppelt verarbeitete Webhooks wirkungslos.
 
 ## Datenbank-Tests
-`bash supabase/tests/run.sh` startet ein temporäres PostgreSQL 16, spielt eine Supabase-Attrappe (Rollen `anon`/`authenticated`/`service_role`, `auth.users`, `auth.uid()`), das Schema und 163 Prüfungen ein, und zwar in beiden Supabase-Standardmodi (neue Projekte ohne automatische Rechte, ältere mit). Sie laufen mit echten Rollenwechseln, also unter den tatsächlichen RLS-Regeln. Ob die Tests Fehler finden, wurde per Gegenprobe geprüft: 10 absichtlich eingebaute Lücken (z. B. fehlende Versions- oder Kontoprüfung, zu weite Policy, fehlender `search_path`) wurden alle erkannt.
+`bash supabase/tests/run.sh` startet ein temporäres PostgreSQL 16, spielt eine Supabase-Attrappe (Rollen `anon`/`authenticated`/`service_role`, `auth.users`, `auth.uid()`), das Schema und 168 Prüfungen ein, und zwar in beiden Supabase-Standardmodi (neue Projekte ohne automatische Rechte, ältere mit). Sie laufen mit echten Rollenwechseln, also unter den tatsächlichen RLS-Regeln. Ob die Tests Fehler finden, wurde per Gegenprobe geprüft: 10 absichtlich eingebaute Lücken (z. B. fehlende Versions- oder Kontoprüfung, zu weite Policy, fehlender `search_path`) wurden alle erkannt.
 
 ## Sicherheit (im Schema umgesetzt)
 | Anforderung | Umsetzung |

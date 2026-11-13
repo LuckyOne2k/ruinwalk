@@ -17,6 +17,11 @@ P="$BIN/psql -h $TMP -p $PORT -U postgres -X -q -v ON_ERROR_STOP=1"
 $RUN $P -d postgres -c "create database rw" >/dev/null
 $RUN $P -d rw ${LEGACY:+-v legacy=1} -f "$D/00_stub.sql" >/dev/null
 $RUN $P -d rw -f "${SCHEMA:-$D/../schema.sql}" >/dev/null
+if [ -n "${EDITOR_TEST:-}" ]; then   # Variante für den Supabase SQL Editor (ohne psql-Befehle), Ergebnis = letzte Zeile
+  $RUN $P -d rw -t -A -f "$D/editor_test.sql" > "$TMP/full" 2>&1 || true; tail -1 "$TMP/full" | tee "$TMP/out"; grep -m3 -A3 "ERROR" "$TMP/full" || true
+  $RUN $P -d rw -t -A -f "$D/editor_cleanup.sql" | tail -1
+  grep -q 'ALLE' "$TMP/out" || { echo FEHLER; exit 1; }; exit 0
+fi
 $RUN $P -d rw -f "$D/01_tap.sql" >/dev/null
 set +e
 $RUN $P -d rw -f "$D/10_tests.sql" 2>&1 | grep -v '^ *$' | tee "$TMP/out"

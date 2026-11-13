@@ -129,8 +129,15 @@ select character_id as a3 from public.characters where account_id=:A and slot_nu
 select tap.as_user(:A);
 select tap.is((select count(*) from public.characters where slot_number=3),0::bigint,'... ist aber für den Spieler gesperrt (nicht lesbar)');
 select tap.throws('select public.save_character('''||:'a3'||''',1,''{"lv":4}'')','character_locked','... und nicht speicherbar');
+-- Der Besitzer darf einen gesperrten Charakter bewusst löschen (normale Löschregeln: Protokoll + letzte Sicherung), Fremde nicht
+select tap.as_user(:B);
+select tap.throws('select public.delete_character('''||:'a3'||''')','not_found','B kann den gesperrten Charakter von A nicht löschen');
+select tap.as_user(:A);
+select tap.lives('select public.delete_character('''||:'a3'||''')','Besitzer löscht den gesperrten Charakter bewusst');
 select tap.as_admin();
-delete from public.characters where account_id=:A and slot_number=3;
+select tap.is((select count(*) from public.characters where character_id=:'a3'),0::bigint,'Gesperrter Charakter ist gelöscht');
+select tap.ok(exists(select 1 from public.character_backups where character_id=:'a3' and reason='delete'),'... letzter Stand wurde gesichert');
+select tap.ok(exists(select 1 from public.audit_log where character_id=:'a3' and action='character_deleted'),'... Löschen ist protokolliert');
 select tap.as_user(:A);
 select tap.throws($$select * from public.create_character(3,'Neu3','{}')$$,'slot_locked','Nach Rückerstattung ist ein neuer Charakter auf Platz 3 gesperrt');
 select tap.as_admin();
@@ -258,7 +265,7 @@ select tap.is((select count(*) from public.characters),1::bigint,'B ist vom Lös
 select tap.as_anon();
 select tap.throws('select public.delete_character('''||:'a1'||''')','permission denied|42501','Anonym kann nicht löschen');
 select tap.as_admin();
-select tap.is((select count(*) from public.audit_log where action='character_deleted' and account_id=:A),1::bigint,'Löschen steht im Audit-Log');
+select tap.is((select count(*) from public.audit_log where action='character_deleted' and account_id=:A),2::bigint,'Beide Löschvorgänge von A (gesperrter Charakter und Platz 2) stehen im Audit-Log');
 select tap.ok(exists(select 1 from public.character_backups b join public.audit_log l on l.character_id=b.character_id where b.reason='delete' and l.action='character_deleted' and l.account_id=:A),'Letzter Stand des gelöschten Charakters wurde gesichert');
 select tap.is((select count(*) from public.characters where account_id=:A and slot_number=1),1::bigint,'Anderer Charakter von A unberührt');
 -- Platz nach dem Löschen wieder nutzbar
