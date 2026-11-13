@@ -5,6 +5,8 @@
 --    mit festem search_path und ohne EXECUTE für PUBLIC.
 --  * Row Level Security ist überall aktiv, zusätzlich sind die Tabellenrechte explizit eingeschränkt (zwei Schichten).
 -- Test: supabase/tests/run.sh (echtes PostgreSQL mit Supabase-Attrappe).
+-- Fehlercodes: Eigene Fehler nutzen PostgREST-Statuscodes (SQLSTATE 'PT409' = HTTP 409 usw.); der Client wertet die Meldung aus
+-- (version_conflict, slot_occupied, slot_locked, character_locked, email_not_verified, not_found, invalid_*).
 
 ------------------------------------------------------------------------------------------------
 -- Tabellen
@@ -112,7 +114,7 @@ create or replace function public.guard_profile() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   if new.account_id <> old.account_id then raise exception 'immutable' using errcode = '42501'; end if;
-  if new.username <> old.username and coalesce(auth.role(),'') in ('anon','authenticated') then
+  if new.username <> old.username and coalesce(auth.jwt() ->> 'role','') in ('anon','authenticated') then
     raise exception 'username_immutable' using errcode = '42501';
   end if;
   return new;
@@ -124,11 +126,17 @@ create or replace function public.guard_character() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   if new.slot_number = 3 and tg_op = 'INSERT' and not public.has_entitlement(new.account_id, 'third_character_slot') then
-    raise exception 'slot_locked' using errcode = 'P0001';
+    raise exception 'slot_locked' using errcode = 'PT403';
   end if;
-  if tg_op = 'UPDATE' and (new.character_id <> old.character_id or new.account_id <> old.account_id
-                           or new.slot_number <> old.slot_number or new.created_at <> old.created_at) then
-    raise exception 'immutable' using errcode = '42501';
+  if tg_op = 'UPDATE' then
+    if new.character_id <> old.character_id or new.account_id <> old.account_id or new.created_at <> old.created_at then
+      raise exception 'immutable' using errcode = '42501';
+    end if;
+    -- Der Platz ändert sich nur über move_character (Platz 3 -> freier kostenloser Platz), nie sonst.
+    if new.slot_number <> old.slot_number and not (coalesce(current_setting('ruinwalk.allow_move', true), '') = '1'
+                                                   and old.slot_number = 3 and new.slot_number in (1, 2)) then
+      raise exception 'immutable' using errcode = '42501';
+    end if;
   end if;
   return new;
 end $$;
@@ -173,7 +181,7 @@ $$;
 create or replace function public.touch_login() returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
-  if auth.uid() is null then raise exception 'not_authenticated' using errcode = '28000'; end if;
+  if auth.uid() is null then raise exception 'not_authenticated' using errcode = 'PT401'; end if;
   update public.profiles set last_login = now() where account_id = auth.uid();
 end $$;
 
@@ -183,8 +191,8 @@ returns table(character_id uuid, version int)
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare uid uuid := auth.uid(); nm text := btrim(coalesce(p_name,'')); cid uuid := gen_random_uuid(); d jsonb;
 begin
-  if uid is null then raise exception 'not_authenticated' using errcode = '28000'; end if;
-  if not public.is_verified(uid) then raise exception 'email_not_verified' using errcode = '42501'; end if;
+  if uid is null then raise exception 'not_authenticated' using errcode = 'PT401'; end if;
+  if not public.is_verified(uid) then raise exception 'email_not_verified' using errcode = 'PT403'; end if;
   if p_slot is null or p_slot not between 1 and 3 then raise exception 'invalid_slot' using errcode = '22023'; end if;
   if nm = '' or char_length(nm) > 16 or nm ~ '[<>&"''`[:cntrl:]]' then raise exception 'invalid_name' using errcode = '22023'; end if;
   if p_data is null or jsonb_typeof(p_data) <> 'object' then raise exception 'invalid_data' using errcode = '22023'; end if;
@@ -206,21 +214,64 @@ $$;
 -- Speichern mit Versionsprüfung (verhindert Überschreiben durch ein zweites Gerät, fremde Charaktere und ungültige Daten).
 create or replace function public.save_character(p_id uuid, p_expected_version int, p_data jsonb)
 returns int language plpgsql security definer set search_path = public, pg_temp as $$
-declare uid uuid := auth.uid(); v int; d jsonb;
+declare uid uuid := auth.uid(); v int; d jsonb; sl smallint;
 begin
-  if uid is null then raise exception 'not_authenticated' using errcode = '28000'; end if;
-  if not public.is_verified(uid) then raise exception 'email_not_verified' using errcode = '42501'; end if;
+  if uid is null then raise exception 'not_authenticated' using errcode = 'PT401'; end if;
+  if not public.is_verified(uid) then raise exception 'email_not_verified' using errcode = 'PT403'; end if;
   if p_data is null or jsonb_typeof(p_data) <> 'object' or p_data = '{}'::jsonb then raise exception 'invalid_data' using errcode = '22023'; end if;
   d := jsonb_set(p_data, '{cid}', to_jsonb(p_id::text));
+  select slot_number into sl from public.characters where character_id = p_id and account_id = uid for update;
+  if sl is null then
+    -- gleiche Meldung für "fremd/nicht vorhanden" und "falsche Version": verrät nichts über fremde Charaktere
+    raise exception 'version_conflict' using errcode = 'PT409';
+  end if;
+  if sl = 3 and not public.has_entitlement(uid, 'third_character_slot') then
+    raise exception 'character_locked' using errcode = 'PT403';   -- ohne gültige Berechtigung gesperrt, Daten bleiben unverändert
+  end if;
   update public.characters c
      set character_data = d, character_class = public.safe_class(d), level = public.safe_level(d),
          version = c.version + 1, updated_at = now(), last_played = now()
    where c.character_id = p_id and c.account_id = uid and c.version = p_expected_version
    returning c.version into v;
-  if v is null then
-    -- gleiche Meldung für "fremd/nicht vorhanden" und "falsche Version": verrät nichts über fremde Charaktere
-    raise exception 'version_conflict' using errcode = '40001';
-  end if;
+  if v is null then raise exception 'version_conflict' using errcode = 'PT409'; end if;
+  return v;
+end $$;
+
+-- Übersicht für die Charakterauswahl: alle eigenen Charaktere, gesperrte ohne Spielstand.
+create or replace function public.list_characters()
+returns table(character_id uuid, slot_number smallint, character_name text, character_class text, level int, version int, last_played timestamptz, locked boolean)
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+declare uid uuid := auth.uid(); ent boolean;
+begin
+  if uid is null then raise exception 'not_authenticated' using errcode = 'PT401'; end if;
+  ent := public.has_entitlement(uid, 'third_character_slot');
+  return query select c.character_id, c.slot_number, c.character_name, c.character_class, c.level, c.version, c.last_played,
+                      (c.slot_number = 3 and not ent)
+                 from public.characters c where c.account_id = uid order by c.slot_number;
+end $$;
+
+-- Gesperrten Charakter von Platz 3 auf einen freien kostenlosen Platz (1 oder 2) verschieben. Löscht nie etwas:
+-- ist der Zielplatz belegt, scheitert die Funktion mit slot_occupied und alles bleibt unverändert.
+create or replace function public.move_character(p_id uuid, p_target int) returns int
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare uid uuid := auth.uid(); cur smallint; v int;
+begin
+  if uid is null then raise exception 'not_authenticated' using errcode = 'PT401'; end if;
+  if not public.is_verified(uid) then raise exception 'email_not_verified' using errcode = 'PT403'; end if;
+  if p_target is null or p_target not in (1, 2) then raise exception 'invalid_slot' using errcode = '22023'; end if;
+  select slot_number into cur from public.characters where character_id = p_id and account_id = uid for update;
+  if cur is null then raise exception 'not_found' using errcode = 'PT404'; end if;
+  if cur <> 3 then raise exception 'move_not_allowed' using errcode = '22023'; end if;
+  perform set_config('ruinwalk.allow_move', '1', true);
+  begin
+    update public.characters set slot_number = p_target, version = version + 1, updated_at = now()
+     where character_id = p_id and account_id = uid returning version into v;
+  exception when unique_violation then
+    perform set_config('ruinwalk.allow_move', '', true);
+    raise exception 'slot_occupied' using errcode = 'PT409';
+  end;
+  perform set_config('ruinwalk.allow_move', '', true);
+  insert into public.audit_log(account_id, character_id, action, detail) values (uid, p_id, 'character_moved', jsonb_build_object('from', 3, 'to', p_target));
   return v;
 end $$;
 
@@ -228,9 +279,9 @@ create or replace function public.delete_character(p_id uuid) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare uid uuid := auth.uid();
 begin
-  if uid is null then raise exception 'not_authenticated' using errcode = '28000'; end if;
+  if uid is null then raise exception 'not_authenticated' using errcode = 'PT401'; end if;
   delete from public.characters where character_id = p_id and account_id = uid;
-  if not found then raise exception 'not_found' using errcode = 'P0002'; end if;
+  if not found then raise exception 'not_found' using errcode = 'PT404'; end if;
   insert into public.audit_log(account_id, character_id, action) values (uid, p_id, 'character_deleted');
 end $$;
 
@@ -248,16 +299,29 @@ revoke all on all tables    in schema public from public, anon, authenticated;
 revoke all on all sequences in schema public from public, anon, authenticated;
 revoke all on all functions in schema public from public, anon, authenticated;
 
+-- service_role (Webhook/Edge Function) bekommt seine Rechte ausdrücklich: seit 2026 vergibt Supabase für neue Tabellen
+-- keine Standardrechte mehr automatisch (Data API opt-in).
+grant usage on schema public to service_role;
+grant all on all tables in schema public to service_role;
+grant all on all sequences in schema public to service_role;
+
 -- Lesen nur Eigenes. Keine INSERT/UPDATE/DELETE-Rechte für Clients.
 grant select on public.profiles, public.account_entitlements, public.characters to authenticated;
 create policy profiles_own_read on public.profiles             for select to authenticated using (account_id = auth.uid());
 create policy ent_own_read      on public.account_entitlements for select to authenticated using (account_id = auth.uid());
-create policy char_own_read     on public.characters           for select to authenticated using (account_id = auth.uid());
+-- Ein Charakter auf Platz 3 ist nur bei aktiver Berechtigung lesbar (sonst gesperrt). Seine Daten bleiben unverändert gespeichert;
+-- list_characters() zeigt ihn weiterhin als gesperrt an (ohne Spielstand), damit er verschoben oder später wieder freigeschaltet werden kann.
+create policy char_own_read     on public.characters           for select to authenticated using (
+  account_id = auth.uid()
+  and (slot_number <> 3 or exists (select 1 from public.account_entitlements e
+                                   where e.account_id = auth.uid() and e.entitlement_type = 'third_character_slot' and e.status = 'active')));
 -- payment_events, character_backups, audit_log: bewusst keine Policy und keine Rechte für Clients.
 
 grant execute on function public.create_character(int,text,jsonb) to authenticated;
 grant execute on function public.save_character(uuid,int,jsonb)    to authenticated;
 grant execute on function public.delete_character(uuid)            to authenticated;
+grant execute on function public.list_characters()                 to authenticated;
+grant execute on function public.move_character(uuid,int)          to authenticated;
 grant execute on function public.touch_login()                     to authenticated;
 grant execute on function public.username_available(text)         to anon, authenticated;
 -- Alle übrigen Funktionen (has_entitlement, Trigger, safe_*) sind nur intern und für Clients nicht aufrufbar.

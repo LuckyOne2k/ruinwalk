@@ -123,15 +123,90 @@ select tap.is((select count(*) from public.account_entitlements),0::bigint,'B si
 select tap.throws($$select * from public.create_character(3,'Dritter','{}')$$,'slot_locked','Berechtigung von A schaltet Platz 3 für B nicht frei');
 select tap.as_service();
 update public.account_entitlements set status='refunded' where account_id=:A;
+select tap.as_admin();
+select tap.is((select count(*) from public.characters where account_id=:A and slot_number=3),1::bigint,'Nach Rückerstattung bleibt der vorhandene Charakter erhalten (nicht gelöscht)');
+select character_id as a3 from public.characters where account_id=:A and slot_number=3 \gset
 select tap.as_user(:A);
-select tap.is((select count(*) from public.characters where slot_number=3),1::bigint,'Nach Rückerstattung bleibt der vorhandene Charakter erhalten');
-select tap.lives($$select public.save_character((select character_id from public.characters where slot_number=3),1,'{"lv":4}')$$,'... und ist weiter speicherbar');
+select tap.is((select count(*) from public.characters where slot_number=3),0::bigint,'... ist aber für den Spieler gesperrt (nicht lesbar)');
+select tap.throws('select public.save_character('''||:'a3'||''',1,''{"lv":4}'')','character_locked','... und nicht speicherbar');
 select tap.as_admin();
 delete from public.characters where account_id=:A and slot_number=3;
 select tap.as_user(:A);
 select tap.throws($$select * from public.create_character(3,'Neu3','{}')$$,'slot_locked','Nach Rückerstattung ist ein neuer Charakter auf Platz 3 gesperrt');
 select tap.as_admin();
 select tap.ok((select count(*) from public.audit_log where action like 'entitlement_%')>=3,'Berechtigungsänderungen stehen im Audit-Log');
+
+-- ===== 5b. Rückerstattung: sperren statt löschen, Verschieben, Wiederfreischaltung =====
+select tap.as_service();
+insert into public.account_entitlements(account_id,entitlement_type,status,payment_reference) values (:C,'third_character_slot','active','pay_c');
+select tap.as_user(:C);
+select tap.lives($$select * from public.create_character(1,'C_eins','{"lv":2}')$$,'C: Platz 1');
+select tap.lives($$select * from public.create_character(3,'C_drei','{"lv":5,"cls":"jaeger","inv":{"holz":7}}')$$,'C: Platz 3 mit Berechtigung');
+select tap.lives($$select * from public.create_character(2,'C_zwei','{}')$$,'C: Platz 2 (beide kostenlosen Plätze belegt)');
+select tap.as_admin();
+select character_id as c3 from public.characters where account_id=:C and slot_number=3 \gset
+select tap.as_user(:C);
+select tap.is(public.save_character(:'c3',1,'{"lv":5,"cls":"jaeger","inv":{"holz":8}}'),2,'C speichert Platz 3 solange die Berechtigung gilt');
+select tap.is((select count(*) from public.list_characters() where not locked),3::bigint,'list_characters: mit Berechtigung ist nichts gesperrt');
+select tap.as_service();
+update public.account_entitlements set status='refunded' where account_id=:C;
+select tap.as_admin();
+select tap.is((select count(*) from public.characters where account_id=:C),3::bigint,'Rückerstattung löscht keinen Charakter');
+select tap.is((select character_data->'inv'->>'holz' from public.characters where character_id=:'c3'),'8','Spielstand auf Platz 3 bleibt unverändert gespeichert');
+select tap.as_user(:C);
+select tap.is((select locked from public.list_characters() where slot_number=3),true,'list_characters: Charakter auf Platz 3 ist als gesperrt markiert');
+select tap.is((select count(*) from public.list_characters()),3::bigint,'... und weiterhin aufgeführt');
+select tap.is((select count(*) from public.characters where slot_number=3),0::bigint,'Gesperrter Charakter: Spielstand ist nicht abrufbar');
+select tap.throws('select public.save_character('''||:'c3'||''',2,''{"lv":99}'')','character_locked','Gesperrter Charakter ist nicht speicherbar');
+select tap.throws($$select * from public.create_character(3,'Neu3','{}')$$,'slot_locked|23505','Ohne Berechtigung kein neuer Charakter auf Platz 3');
+select tap.throws('select public.move_character('''||:'c3'||''',1)','slot_occupied','Verschieben scheitert, wenn Platz 1 belegt ist');
+select tap.throws('select public.move_character('''||:'c3'||''',2)','slot_occupied','Verschieben scheitert, wenn Platz 2 belegt ist');
+select tap.throws('select public.move_character('''||:'c3'||''',3)','invalid_slot','Zielplatz 3 ist ungültig');
+select tap.throws('select public.move_character('''||:'c3'||''',0)','invalid_slot','Zielplatz 0 ist ungültig');
+select tap.as_admin();
+select tap.is((select slot_number||'/'||version||'/'||(character_data->'inv'->>'holz') from public.characters where character_id=:'c3'),'3/2/8','Fehlgeschlagenes Verschieben ändert nichts (Platz, Version, Spielstand)');
+-- Berechtigungszeile komplett entfernen: Charakter bleibt trotzdem erhalten
+select tap.as_service();
+delete from public.account_entitlements where account_id=:C;
+select tap.as_admin();
+select tap.is((select count(*) from public.characters where account_id=:C and slot_number=3),1::bigint,'Auch ohne Berechtigungszeile wird nichts gelöscht');
+-- Wiederfreischaltung: Charakter ist ohne Datenverlust wieder zugänglich
+select tap.as_service();
+insert into public.account_entitlements(account_id,entitlement_type,status,payment_reference) values (:C,'third_character_slot','active','pay_c2');
+select tap.as_user(:C);
+select tap.is((select locked from public.list_characters() where slot_number=3),false,'Nach erneuter Freischaltung nicht mehr gesperrt');
+select tap.is((select character_data->'inv'->>'holz' from public.characters where slot_number=3),'8','... Spielstand ist wieder lesbar und unverändert');
+select tap.is(public.save_character(:'c3',2,'{"lv":6,"cls":"jaeger","inv":{"holz":9}}'),3,'... und wieder speicherbar');
+-- Erneute Rückerstattung, dann freien Platz schaffen und verschieben
+select tap.as_service();
+update public.account_entitlements set status='refunded' where account_id=:C;
+select tap.as_user(:C);
+select tap.throws('select public.move_character('''||:'c3'||''',1)','slot_occupied','Wieder gesperrt, beide Plätze belegt: Verschieben nicht möglich');
+select tap.lives('select public.delete_character((select character_id from public.list_characters() where slot_number=2))','C löscht bewusst den Charakter auf Platz 2 (Spieleraktion)');
+select tap.as_admin();
+select count(*) as c3bak from public.character_backups where character_id=:'c3' \gset
+select tap.as_user(:B);
+select tap.throws('select public.move_character('''||:'c3'||''',2)','not_found','B kann Charakter von C nicht verschieben');
+select tap.as_anon();
+select tap.throws('select public.move_character('''||:'c3'||''',2)','permission denied|42501','Anonym kann nicht verschieben');
+select tap.as_user(:C);
+select tap.throws('select public.move_character((select character_id from public.characters where slot_number=1),2)','move_not_allowed','Nur Charaktere von Platz 3 lassen sich verschieben');
+select tap.is(public.move_character(:'c3',2),4,'Gesperrter Charakter wird auf den freien Platz 2 verschoben (Version erhöht)');
+select tap.is((select slot_number||'/'||(character_data->'inv'->>'holz') from public.characters where character_id=:'c3'),'2/9','Charakter liegt auf Platz 2, Spielstand vollständig erhalten');
+select tap.ok((select not locked from public.list_characters() where character_id=:'c3'),'Verschobener Charakter ist ohne Berechtigung spielbar');
+select tap.lives('select public.save_character('''||:'c3'||''',4,''{"lv":7,"cls":"jaeger","inv":{"holz":10}}'')','... und speicherbar');
+select tap.throws($$select * from public.create_character(3,'Neu3','{}')$$,'slot_locked','Platz 3 bleibt ohne Berechtigung gesperrt, auch wenn er jetzt frei ist');
+select tap.as_admin();
+select tap.ok((select count(*) from public.character_backups where character_id=:'c3')>=:c3bak,'Backups des verschobenen Charakters sind erhalten');
+select tap.is((select count(*) from public.audit_log where action='character_moved' and account_id=:C),1::bigint,'Verschieben steht im Audit-Log');
+select tap.throws('update public.characters set slot_number=3 where character_id='''||:'c3'||'''','immutable','Direktes Verschieben auf Platz 3 ist nie erlaubt');
+select tap.throws('update public.characters set slot_number=1 where character_id='''||:'c3'||'''','immutable','Direktes Verschieben ohne move_character ist nie erlaubt');
+-- Wiederkauf: Platz 3 steht wieder zur Verfügung
+select tap.as_service();
+update public.account_entitlements set status='active' where account_id=:C;
+select tap.as_user(:C);
+select tap.lives($$select * from public.create_character(3,'C_drei_neu','{}')$$,'Nach erneutem Kauf kann Platz 3 neu belegt werden');
+select tap.as_admin();
 
 -- ===== 6. Speichern mit Version =====
 select tap.as_user(:A);
@@ -206,7 +281,7 @@ select tap.as_admin();
 select tap.is((select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r' and not c.relrowsecurity),0::bigint,'RLS ist auf allen Tabellen in public aktiv');
 select tap.is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prosecdef and not coalesce(p.proconfig::text,'') like '%search_path%'),0::bigint,'Jede SECURITY-DEFINER-Funktion hat einen festen search_path');
 select tap.is((select string_agg(p.proname,',' order by p.proname) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and has_function_privilege('anon',p.oid,'execute')),'username_available','Anonym darf nur username_available aufrufen');
-select tap.is((select string_agg(p.proname,',' order by p.proname) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and has_function_privilege('authenticated',p.oid,'execute')),'create_character,delete_character,save_character,touch_login,username_available','Angemeldete Nutzer dürfen nur die vorgesehenen Funktionen aufrufen');
+select tap.is((select string_agg(p.proname,',' order by p.proname) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and has_function_privilege('authenticated',p.oid,'execute')),'create_character,delete_character,list_characters,move_character,save_character,touch_login,username_available','Angemeldete Nutzer dürfen nur die vorgesehenen Funktionen aufrufen');
 select tap.is((select count(*) from information_schema.role_table_grants where table_schema='public' and grantee in ('anon','authenticated') and privilege_type<>'SELECT'),0::bigint,'Clients haben nirgends INSERT/UPDATE/DELETE-Rechte');
 select tap.is((select count(*) from information_schema.role_table_grants where table_schema='public' and grantee='anon'),0::bigint,'Anonym hat keine Tabellenrechte');
 select tap.is((select count(*) from pg_policies where schemaname='public' and cmd in ('INSERT','UPDATE','DELETE','ALL')),0::bigint,'Es gibt keine schreibenden RLS-Policies für Clients');

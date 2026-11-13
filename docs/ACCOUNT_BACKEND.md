@@ -9,7 +9,7 @@ Grundlage: Produktspezifikation „Accountsystem, Charakterauswahl und Charakter
 - **Zahlung (Phase 5):** Zahlungsanbieter ruft eine Edge Function (Webhook) auf, sie prüft die Signatur und schreibt mit der Service-Role `account_entitlements`. Der Browser kann nie schreiben. `payment_events.provider_event_id` ist Primärschlüssel, dadurch doppelt verarbeitete Webhooks wirkungslos.
 
 ## Datenbank-Tests
-`bash supabase/tests/run.sh` startet ein temporäres PostgreSQL 16, spielt eine Supabase-Attrappe (Rollen `anon`/`authenticated`/`service_role`, `auth.users`, `auth.uid()`), das Schema und 126 Prüfungen ein. Sie laufen mit echten Rollenwechseln, also unter den tatsächlichen RLS-Regeln. Ob die Tests Fehler finden, wurde per Gegenprobe geprüft: 10 absichtlich eingebaute Lücken (z. B. fehlende Versions- oder Kontoprüfung, zu weite Policy, fehlender `search_path`) wurden alle erkannt.
+`bash supabase/tests/run.sh` startet ein temporäres PostgreSQL 16, spielt eine Supabase-Attrappe (Rollen `anon`/`authenticated`/`service_role`, `auth.users`, `auth.uid()`), das Schema und 163 Prüfungen ein, und zwar in beiden Supabase-Standardmodi (neue Projekte ohne automatische Rechte, ältere mit). Sie laufen mit echten Rollenwechseln, also unter den tatsächlichen RLS-Regeln. Ob die Tests Fehler finden, wurde per Gegenprobe geprüft: 10 absichtlich eingebaute Lücken (z. B. fehlende Versions- oder Kontoprüfung, zu weite Policy, fehlender `search_path`) wurden alle erkannt.
 
 ## Sicherheit (im Schema umgesetzt)
 | Anforderung | Umsetzung |
@@ -51,6 +51,6 @@ Bekannte Grenzen und Hinweise:
 - **Wegwerf-Registrierungen:** Unbestätigte Konten halten ihren Benutzernamen. Dafür später einen Aufräum-Job (z. B. nach 24 h ohne Bestätigung) einplanen.
 - **Namensabfrage:** `username_available` ist anonym aufrufbar (nötig für die Registrierung) und erlaubt das Durchprobieren von Namen. Rate-Limit über Supabase/Edge Function setzen.
 - **Speicherfrequenz:** Jedes Speichern legt den alten Stand (bis 1 MB) als Backup ab. Der Client sollte nicht alle 5 s, sondern gebündelt (z. B. bei Änderungen, höchstens alle 30–60 s) speichern; ein serverseitiges Rate-Limit fehlt noch.
-- **Rückerstattung:** Ein bereits angelegter Charakter auf Platz 3 bleibt nach Rückerstattung bestehen und speicherbar, nur das Neuanlegen wird gesperrt. Falls anders gewünscht, ist das eine Produktentscheidung.
+- **Rückerstattung (entschieden, siehe `PRODUKTSPEZIFIKATION_ACCOUNTS.md` 6.3):** Charakter auf Platz 3 wird gesperrt, nie gelöscht (nicht lesbar, nicht speicherbar, in `list_characters()` als `locked` ohne Spielstand sichtbar), per `move_character` auf einen freien kostenlosen Platz verschiebbar, nach erneuter Freischaltung wieder voll zugänglich.
 - **Supabase-Besonderheiten:** Der Trigger auf `auth.users` muss im SQL-Editor als `postgres` angelegt werden. Neue Funktionen in `public` erhalten standardmäßig EXECUTE für PUBLIC; nach jeder Erweiterung das `revoke ... from public` aus dem Schema wiederholen (Test „Angemeldete Nutzer dürfen nur die vorgesehenen Funktionen aufrufen" fängt das ab).
 - **Nicht getestet:** Das echte Supabase (GoTrue, PostgREST, Edge Functions). Die Tests laufen gegen PostgreSQL mit Attrappe; vor dem Produktivstart ein Durchlauf mit zwei echten Testkonten.
