@@ -3,7 +3,7 @@
 const KEY='sb_publishable_jmyPWZWX99qemJRyGh7Beg_lVDaNj4t';
 const SYM='!@#$%^&*()_+-=[]{};\':"\\|<>?,./`~';
 module.exports=function fake(){
-  const st={users:[],tokens:{},refresh:{},chars:[],calls:[],mails:[],n:0,offline:false,failCreate:0,failList:false,afterList:null,keyOk:true};
+  const st={users:[],tokens:{},refresh:{},chars:[],calls:[],mails:[],n:0,offline:false,failCreate:0,failList:false,failGet:false,tamper:null,afterList:null,keyOk:true};
   const uid=()=>'00000000-0000-4000-8000-'+String(++st.n).padStart(12,'0');
   const J=(route,status,body)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
   const user=u=>({id:u.id,email:u.email,email_confirmed_at:u.confirmed?'2026-11-13T10:00:00Z':null,user_metadata:{username:u.username}});
@@ -48,6 +48,11 @@ module.exports=function fake(){
     if(path==='/rest/v1/rpc/list_characters'){
       if(st.failList)return J(route,500,{message:'boom'});
       const out=rows(u);if(st.afterList){const f=st.afterList;st.afterList=null;f(u);}return J(route,200,out);}
+    if(path==='/rest/v1/characters'&&m==='GET'){
+      if(st.failGet)return J(route,500,{message:'boom'});
+      const id=(/^eq\.(.+)$/.exec(url.searchParams.get('character_id')||'')||[])[1];
+      let out=st.chars.filter(c=>c.id===id&&c.account===u.id&&!c.locked).map(c=>({character_id:c.id,account_id:c.account,slot_number:c.slot,character_name:c.name,version:c.version,character_data:c.data}));
+      if(st.tamper)out=st.tamper(out);return J(route,200,out);}
     if(path==='/rest/v1/rpc/create_character'){
       if(st.failCreate)return J(route,st.failCreate,{message:'boom'});
       if(!u.confirmed)return J(route,403,{code:'PT403',message:'email_not_verified'});

@@ -265,7 +265,7 @@ const slotKey=n=>n===1?'ruinwalk_v1':'ruinwalk_v1_s'+n;
 const CLOUD_ID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const cloudKey=id=>'ruinwalk_cc_'+id,cloudMetaKey=id=>'ruinwalk_cm_'+id;
 function metaOk(m,id){return !!m&&typeof m==='object'&&!Array.isArray(m)&&m.v===1&&m.cloudId===id&&CLOUD_ID_RE.test(id)&&typeof m.uid==='string'&&CLOUD_ID_RE.test(m.uid)
-  &&[1,2,3].includes(m.slot)&&Number.isInteger(m.baseVersion)&&m.baseVersion>=1&&typeof m.dirty==='boolean'&&Number.isFinite(m.syncedAt)&&m.syncedAt>=0;}
+  &&[1,2,3].includes(m.slot)&&Number.isInteger(m.baseVersion)&&m.baseVersion>=1&&typeof m.dirty==='boolean'&&Number.isFinite(m.syncedAt)&&m.syncedAt>=0&&(m.baseHash===undefined||(typeof m.baseHash==='string'&&m.baseHash.length<=40));}
 function readMeta(id){if(!CLOUD_ID_RE.test(id))return null;try{const m=JSON.parse(localStorage.getItem(cloudMetaKey(id))||'null');return metaOk(m,id)?m:null;}catch(e){return null;}}
 function writeMeta(m){if(!m||!metaOk(m,m.cloudId))return false;try{localStorage.setItem(cloudMetaKey(m.cloudId),JSON.stringify(m));return true;}catch(e){return false;}}
 const ACTIVE=(()=>{
@@ -1891,6 +1891,7 @@ function slotInfo(n){
 }
 const fmtPlay=sec=>{sec=Math.floor(sec);const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60);return h+' h '+String(m).padStart(2,'0')+' min';};
 let charDel=0,charDelT=0,charDet=0;
+function cloudMarked(c){try{const u=AUTH&&AUTH.s&&AUTH.s.user.id;return !!u&&!!(cloudMap()[u+':'+c.cid]);}catch(e){return false;}}
 function charsUI(){
   const el=$('#chars');
   let h='<h2>👥 Charaktere</h2><p style="text-align:center;font-size:13px;margin:0;opacity:.8">Jeder Charakter hat Inventar, Ausrüstung, Quests und Fortschritt ganz für sich.</p>';
@@ -1904,7 +1905,7 @@ function charsUI(){
       h+='<div class="c bad">⚠️ Spielstand beschädigt. Beim Spielen wird versucht, ihn aus der Sicherung wiederherzustellen.</div><button class="btn" data-a="cplay" data-slot="'+n+'">Spielen</button> <button class="btn sec" data-a="cdel" data-slot="'+n+'">'+(charDel===n?'Wirklich löschen?':'Löschen')+'</button>';
     }else{
       const c=si.c,cl=CLASSES[c.cls]||{i:'🧙',n:'Wanderer'};
-      h+='<div class="c"><b>'+cl.i+' '+charLabel(c).replace(/</g,'&lt;')+'</b><br>Level '+c.lv+' · '+cl.n+'<br><small>Spielzeit '+fmtPlay(c.played)+' · zuletzt '+(c.lp?new Date(c.lp).toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'}):'–')+'</small></div>'
+      h+='<div class="c"><b>'+cl.i+' '+charLabel(c).replace(/</g,'&lt;')+'</b><br>Level '+c.lv+' · '+cl.n+(cloudMarked(c)?'<br><small>☁️ Kopie liegt in der Cloud</small>':'')+'<br><small>Spielzeit '+fmtPlay(c.played)+' · zuletzt '+(c.lp?new Date(c.lp).toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'}):'–')+'</small></div>'
         +'<button class="btn" data-a="cplay" data-slot="'+n+'">'+(act?'Weiterspielen':'Spielen')+'</button> <button class="btn sec" data-a="cdet" data-slot="'+n+'">Details</button> <button class="btn sec" data-a="cdel" data-slot="'+n+'">'+(charDel===n?'Wirklich löschen?':'Löschen')+'</button>';
       if(charDet===n)h+='<div class="c" style="margin-top:6px"><small>ID '+c.cid.slice(0,8)+'… · Besiegt '+c.stats.kills+' · Gelaufen '+Math.round(c.stats.walk)+' m · Gegenstände '+c.gear.length+' · Quests erledigt '+c.qdone.length+' · erstellt '+new Date(c.created).toLocaleDateString('de-DE')+'</small></div>';
     }
@@ -1943,6 +1944,41 @@ function cloudCaches(){
   const out=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i),m=/^ruinwalk_cm_([0-9a-f-]{36})$/.exec(k||'');
     if(m){const meta=readMeta(m[1]);if(meta&&localStorage.getItem(cloudKey(m[1]))!==null)out.push(meta);}}}catch(e){}
   return out;}
+/* Fingerabdruck des Spielstands ohne die sich ständig ändernden Felder; zeigt, ob ein Zwischenspeicher seit dem Abgleich mit dem Server verändert wurde */
+function syncHash(st){
+  const o=Object.assign({},st);for(const k of ['last','played','lp','hp','en','gv'])delete o[k];   // gv: einmaliger Migrationsmarker, kein Spielfortschritt
+  const s=JSON.stringify(o,(k,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.entries(v).sort()):v);
+  let h1=0xdeadbeef^s.length,h2=0x41c6ce57^s.length;
+  for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);h1=Math.imul(h1^c,2654435761);h2=Math.imul(h2^c,1597334677);}
+  h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);
+  return (4294967296*(2097151&h2)+(h1>>>0)).toString(36)+':'+s.length;}
+/* Serverdaten nur annehmen, wenn sie wie ein echter Spielstand aussehen (nie ein leerer/erfundener Stand durch sanitize) und bereinigt werden können */
+function cloudState(d){
+  if(!isObj(d)||!(Number.isFinite(d.lv)&&d.lv>=1)||!isObj(d.inv)||!isObj(d.stats)||!Array.isArray(d.tools))return null;
+  const st=tryLoad(JSON.stringify(d));return st&&st.lv>=1?st:null;}
+/* Entscheidung beim Starten eines Cloud-Charakters (Serverstand ist beim ersten Laden maßgeblich; ein lokaler Zwischenspeicher
+   ersetzt nie einen neueren Serverstand und wird nie durch Serverdaten überschrieben, wenn er Änderungen enthält):
+   put = noch nichts auf diesem Gerät · start = Zwischenspeicher passt zum Server · replace = Zwischenspeicher unverändert, Server neuer · refuse = Abbruch, nichts wird verändert */
+function cloudStartPlan(id,uid,slot,srvVer){
+  let raw=null,mraw=null;try{raw=localStorage.getItem(cloudKey(id));mraw=localStorage.getItem(cloudMetaKey(id));}catch(e){return {a:'refuse',why:'storage'};}
+  if(raw===null&&mraw===null)return {a:'put'};
+  const meta=readMeta(id);
+  if(raw===null||!meta)return {a:'refuse',why:'incomplete'};
+  if(meta.uid!==uid||meta.slot!==slot)return {a:'refuse',why:'foreign'};
+  const st=tryLoad(raw);if(!st)return {a:'refuse',why:'corrupt'};
+  const clean=!meta.dirty&&!!meta.baseHash&&syncHash(st)===meta.baseHash;
+  if(srvVer===meta.baseVersion)return {a:'start',modified:!clean};
+  if(srvVer>meta.baseVersion)return clean?{a:'replace'}:{a:'refuse',why:'conflict'};
+  return {a:'refuse',why:'older'};}
+/* ersetzt einen unveränderten Zwischenspeicher durch den neueren Serverstand; der alte bleibt als _replaced_<zeit> erhalten */
+function cloudCacheReplace(meta,state){
+  const id=meta.cloudId,st=Object.assign({},state,{cid:id}),json=JSON.stringify(st);
+  try{
+    const old=localStorage.getItem(cloudKey(id));if(old===null)return false;
+    localStorage.setItem(cloudKey(id)+'_replaced_'+Date.now(),old);     // 1) alten Stand sichern (scheitert das, wird nichts ersetzt)
+    localStorage.setItem(cloudKey(id),json);localStorage.setItem(cloudKey(id)+'_bak',json);
+    return writeMeta(meta);
+  }catch(e){return false;}}
 function createChar(n,name){
   if(n<1||n>MAX_SLOTS||!slotOpen(n))return false;
   try{if(localStorage.getItem(slotKey(n)))return false;}catch(e){return false;}   // nie einen belegten Platz überschreiben
@@ -2053,7 +2089,7 @@ function acEligible(){
 function acHome(){
   const dis=acBusy?' disabled':'',u=AUTH.s.user;
   let h='<div class="rec"><div class="t">Angemeldet</div><div class="c"><b>'+escH(acProf||'…')+'</b><br><small>'+escH(u.email)+'</small></div><button class="btn sec" data-a="aclogout"'+dis+'>Abmelden</button></div>'
-   +'<p class="acn">Dein Spielstand liegt zuerst auf diesem Gerät. „In die Cloud kopieren“ legt nur eine Kopie an; lokal wird nichts verändert oder gelöscht.</p><h3 style="margin:4px 0">Cloud-Charakterplätze</h3>';
+   +'<p class="acn">Dein Spielstand liegt zuerst auf diesem Gerät. „In die Cloud kopieren“ legt nur eine Kopie an; lokal wird nichts verändert oder gelöscht.</p><h3 style="margin:4px 0">Cloud-Charakterplätze</h3><p class="acn">Hinweis: Der Spielfortschritt von Cloud-Charakteren wird vorerst nur auf diesem Gerät gespeichert; das automatische Speichern in der Cloud folgt in einem späteren Update.</p>';
   if(acCloud==='loading')return h+'<div class="rec"><div class="c">Lade Cloud-Charaktere …</div></div><button class="btn sec" data-a="acx">Zurück</button>';
   if(!Array.isArray(acCloud))return h+'<button class="btn" data-a="acref"'+dis+'>Erneut laden</button> <button class="btn sec" data-a="acx">Zurück</button>';
   const el=acEligible();
@@ -2062,12 +2098,13 @@ function acHome(){
     h+='<div class="rec'+((!c&&n>FREE_SLOTS)||(c&&c.locked)?' lock':'')+'"><div class="t">Platz '+n+(n>FREE_SLOTS?' · Premium':' · Kostenlos')+'</div>';
     if(c){const cl=CLASSES[c.character_class]||{i:'🧙',n:'Wanderer'};
       h+='<div class="c"><b>'+cl.i+' '+escH(c.character_name)+'</b><br>Level '+c.level+' · '+cl.n+(c.last_played?'<br><small>zuletzt '+escH(new Date(c.last_played).toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'}))+'</small>':'')+'</div>'
-        +(c.locked?'<div class="c">🔒 Gesperrt, solange keine gültige Berechtigung besteht. Der Charakter bleibt sicher gespeichert.</div>':'<div class="c">☁️ In der Cloud gespeichert</div>');
+        +(c.locked?'<div class="c">🔒 Gesperrt, solange keine gültige Berechtigung besteht. Der Charakter bleibt sicher gespeichert.</div>'
+          :'<div class="c">☁️ In der Cloud gespeichert'+(ACTIVE.type==='cloud'&&ACTIVE.id===c.character_id?' · <b>aktiv</b>':'')+'</div><button class="btn" data-a="accplay" data-id="'+escH(c.character_id)+'"'+dis+'>'+(ACTIVE.type==='cloud'&&ACTIVE.id===c.character_id?'Weiterspielen':'▶ Spielen')+'</button>');
     }else if(n>FREE_SLOTS){h+='<div class="c">🔒 Gesperrt. Der dritte Platz wird später einmalig freigeschaltet.</div>';}
-    else if(!el.length){h+='<div class="c">Leer</div>';}
-    else{h+='<div class="c">Leer</div><label class="acl">Lokalen Charakter wählen</label><select id="acsel'+n+'">'
+    else{h+='<div class="c">Leer</div><label class="acl" for="accn'+n+'">Neuer Cloud-Charakter</label><input id="accn'+n+'" maxlength="16" placeholder="Name des Charakters" autocomplete="off"><button class="btn" data-a="accnew" data-slot="'+n+'"'+dis+'>✨ Neuen Cloud-Charakter erstellen</button>';
+      if(el.length)h+='<label class="acl">oder lokalen Charakter kopieren</label><select id="acsel'+n+'">'
       +el.map(x=>'<option value="'+x.n+'">Platz '+x.n+': '+escH(charLabel(x.c))+' (Level '+x.c.lv+')</option>').join('')+'</select>'
-      +'<button class="btn" data-a="acup" data-slot="'+n+'"'+dis+'>☁️ In die Cloud kopieren</button>';}
+      +'<button class="btn sec" data-a="acup" data-slot="'+n+'"'+dis+'>☁️ In die Cloud kopieren</button>';}
     h+='</div>';}
   return h+'<button class="btn sec" data-a="acref"'+dis+'>Aktualisieren</button> <button class="btn sec" data-a="acx">Zurück</button>';}
 function acctUI(){
@@ -2195,6 +2232,65 @@ async function acUpload(cslot,lslot){
   if(found){cloudMapSet(uid,c.cid,cid,cslot);acM('ok','„'+charLabel(c)+'“ wurde in die Cloud kopiert (Platz '+cslot+'). Lokal ist alles unverändert.');}
   else acM('bad','Der Server hat die Kopie nicht bestätigt. Der lokale Spielstand ist unverändert. Prüfe mit „Aktualisieren“ und versuche es ggf. erneut.');
   await acLoad(false,true);}
+/* ---------- Cloud-Charaktere starten / neu anlegen (3b) ----------
+   Serverstand ist beim ersten Laden maßgeblich. Gestartet wird nur nach erfolgreicher Prüfung (Liste + Zeile: ID, Konto, Platz, Version, Spielstand).
+   Bei fehlender Verbindung, ungültigen Daten oder Fehlschlag passiert nichts: kein leerer oder ungeprüfter Stand, lokale Daten unverändert. */
+const PLAY_WHY={storage:'Der Gerätespeicher ist nicht verfügbar.',incomplete:'Der Zwischenspeicher dieses Charakters auf dem Gerät ist unvollständig. Aus Sicherheitsgründen wird er nicht überschrieben.',
+  foreign:'Der Zwischenspeicher auf diesem Gerät gehört nicht zu diesem Konto bzw. Platz.',corrupt:'Der Zwischenspeicher auf diesem Gerät ist beschädigt. Er bleibt unverändert erhalten.',
+  older:'Der Server hat einen älteren Stand als dieses Gerät. Zur Sicherheit wird nichts gestartet.',conflict:'Auf diesem Gerät gibt es nicht synchronisierte Änderungen und der Server hat einen neueren Stand. Zur Sicherheit wird nichts überschrieben; die Auflösung folgt in einem späteren Update.'};
+const acNoAuth=()=>{acBusy=false;acV='login';acCloud=null;acM('bad','Deine Sitzung ist abgelaufen. Bitte melde dich neu an. Dein lokaler Spielstand ist unverändert.');acctUI();};
+async function acPlay(id){
+  if(acBusy||!AUTH.s||typeof id!=='string'||!CLOUD_ID_RE.test(id))return;
+  const uid=AUTH.s.user.id;
+  if(ACTIVE.type==='cloud'&&ACTIVE.id===id){$('#acct').style.display='none';return;}
+  const fail=m=>{acBusy=false;acM('bad',m+' Dein lokaler Spielstand ist unverändert.');acctUI();return false;};
+  acBusy=true;acMsg=null;acctUI();
+  const lr=await sbAuthed('/rest/v1/rpc/list_characters',{method:'POST',body:{}});
+  if(lr.noauth)return acNoAuth();
+  if(!lr.ok||!Array.isArray(lr.j))return fail(lr.net?'Keine Verbindung zum Server – ein Cloud-Charakter wird nur nach erfolgreicher Prüfung gestartet.':'Die Cloud-Liste konnte nicht geprüft werden.');
+  const row=lr.j.find(x=>x&&x.character_id===id);
+  if(!row||![1,2,3].includes(row.slot_number)||!Number.isInteger(row.version)||row.version<1)return fail('Dieser Charakter wurde auf dem Server nicht gefunden.');
+  if(row.locked!==false)return fail('Dieser Platz ist gesperrt (keine gültige Berechtigung).');
+  const gr=await sbAuthed('/rest/v1/characters?select=character_id,account_id,slot_number,character_name,version,character_data&character_id=eq.'+encodeURIComponent(id),{});
+  if(gr.noauth)return acNoAuth();
+  if(!gr.ok||!Array.isArray(gr.j))return fail(gr.net?'Keine Verbindung zum Server – ein Cloud-Charakter wird nur nach erfolgreicher Prüfung gestartet.':'Der Charakter konnte nicht vom Server geladen werden.');
+  const g=gr.j.length===1?gr.j[0]:null;
+  if(!g||g.character_id!==id||g.account_id!==uid||g.slot_number!==row.slot_number||g.version!==row.version)return fail('Die Serverdaten passen nicht zusammen (ID, Konto, Platz oder Version). Bitte „Aktualisieren“ und erneut versuchen.');
+  const st0=cloudState(g.character_data);
+  if(!st0)return fail('Die Serverdaten dieses Charakters sind ungültig. Es wird nichts gestartet.');
+  const st=sanitize(Object.assign({},st0,{cid:id})),slot=g.slot_number,ver=g.version;
+  const plan=cloudStartPlan(id,uid,slot,ver);
+  if(plan.a==='refuse')return fail(PLAY_WHY[plan.why]||'Der Zwischenspeicher dieses Charakters ist nicht prüfbar.');
+  const meta={v:1,uid,cloudId:id,slot,baseVersion:ver,dirty:false,syncedAt:Date.now(),baseHash:syncHash(st)};
+  let ok=false;
+  if(plan.a==='put')ok=cloudCachePut(meta,st);
+  else if(plan.a==='replace')ok=cloudCacheReplace(meta,st);
+  else{ok=true;if(plan.modified){const m=readMeta(id);ok=!!m&&(m.dirty||writeMeta(Object.assign({},m,{dirty:true})));}}   // Zwischenspeicher passt zum Server → damit weiterspielen
+  if(!ok)return fail('Der Charakter konnte nicht auf diesem Gerät vorbereitet werden (Speicher voll oder gesperrt).');
+  acBusy=false;
+  if(!switchCloud(id))return fail('Der Charakter konnte nicht gestartet werden.');
+}
+async function acCreateCloud(slot){
+  if(acBusy||!AUTH.s||!Array.isArray(acCloud))return;
+  if(!(slot>=1&&slot<=FREE_SLOTS)||acCloud.some(x=>x.slot_number===slot))return;   // Platz 3 nur nach serverseitiger Berechtigung (später) – hier immer abgelehnt
+  const uid=AUTH.s.user.id,raw=(($('#accn'+slot)||{}).value||'');
+  const name=cloudName({name:raw});
+  const fail=m=>{acBusy=false;acM('bad',m);acctUI();return false;};
+  const c=sanitize(Object.assign(def(),{name,created:Date.now(),last:Date.now()}));
+  acBusy=true;acMsg=null;acctUI();
+  const r=await sbAuthed('/rest/v1/rpc/create_character',{method:'POST',body:{p_slot:slot,p_name:name,p_data:c},timeout:30000});
+  if(r.noauth)return acNoAuth();
+  const row0=Array.isArray(r.j)?r.j[0]:r.j,id=r.ok&&row0&&typeof row0.character_id==='string'&&CLOUD_ID_RE.test(row0.character_id)?row0.character_id:null;
+  if(!id){acBusy=false;acM('bad',rpcErr(r));await acLoad(false,true);return;}
+  const gr=await sbAuthed('/rest/v1/characters?select=character_id,account_id,slot_number,version,character_data&character_id=eq.'+encodeURIComponent(id),{});
+  const g=gr.ok&&Array.isArray(gr.j)&&gr.j.length===1?gr.j[0]:null,st0=g&&g.character_id===id&&g.account_id===uid&&g.slot_number===slot&&Number.isInteger(g.version)&&g.version>=1?cloudState(g.character_data):null;
+  if(!st0){acBusy=false;acM('bad','Der Charakter wurde angelegt, konnte aber noch nicht geprüft werden. Tippe auf „Aktualisieren“ und dann auf „Spielen“.');await acLoad(false,true);return;}
+  const st=sanitize(Object.assign({},st0,{cid:id}));
+  if(!cloudCachePut({v:1,uid,cloudId:id,slot,baseVersion:g.version,dirty:false,syncedAt:Date.now(),baseHash:syncHash(st)},st)){
+    acBusy=false;acM('bad','Der Charakter liegt in der Cloud, konnte aber nicht auf diesem Gerät vorbereitet werden. Tippe auf „Spielen“, um es erneut zu versuchen.');await acLoad(false,true);return;}
+  acBusy=false;
+  if(!switchCloud(id)){acM('ok','Charakter angelegt. Tippe auf „Spielen“, um zu starten.');await acLoad(false,true);}
+}
 /* Links aus Bestätigungs-/Reset-Mails kommen als #access_token=… zurück */
 async function authBoot(){
   authLoad();
@@ -2376,6 +2472,8 @@ document.addEventListener('click',ev=>{
     case 'acres':acResend();break;
     case 'aclogout':acLogout();break;
     case 'acref':acLoad(false);break;
+    case 'accplay':acPlay(b.dataset.id);break;
+    case 'accnew':acCreateCloud(+b.dataset.slot);break;
     case 'acup':acUpload(+b.dataset.slot,+(($('#acsel'+b.dataset.slot)||{}).value));break;
     case 'cclose':$('#chars').style.display='none';break;
     case 'cplay':{const n=+b.dataset.slot;if(n===SLOT)$('#chars').style.display='none';else switchSlot(n);break;}
@@ -2477,7 +2575,7 @@ authBoot();
 /* Test-Schnittstelle: nur aktiv, wenn vor dem Laden window.__RW_TEST=true gesetzt wird (siehe tests/). Im normalen Spiel ohne Wirkung. */
 if(window.__RW_TEST)window.__RW={get S(){return S;},set S(v){S=v;},get sel(){return sel;},set sel(v){sel=v;},get P(){return P;},get nextAtk(){return nextAtk;},set nextAtk(v){nextAtk=v;},
   get psn(){return psn;},set psn(v){psn=v;},get gpsLost(){return gpsLost;},set gpsLost(v){gpsLost=v;},
-  KEY,SLOT,ACTIVE,cloudKey,cloudMetaKey,readMeta,writeMeta,cloudCachePut,cloudCaches,switchCloud,CLOUD_ID_RE,createChar,save,sanitize,def,regen,pruneCd,toast,getBase,gearOf,addGear,equip,canEquip,fixEq,fixGear,upgradeGear,craftGear,craft,addXP,maxHP,defense,atk,critCh,gVal,gSell,gStats,SB,
+  KEY,SLOT,ACTIVE,syncHash,cloudState,cloudStartPlan,cloudCacheReplace,acPlay,acCreateCloud,cloudKey,cloudMetaKey,readMeta,writeMeta,cloudCachePut,cloudCaches,switchCloud,CLOUD_ID_RE,createChar,save,sanitize,def,regen,pruneCd,toast,getBase,gearOf,addGear,equip,canEquip,fixEq,fixGear,upgradeGear,craftGear,craft,addXP,maxHP,defense,atk,critCh,gVal,gSell,gStats,SB,
   strike,shoot,monsterHit,faint,setPos,countWalk,select,refreshWorld,cellEnts,areaEnts,usePotion,useItem,rollGear,rollPathSet,rollSet,have,add,claimQuest,checkQuests,
   ents,roam,eng,SETS,SETD,PATHS,MOBS,GR,RECIPES,QUESTS,ITEMS,NODES,SELL,BUY,ABIL,CW,TIERS,COIN,HAB,CLASSES,SSLOTS,ARM,ATYPES,ARMT,SECRET,UPQ,effClass,UPCOST,UPFEE,UPMAX,UP_LV,LV_CAP,QM,QN,
   wK,oK,enc,gBuyPrice,rollQ,DROPQ,RDROPQ,DROPT,DROPCH,RDROPCH,pickMob,hash,mulberry,dist,DLAT,DLON,RANGE,gpsWatch,setLastFix:v=>{lastFix=v;},setWatch:v=>{watchId=v;},setWatchStart:v=>{watchStart=v;lastRestart=v;},get watchId(){return watchId;},get gpsDenied(){return gpsDenied;},get lastRestart(){return lastRestart;},onPos,onErr,startGPS,roamTick,

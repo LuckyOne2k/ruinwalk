@@ -81,3 +81,17 @@ Stand: Analyse von Commit e2eb942 (13.11.2026). Es ist **nichts implementiert**;
 - **Neue Hilfen (noch ohne Oberfläche/Netz):** `readMeta`, `writeMeta`, `cloudCachePut`, `cloudCaches`, `switchCloud`.
 - **Tests:** 13 neue (`tests/cases/cloudbase.js`), gesamt **135/135**. Absichtlich eingebaute Fehler (Cloud schreibt in lokalen Schlüssel; Identität nicht erzwungen) werden von den Tests erkannt.
 - Nicht geändert: Live-Supabase, Schema, Spielmechanik, GPS, Kampf, Inventar, Quests, Konto-Code.
+
+### 3b Cloud-Charaktere laden, starten, anlegen – erledigt (13.11.2026)
+- **Starten (`acPlay`)** nur nach vollständiger Serverprüfung: frische `list_characters` (Zeile vorhanden, `locked === false`) → Lesen der Zeile aus `characters` (RLS) → `character_id`, `account_id` (= angemeldetes Konto), Platz und Version müssen zur Liste passen → Spielstand muss plausibel sein (`cloudState`: Level ≥ 1, `inv`/`stats` Objekte, `tools` Liste; nie ein per `sanitize` erfundener Leerstand). Danach Entscheidung `cloudStartPlan`:
+  - kein Zwischenspeicher → anlegen (`cloudCachePut`, überschreibt nie);
+  - Zwischenspeicher passt zur Serverversion → damit weiterspielen (bei Änderungen `dirty:true`);
+  - Server neuer und Zwischenspeicher unverändert (`baseHash`) → Ersetzen, alter Stand bleibt als `ruinwalk_cc_<id>_replaced_<zeit>`;
+  - Server neuer, Zwischenspeicher verändert (Konflikt), Server älter, fremdes Konto/Platz, beschädigt, unvollständig → **Abbruch ohne jede Änderung** mit verständlicher Meldung.
+- **Neu anlegen (`acCreateCloud`)** nur Platz 1 und 2 (Platz 3 wird clientseitig immer abgelehnt; serverseitig sperrt zusätzlich RLS/`create_character`). Ablauf: `create_character` → Nachprüfung per Lesen (ID, Konto, Platz, Version, Spielstand) → Zwischenspeicher → Start. Schlägt etwas fehl, bleibt der Charakter ggf. auf dem Server und lässt sich später per „Spielen“ starten; lokal ändert sich nichts.
+- **Offline/Fehler:** ohne erfolgreiche Serverprüfung wird nie ein Cloud-Charakter gestartet (auch nicht aus vorhandenem Zwischenspeicher).
+- **Oberfläche:** Konto → Cloud-Plätze: „▶ Spielen“/„Weiterspielen“ + „aktiv“, Namensfeld + „Neuen Cloud-Charakter erstellen“ auf freien Plätzen 1/2, Hinweis zum Geräte-Fortschritt; Charakterbildschirm: lokale Charaktere mit Cloud-Kopie tragen den Vermerk „☁️ Kopie liegt in der Cloud“ (Entscheidung A, nur Anzeige).
+- **Hash:** `syncHash` ignoriert `last/played/lp/hp/en` und den Migrationsmarker `gv`.
+- **Tests:** 23 neue (`tests/cases/cloudplay.js`), gesamt **158/158**. Eingebaute Fehler (Kontoprüfung, Sperrprüfung, Überschreiben bei Konflikt, Plausibilitätsprüfung, Platz 3) werden erkannt.
+- **Bekannte Einschränkungen:** (1) Kein Offline-Start von Cloud-Charakteren. (2) Der Fortschritt eines Cloud-Charakters liegt bis 3c nur auf dem Gerät (Hinweis in der Oberfläche); der Server wird in 3b nie beschrieben. (3) Konflikte/beschädigte/unvollständige Zwischenspeicher werden nur verweigert, die Auflösung folgt in 3d. (4) Verschieben von Platz 3 (3e) ist nicht behandelt. (5) Echtes Supabase ist aus der Testumgebung nicht erreichbar → Tests laufen gegen die Attrappe; praktischer Test durch dich nötig.
+- Nicht geändert: Live-Supabase/Schema (S1 weiterhin nicht angewendet), Spielmechanik, GPS, Kampf, Inventar, Quests, Passwortregeln, lokale Spielstände/Backups.
