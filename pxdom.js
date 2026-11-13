@@ -8,8 +8,8 @@ const PX_URL={};
 const PX_LAY={ritter:'wo',krieger:'wo',paladin:'wo',sonnenwaechter:'wo',duellant:'wo',klingentaenzer:'wo',phantomklinge:'wo',berserker:'w',kriegsherr:'w',weltenbrecher:'w',bogen:'wo',scharfschuetze:'wo',meisterschuetze:'wo',falkenauge:'wo',jaeger:'wo',bestienmeister:'wo',herr:'wo',fallensteller:'wo',schattenjaeger:'wo',nachtpirscher:'wo'};
 function pxUrl(emo){
   const k=PX_KEYS[PX_NORM(emo)];if(!k)return null;
-  if(typeof PX_ITEMS!=='undefined'){const m=/^:[ing]_(\w+):$/.exec(k);if(m&&PX_ITEMS.indexOf(m[1])>=0&&(k[1]==='i'||k[1]==='g'||['stock','stein','ranke','kraut'].indexOf(m[1])>=0))return 'items/'+m[1]+'.png?v=3';}
-  if(typeof PX_PNG!=='undefined'){const m=/^:ch_(\w+):$/.exec(k);if(m&&PX_PNG.indexOf(m[1])>=0){const sl=m[1];if(PX_LAY[sl]&&typeof PX_EQ==='function'){const e=PX_EQ(sl);if(e){const L=[];if(e.w&&PX_LAY[sl].indexOf('w')>=0)L.push('figs/lay/'+sl+'_w_'+e.w+'.png?v=3');if(e.o&&PX_LAY[sl].indexOf('o')>=0)L.push('figs/lay/'+sl+'_o_'+e.o+'.png?v=3');L.push('figs/'+sl+'_base.png?v=3');return 'url('+L.join('),url(')+')';}}return 'figs/'+sl+'.png?v=38';}}
+  if(typeof PX_ITEMS!=='undefined'){const m=/^:[ing]_(\w+):$/.exec(k);if(m&&PX_ITEMS.indexOf(m[1])>=0&&(k[1]==='i'||k[1]==='g'||['stock','stein','ranke','kraut'].indexOf(m[1])>=0))return 'items/'+m[1]+'.png?v=4';}
+  if(typeof PX_PNG!=='undefined'){const m=/^:ch_(\w+):$/.exec(k);if(m&&PX_PNG.indexOf(m[1])>=0){const sl=m[1];if(PX_LAY[sl]&&typeof PX_EQ==='function'){const e=PX_EQ(sl);if(e){const L=[];if(e.w&&PX_LAY[sl].indexOf('w')>=0)L.push('figs/lay/'+sl+'_w_'+e.w+'.png?v=4');if(e.o&&PX_LAY[sl].indexOf('o')>=0)L.push('figs/lay/'+sl+'_o_'+e.o+'.png?v=4');L.push('figs/'+sl+(e.w?'_base':'_down')+'.png?v=4');return 'url('+L.join('),url(')+')';}}return 'figs/'+sl+'.png?v=48';}}
   if(PX_URL[k])return PX_URL[k];
   const d=pxDef(k);if(!d)return null;
   const cv=document.createElement('canvas');const NN=pxSizeOf(d[0],32);cv.width=cv.height=NN;
