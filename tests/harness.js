@@ -11,12 +11,14 @@ exports.serve=()=>new Promise(res=>{
   srv.listen(0,'127.0.0.1',()=>res({srv,url:'http://127.0.0.1:'+srv.address().port}));});
 exports.launch=async()=>chromium.launch({executablePath:process.env.CHROME_PATH||'/usr/bin/google-chrome',args:['--no-sandbox']});
 /* Neue Seite; seed = Objekt, das als Spielstand in localStorage steht (oder String für Rohdaten) */
-exports.page=async(browser,url,seed,query)=>{
+exports.page=async(browser,url,seed,query,pre)=>{
   const ctx=await browser.newContext({viewport:{width:390,height:800}});
   const p=await ctx.newPage();p.errors=[];p.on('pageerror',e=>p.errors.push(e.message));
   await p.route('**/unpkg.com/**',r=>r.fulfill({body:'',contentType:'text/css'}));
   await p.route('**/unpkg.com/leaflet@1.9.4/dist/leaflet.js',r=>r.fulfill({body:fs.readFileSync(path.join(__dirname,'leaflet-stub.js'),'utf8'),contentType:'application/javascript'}));
   await p.route(/openstreetmap|overpass/,r=>r.abort());
+  await p.route(/\.supabase\.co/,r=>r.abort());   // Standard: kein echter Netzwerkzugriff; Authentifizierungstests setzen eine Attrappe (pre)
+  if(pre)await pre(p);
   await p.addInitScript(([seed])=>{window.__RW_TEST=true;
     if(seed!==undefined&&!sessionStorage.getItem('__seeded')){sessionStorage.setItem('__seeded','1');localStorage.setItem('ruinwalk_v1',typeof seed==='string'?seed:JSON.stringify(seed));}},[seed]);
   await p.goto(url+'/index.html'+(query||''));

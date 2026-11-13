@@ -62,6 +62,7 @@ body.cbt #fx{top:calc(182px + var(--st))}
 .hpbar i{display:block;height:100%;background:var(--hp)}
 /* Sheet */
 #chars{position:absolute;inset:0;z-index:1100;background:linear-gradient(#3a2415,#16120f);display:none;flex-direction:column;padding:18px 14px;overflow:auto;gap:10px}#chars h2{margin:0;text-align:center}#chars .rec.lock{opacity:.6}#chars input{width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--sur);color:inherit;font-size:16px;margin:6px 0}
+#acct{position:absolute;inset:0;z-index:1300;background:linear-gradient(#3a2415,#16120f);display:none;flex-direction:column;padding:18px 14px;overflow:auto;gap:8px}#acct h2{margin:0;text-align:center}#acct .rec.lock{opacity:.6}#acct input,#acct select{width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--sur);color:inherit;font-size:16px;margin:4px 0 6px}#acct .acl{font-size:12px;opacity:.8;margin-top:4px}#acct .acn{font-size:12px;opacity:.75;margin:2px 0}#acct .msg{padding:8px 10px;border-radius:10px;background:var(--sur);border:1px solid var(--line);font-size:14px}#acct h3{font-size:15px}
 #ipop{position:absolute;inset:0;z-index:900;display:none;align-items:center;justify-content:center;padding:16px}#ipop .bd{position:absolute;inset:0;background:rgba(0,0,0,.6)}#ipop .bx{position:relative;width:100%;max-width:420px;max-height:86%;overflow:auto;background:var(--card);border:2px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.5)}#ipop .big{font-size:46px;text-align:center;line-height:1.1}#ipop .x{position:absolute;top:8px;right:10px}.rec.tap{cursor:pointer}
 #sheet{position:absolute;left:0;right:0;bottom:0;top:12%;z-index:800;background:var(--card);border-radius:22px 22px 0 0;box-shadow:0 -4px 20px rgba(0,0,0,.35);display:none;flex-direction:column}
 .sh-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 8px;background:linear-gradient(#4a2d1a,var(--card));border-radius:22px 22px 0 0}
@@ -213,6 +214,7 @@ body.cbt #react:not(.boss) [data-a=potion]{left:0;bottom:0}
 <div id="ipop"></div>
 
 <div id="chars"></div>
+<div id="acct"></div>
 
 <div id="faint"><div class="fbox" id="fbox"></div></div>
 
@@ -222,6 +224,7 @@ body.cbt #react:not(.boss) [data-a=potion]{left:0;bottom:0}
   <button class="btn" data-a="start">📍 Standort aktivieren &amp; starten</button>
   <button class="btn sec" data-a="starttest">Erst ohne GPS testen (Augsburg)</button>
   <button class="btn sec" data-a="chars">👥 Charaktere</button>
+  <button class="btn sec" data-a="acct">☁️ Konto</button>
   <p class="warn" id="startWarn"></p>
 </div>
 
@@ -1840,6 +1843,7 @@ function openSheet(s){
       +'<button class="btn sec" style="margin-top:8px" data-a="cheatmat">🧪 Upgrade-Material ins Inventar</button>':'')
       +((S.test&&S.cls!=='wanderer'&&S.tier<3)?'<button class="btn sec" style="margin-top:8px" data-a="cheatup">🧪 Nächste Klassenentwicklung freischalten</button>':'')
       +'<h3>Charakter</h3><p style="font-size:14px">Aktiv: <b>'+charLabel(S)+'</b> (Platz '+SLOT+'). Jeder Charakter hat einen eigenen Spielstand.</p><button class="btn sec" data-a="chars">👥 Charakter wechseln</button>'
+      +'<h3>Konto</h3><p style="font-size:14px">Optional: Mit einem Konto kannst du Charaktere in der Cloud sichern. Ohne Konto spielst du wie bisher.</p><button class="btn sec" data-a="acct">☁️ Konto &amp; Cloud</button>'
       +'<h3>Spielstand</h3><p style="font-size:14px">Wird automatisch in diesem Browser gespeichert.</p>'
       +'<button class="btn sec" data-a="reset">'+(confirmReset?'Wirklich alles löschen? Nochmal tippen':'Spielstand löschen')+'</button>'
       +'<h3>Über</h3><p style="font-size:13px;line-height:1.5">Prototyp. Ressourcen und Monster entstehen deterministisch an festen Orten der echten Karte, für alle Spieler gleich. Respawn nach 8–15 Minuten. Kartendaten © OpenStreetMap-Mitwirkende.</p>';
@@ -1901,6 +1905,265 @@ function deleteChar(n){ // betrifft ausschließlich die Schlüssel dieses Platze
     noSave=true;try{localStorage.setItem(SLOT_KEY,String(next));}catch(e){}location.reload();}
   else charsUI();
 }
+/* ---------- Konto (Supabase Auth, nur Publishable Key) ----------
+   Reiner fetch-Client gegen die Supabase-REST-Schnittstellen (kein Dienst-Schlüssel, kein Datenbank-Passwort im Browser).
+   Berührt NIE Spielstand, Charakterplätze oder Backups: lokal wird ausschließlich gelesen. Eigene Schlüssel: ruinwalk_auth, ruinwalk_cloudmap. */
+const SB_URL='https://malbiahllucctiafzydv.supabase.co',SB_KEY='sb_publishable_jmyPWZWX99qemJRyGh7Beg_lVDaNj4t';
+const AUTH_KEY='ruinwalk_auth',CLOUDMAP_KEY='ruinwalk_cloudmap';
+const SITE_URL=location.origin+location.pathname;
+const AUTH={s:null,rec:null};
+const escH=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+/* Eingabeprüfung: mindestens so streng wie Supabase (Passwort: 8 Zeichen, Klein-, Großbuchstabe, Ziffer, Sonderzeichen) */
+const PW_SYM='!@#$%^&*()_+-=[]{};\':"\\|<>?,./`~';
+function pwCheck(p){const e=[];
+  if(p.length<8)e.push('mindestens 8 Zeichen');
+  if(p.length>72)e.push('höchstens 72 Zeichen');
+  if(!/[a-z]/.test(p))e.push('einen Kleinbuchstaben');
+  if(!/[A-Z]/.test(p))e.push('einen Großbuchstaben');
+  if(!/[0-9]/.test(p))e.push('eine Ziffer');
+  if(![...p].some(ch=>PW_SYM.includes(ch)))e.push('ein Sonderzeichen (z. B. ! ? # $ % & * -)');
+  return e;}
+const mailOk=e=>e.length<=254&&/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
+const userOk=u=>/^[A-Za-z0-9_]{3,20}$/.test(u);
+const PW_HINT='Mindestens 8 Zeichen mit Klein- und Großbuchstaben, Ziffer und Sonderzeichen.';
+
+function authLoad(){try{const r=JSON.parse(localStorage.getItem(AUTH_KEY)||'null');
+  if(r&&typeof r.access_token==='string'&&typeof r.refresh_token==='string'&&typeof r.exp==='number'&&r.user&&/^[0-9a-f-]{36}$/.test(r.user.id)&&typeof r.user.email==='string')AUTH.s=r;}catch(e){}}
+function authStore(s){AUTH.s=s;try{if(s)localStorage.setItem(AUTH_KEY,JSON.stringify(s));else localStorage.removeItem(AUTH_KEY);}catch(e){}}
+function mkSession(j){return {access_token:j.access_token,refresh_token:j.refresh_token,exp:j.expires_at?j.expires_at*1000:Date.now()+(j.expires_in||3600)*1000,user:{id:j.user.id,email:j.user.email}};}
+async function sbFetch(path,o){o=o||{};
+  const ac=new AbortController(),t=setTimeout(()=>ac.abort(),o.timeout||15000);
+  try{
+    const r=await fetch(SB_URL+path,{method:o.method||'GET',signal:ac.signal,
+      headers:Object.assign({apikey:SB_KEY,'Content-Type':'application/json'},o.token?{Authorization:'Bearer '+o.token}:{}),
+      body:o.body===undefined?undefined:JSON.stringify(o.body)});
+    let j=null;try{j=await r.json();}catch(e){}
+    return {ok:r.ok,status:r.status,j};
+  }catch(e){return {ok:false,status:0,j:null,net:true};}
+  finally{clearTimeout(t);}
+}
+let refreshP=null;
+function authRefresh(){
+  if(!AUTH.s)return Promise.resolve('expired');
+  if(refreshP)return refreshP;
+  const rt=AUTH.s.refresh_token;
+  refreshP=(async()=>{
+    const r=await sbFetch('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:{refresh_token:rt}});
+    if(r.ok&&r.j&&r.j.access_token&&r.j.user){authStore(mkSession(r.j));return 'ok';}
+    if(r.net||r.status>=500||r.status===429)return 'net';      // Verbindungsproblem: Sitzung behalten
+    authStore(null);return 'expired';                          // Token wirklich ungültig
+  })().finally(()=>{refreshP=null;});
+  return refreshP;}
+/* Aufruf mit Anmelde-Token; erneuert ihn bei Ablauf (einmal) */
+async function sbAuthed(path,o){
+  if(!AUTH.s)return {ok:false,status:401,j:null,noauth:true};
+  if(AUTH.s.exp-Date.now()<60000){const st=await authRefresh();if(st==='expired')return {ok:false,status:401,j:null,noauth:true};}
+  if(!AUTH.s)return {ok:false,status:401,j:null,noauth:true};
+  let r=await sbFetch(path,Object.assign({},o,{token:AUTH.s.access_token}));
+  if(r.status===401){const st=await authRefresh();
+    if(st==='ok')r=await sbFetch(path,Object.assign({},o,{token:AUTH.s.access_token}));
+    else if(st==='expired')r.noauth=true;}
+  return r;}
+function authErr(r,what){
+  if(r.net)return 'Keine Verbindung zum Server. Prüfe dein Internet und versuche es erneut.';
+  const j=r.j||{},c=j.error_code||j.code||'',m=String(j.msg||j.message||j.error_description||'');
+  if(c==='invalid_credentials'||/invalid login credentials/i.test(m))return 'E-Mail oder Passwort ist falsch.';
+  if(c==='email_not_confirmed'||/not confirmed/i.test(m))return 'Bitte bestätige zuerst deine E-Mail-Adresse. Den Link findest du in der Bestätigungsmail (auch im Spam-Ordner).';
+  if(c==='weak_password')return 'Das Passwort ist zu schwach. '+PW_HINT;
+  if(c==='same_password')return 'Das neue Passwort muss sich vom alten unterscheiden.';
+  if(c==='otp_expired'||c==='flow_state_expired'||(r.status===401&&what==='reset'))return 'Der Link ist abgelaufen oder wurde schon benutzt. Fordere einen neuen an.';
+  if(r.status===429||/rate.?limit/.test(c))return 'Zu viele Versuche oder E-Mails in kurzer Zeit. Bitte warte einige Minuten.';
+  if(r.status>=500){return what==='signup'?'Registrierung gerade nicht möglich. Möglicherweise ist der Benutzername oder die E-Mail-Adresse schon vergeben oder der Server hat ein Problem. Versuche es später erneut.':'Der Server hat gerade ein Problem. Bitte versuche es später erneut.';}
+  if(c==='signup_disabled')return 'Neue Registrierungen sind im Moment nicht möglich.';
+  return 'Das hat nicht geklappt (Fehler '+r.status+'). Bitte versuche es später erneut.';}
+/* Fehler der Datenbankfunktionen (PostgREST) */
+function rpcErr(r){
+  if(r.net)return 'Cloud nicht erreichbar. Dein lokaler Spielstand ist unverändert.';
+  const j=r.j||{},m=String(j.message||'');
+  if(/slot_occupied|duplicate key|23505/.test(m+j.code))return 'Dieser Cloud-Platz ist schon belegt.';
+  if(/slot_locked|character_locked/.test(m))return 'Dieser Platz ist gesperrt.';
+  if(/email_not_verified/.test(m))return 'Bitte bestätige zuerst deine E-Mail-Adresse.';
+  if(/invalid_name/.test(m))return 'Der Name des Charakters ist für die Cloud nicht zulässig.';
+  if(/invalid_slot|invalid_data/.test(m))return 'Die Daten wurden vom Server abgelehnt.';
+  if(r.status===429)return 'Zu viele Anfragen. Bitte warte kurz.';
+  return 'Der Server hat die Anfrage abgelehnt (Fehler '+r.status+'). Dein lokaler Spielstand ist unverändert.';}
+
+let acV='login',acMsg=null,acBusy=false,acCloud=null,acProf=null,acF={email:'',user:'',needConfirm:false};
+const acM=(t,m)=>{acMsg={t,m};};
+function cloudMap(){try{const m=JSON.parse(localStorage.getItem(CLOUDMAP_KEY)||'{}');return m&&typeof m==='object'&&!Array.isArray(m)?m:{};}catch(e){return {};}}
+function cloudMapSet(uid,cid,cloudId,slot){const m=cloudMap();m[uid+':'+cid]={cloudId,slot,t:Date.now()};try{localStorage.setItem(CLOUDMAP_KEY,JSON.stringify(m));}catch(e){}}
+function cloudName(c){const n=String(c.name||'').replace(/[<>&"'`\u0000-\u001f\u007f]/g,'').trim().slice(0,16);return n||((CLASSES[c.cls]||{}).n)||'Wanderer';}
+/* Lokale Charaktere, die noch nicht (bestätigt) in der Cloud dieses Kontos liegen. Nur lesend. */
+function acEligible(){
+  const out=[],m=cloudMap(),uid=AUTH.s&&AUTH.s.user.id,ids=Array.isArray(acCloud)?acCloud.map(x=>x.character_id):[];
+  for(let n=1;n<=MAX_SLOTS;n++){const si=slotInfo(n);if(si.state!=='ok')continue;
+    const e=m[uid+':'+si.c.cid];if(e&&ids.includes(e.cloudId))continue;out.push({n,c:si.c});}
+  return out;}
+function acHome(){
+  const dis=acBusy?' disabled':'',u=AUTH.s.user;
+  let h='<div class="rec"><div class="t">Angemeldet</div><div class="c"><b>'+escH(acProf||'…')+'</b><br><small>'+escH(u.email)+'</small></div><button class="btn sec" data-a="aclogout"'+dis+'>Abmelden</button></div>'
+   +'<p class="acn">Dein Spielstand liegt zuerst auf diesem Gerät. „In die Cloud kopieren“ legt nur eine Kopie an; lokal wird nichts verändert oder gelöscht.</p><h3 style="margin:4px 0">Cloud-Charakterplätze</h3>';
+  if(acCloud==='loading')return h+'<div class="rec"><div class="c">Lade Cloud-Charaktere …</div></div><button class="btn sec" data-a="acx">Zurück</button>';
+  if(!Array.isArray(acCloud))return h+'<button class="btn" data-a="acref"'+dis+'>Erneut laden</button> <button class="btn sec" data-a="acx">Zurück</button>';
+  const el=acEligible();
+  for(let n=1;n<=MAX_SLOTS;n++){
+    const c=acCloud.find(x=>x.slot_number===n);
+    h+='<div class="rec'+((!c&&n>FREE_SLOTS)||(c&&c.locked)?' lock':'')+'"><div class="t">Platz '+n+(n>FREE_SLOTS?' · Premium':' · Kostenlos')+'</div>';
+    if(c){const cl=CLASSES[c.character_class]||{i:'🧙',n:'Wanderer'};
+      h+='<div class="c"><b>'+cl.i+' '+escH(c.character_name)+'</b><br>Level '+c.level+' · '+cl.n+(c.last_played?'<br><small>zuletzt '+escH(new Date(c.last_played).toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'}))+'</small>':'')+'</div>'
+        +(c.locked?'<div class="c">🔒 Gesperrt, solange keine gültige Berechtigung besteht. Der Charakter bleibt sicher gespeichert.</div>':'<div class="c">☁️ In der Cloud gespeichert</div>');
+    }else if(n>FREE_SLOTS){h+='<div class="c">🔒 Gesperrt. Der dritte Platz wird später einmalig freigeschaltet.</div>';}
+    else if(!el.length){h+='<div class="c">Leer</div>';}
+    else{h+='<div class="c">Leer</div><label class="acl">Lokalen Charakter wählen</label><select id="acsel'+n+'">'
+      +el.map(x=>'<option value="'+x.n+'">Platz '+x.n+': '+escH(charLabel(x.c))+' (Level '+x.c.lv+')</option>').join('')+'</select>'
+      +'<button class="btn" data-a="acup" data-slot="'+n+'"'+dis+'>☁️ In die Cloud kopieren</button>';}
+    h+='</div>';}
+  return h+'<button class="btn sec" data-a="acref"'+dis+'>Aktualisieren</button> <button class="btn sec" data-a="acx">Zurück</button>';}
+function acctUI(){
+  const el=$('#acct'),dis=acBusy?' disabled':'';
+  let h='<h2>☁️ Konto</h2>';
+  if(acMsg)h+='<div class="msg '+(acMsg.t==='bad'?'bad':'good')+'" role="alert">'+escH(acMsg.m)+'</div>';
+  const fld=(id,type,label,auto,val,extra)=>'<label class="acl" for="'+id+'">'+label+'</label><input id="'+id+'" type="'+type+'" autocomplete="'+auto+'"'+(val?' value="'+escH(val)+'"':'')+(extra||'')+'>';
+  const mailF=()=>fld('ac_email','email','E-Mail-Adresse','email',acF.email,' inputmode="email" autocapitalize="off" spellcheck="false"');
+  if(acV==='home'&&AUTH.s)h+=acHome();
+  else if(acV==='register'){
+    h+=fld('ac_user','text','Benutzername (3–20 Zeichen: Buchstaben, Ziffern, _)','username',acF.user,' maxlength="20" autocapitalize="off" spellcheck="false"')+mailF()
+      +fld('ac_pw','password','Passwort','new-password','')+'<p class="acn">'+PW_HINT+'</p>'+fld('ac_pw2','password','Passwort wiederholen','new-password','')
+      +'<button class="btn" data-a="acreg" data-p="1"'+dis+'>Konto erstellen</button> <button class="btn sec" data-a="acv" data-v="login">Ich habe schon ein Konto</button>';
+  }else if(acV==='forgot'){
+    h+='<p class="acn">Wir schicken dir einen Link zum Zurücksetzen deines Passworts.</p>'+mailF()
+      +'<button class="btn" data-a="acfor" data-p="1"'+dis+'>Link senden</button> <button class="btn sec" data-a="acv" data-v="login">Zurück</button>';
+  }else if(acV==='reset'){
+    h+='<p class="acn">Wähle ein neues Passwort.</p>'+fld('ac_pw','password','Neues Passwort','new-password','')+'<p class="acn">'+PW_HINT+'</p>'+fld('ac_pw2','password','Neues Passwort wiederholen','new-password','')
+      +'<button class="btn" data-a="acrst" data-p="1"'+dis+'>Passwort speichern</button>';
+  }else if(acV==='done'){
+    h+='<button class="btn" data-a="acv" data-v="login">Zur Anmeldung</button>';
+  }else{
+    h+=mailF()+fld('ac_pw','password','Passwort','current-password','')
+      +'<button class="btn" data-a="aclog" data-p="1"'+dis+'>Anmelden</button>'
+      +(acF.needConfirm?' <button class="btn sec" data-a="acres"'+dis+'>Bestätigungsmail erneut senden</button>':'')
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button class="btn sec" data-a="acv" data-v="register">Neu hier? Registrieren</button><button class="btn sec" data-a="acv" data-v="forgot">Passwort vergessen?</button></div>'
+      +'<p class="acn">Ohne Konto kannst du ganz normal weiterspielen. Dein Spielstand bleibt auf diesem Gerät.</p>';
+  }
+  if(acV!=='home')h+='<button class="btn sec" data-a="acx" style="margin-top:6px">Schließen</button>';
+  el.innerHTML=h;el.style.display='flex';
+}
+function acOpen(){acMsg=null;acF.needConfirm=false;
+  if(AUTH.s){acV='home';acctUI();acLoad(false);}else{acV=acV==='register'||acV==='forgot'?acV:'login';acctUI();}}
+async function acLoad(touch,keep){   // keep: vorhandene Meldung (z. B. Upload-Ergebnis) nicht überschreiben
+  const msg0=acMsg;acCloud='loading';acctUI();
+  if(touch)await sbAuthed('/rest/v1/rpc/touch_login',{method:'POST',body:{}});
+  const [lr,pr]=await Promise.all([sbAuthed('/rest/v1/rpc/list_characters',{method:'POST',body:{}}),sbAuthed('/rest/v1/profiles?select=username',{})]);
+  if(lr.noauth||pr.noauth||!AUTH.s){acV='login';acCloud=null;acM('bad','Deine Sitzung ist abgelaufen. Bitte melde dich neu an. Dein lokaler Spielstand ist unverändert.');return acctUI();}
+  if(pr.ok&&Array.isArray(pr.j)&&pr.j[0]&&typeof pr.j[0].username==='string')acProf=pr.j[0].username;
+  const okRow=x=>x&&typeof x.character_id==='string'&&[1,2,3].includes(x.slot_number)&&typeof x.character_name==='string'&&Number.isFinite(x.level)&&typeof x.locked==='boolean';
+  if(lr.ok&&Array.isArray(lr.j)&&lr.j.every(okRow)){acCloud=lr.j;}
+  else{acCloud='err';if(!(keep&&msg0))acM('bad',lr.ok?'Unerwartete Antwort der Cloud. Dein lokaler Spielstand ist unverändert.':rpcErr(lr));}
+  acctUI();}
+async function acLogin(){
+  if(acBusy)return;
+  const email=($('#ac_email').value||'').trim(),pw=$('#ac_pw').value||'';
+  acF.email=email;acF.needConfirm=false;
+  if(!mailOk(email)){acM('bad','Bitte gib eine gültige E-Mail-Adresse ein.');return acctUI();}
+  if(!pw){acM('bad','Bitte gib dein Passwort ein.');return acctUI();}
+  acBusy=true;acMsg=null;acctUI();
+  const r=await sbFetch('/auth/v1/token?grant_type=password',{method:'POST',body:{email,password:pw}});
+  acBusy=false;
+  if(r.ok&&r.j&&r.j.access_token&&r.j.refresh_token&&r.j.user){
+    if(!(r.j.user.email_confirmed_at||r.j.user.confirmed_at)){acF.needConfirm=true;acM('bad','Bitte bestätige zuerst deine E-Mail-Adresse.');return acctUI();}   // keine Sitzung ohne Bestätigung
+    authStore(mkSession(r.j));acF.email='';acV='home';acM('ok','Angemeldet.');acctUI();return acLoad(true);}
+  const j=r.j||{};acF.needConfirm=(j.error_code||j.code)==='email_not_confirmed'||/not confirmed/i.test(String(j.msg||j.message||''));
+  acM('bad',authErr(r,'login'));acctUI();}
+async function acRegister(){
+  if(acBusy)return;
+  const user=($('#ac_user').value||'').trim(),email=($('#ac_email').value||'').trim(),pw=$('#ac_pw').value||'',pw2=$('#ac_pw2').value||'';
+  acF.user=user;acF.email=email;
+  const bad=m=>{acM('bad',m);acctUI();};
+  if(!userOk(user))return bad('Der Benutzername muss 3–20 Zeichen lang sein und darf nur Buchstaben, Ziffern und _ enthalten.');
+  if(!mailOk(email))return bad('Bitte gib eine gültige E-Mail-Adresse ein.');
+  const pe=pwCheck(pw);if(pe.length)return bad('Das Passwort braucht noch: '+pe.join(', ')+'.');
+  if(pw!==pw2)return bad('Die beiden Passwörter sind nicht gleich.');
+  acBusy=true;acMsg=null;acctUI();
+  const ua=await sbFetch('/rest/v1/rpc/username_available',{method:'POST',body:{p_name:user}});
+  if(ua.net){acBusy=false;return bad(authErr(ua));}
+  if(ua.ok&&ua.j===false){acBusy=false;return bad('Dieser Benutzername ist schon vergeben.');}
+  const r=await sbFetch('/auth/v1/signup?redirect_to='+encodeURIComponent(SITE_URL),{method:'POST',body:{email,password:pw,data:{username:user}}});
+  acBusy=false;
+  if(r.ok){   // eine mitgelieferte Sitzung wird bewusst ignoriert: Anmeldung erst nach Bestätigung
+    acV='done';acF.user='';acF.email=email;
+    acM('ok','Fast geschafft! Wir haben eine E-Mail an '+email+' geschickt. Klicke darin auf den Bestätigungslink (auch im Spam-Ordner nachsehen). Erst danach kannst du dich anmelden.');return acctUI();}
+  bad(authErr(r,'signup'));}
+async function acResend(){
+  if(acBusy)return;const email=acF.email||($('#ac_email')&&$('#ac_email').value||'').trim();
+  if(!mailOk(email)){acM('bad','Bitte gib deine E-Mail-Adresse ein.');return acctUI();}
+  acBusy=true;acctUI();
+  const r=await sbFetch('/auth/v1/resend?redirect_to='+encodeURIComponent(SITE_URL),{method:'POST',body:{type:'signup',email}});
+  acBusy=false;acM(r.ok?'ok':'bad',r.ok?'Wir haben die Bestätigungsmail erneut gesendet (falls die Adresse registriert ist).':authErr(r));acctUI();}
+async function acForgot(){
+  if(acBusy)return;
+  const email=($('#ac_email').value||'').trim();acF.email=email;
+  if(!mailOk(email)){acM('bad','Bitte gib eine gültige E-Mail-Adresse ein.');return acctUI();}
+  acBusy=true;acMsg=null;acctUI();
+  const r=await sbFetch('/auth/v1/recover?redirect_to='+encodeURIComponent(SITE_URL),{method:'POST',body:{email}});
+  acBusy=false;
+  if(r.ok){acV='done';acM('ok','Wenn zu dieser Adresse ein Konto existiert, haben wir einen Link zum Zurücksetzen gesendet. Prüfe auch den Spam-Ordner.');return acctUI();}
+  acM('bad',authErr(r,'recover'));acctUI();}
+async function acReset(){
+  if(acBusy||!AUTH.rec)return;
+  const pw=$('#ac_pw').value||'',pw2=$('#ac_pw2').value||'';
+  const pe=pwCheck(pw);
+  if(pe.length){acM('bad','Das Passwort braucht noch: '+pe.join(', ')+'.');return acctUI();}
+  if(pw!==pw2){acM('bad','Die beiden Passwörter sind nicht gleich.');return acctUI();}
+  acBusy=true;acMsg=null;acctUI();
+  const r=await sbFetch('/auth/v1/user',{method:'PUT',token:AUTH.rec.access_token,body:{password:pw}});
+  acBusy=false;
+  if(r.ok){authStore(AUTH.rec);AUTH.rec=null;acV='home';acM('ok','Dein Passwort wurde geändert. Du bist angemeldet.');acctUI();return acLoad(true);}
+  if(r.status===401){AUTH.rec=null;acV='forgot';}
+  acM('bad',authErr(r,'reset'));acctUI();}
+function acLogout(){
+  const s=AUTH.s;authStore(null);acCloud=null;acProf=null;acV='login';
+  acM('ok','Du bist abgemeldet. Dein Spielstand auf diesem Gerät bleibt erhalten.');acctUI();
+  if(s)sbFetch('/auth/v1/logout?scope=local',{method:'POST',token:s.access_token});}
+/* Kopie eines lokalen Charakters in einen freien Cloud-Platz. Lokal wird nur gelesen; als hochgeladen gilt er erst,
+   wenn der Server den Charakter in der Liste bestätigt. Jeder Fehler lässt alles lokal unverändert. */
+async function acUpload(cslot,lslot){
+  if(acBusy||!AUTH.s||!Array.isArray(acCloud))return;
+  if(!(cslot>=1&&cslot<=FREE_SLOTS)||acCloud.some(x=>x.slot_number===cslot))return;
+  const si=slotInfo(lslot);
+  if(si.state!=='ok'){acM('bad','Dieser lokale Charakter ist nicht verfügbar.');return acctUI();}
+  const c=lslot===SLOT?S:si.c,data=JSON.parse(JSON.stringify(c)),uid=AUTH.s.user.id;
+  if(JSON.stringify(data).length>900000){acM('bad','Der Spielstand ist zu groß für die Cloud.');return acctUI();}
+  acBusy=true;acMsg=null;acctUI();
+  const r=await sbAuthed('/rest/v1/rpc/create_character',{method:'POST',body:{p_slot:cslot,p_name:cloudName(c),p_data:data},timeout:30000});
+  if(r.noauth){acBusy=false;acV='login';acCloud=null;acM('bad','Deine Sitzung ist abgelaufen. Bitte melde dich neu an. Dein lokaler Spielstand ist unverändert.');return acctUI();}
+  const row=Array.isArray(r.j)?r.j[0]:r.j,cid=r.ok&&row&&typeof row.character_id==='string'?row.character_id:null;
+  if(!cid){acBusy=false;acM('bad',rpcErr(r));await acLoad(false,true);return;}
+  const lr=await sbAuthed('/rest/v1/rpc/list_characters',{method:'POST',body:{}});
+  acBusy=false;
+  const found=lr.ok&&Array.isArray(lr.j)&&lr.j.find(x=>x&&x.character_id===cid&&x.slot_number===cslot);
+  if(found){cloudMapSet(uid,c.cid,cid,cslot);acM('ok','„'+charLabel(c)+'“ wurde in die Cloud kopiert (Platz '+cslot+'). Lokal ist alles unverändert.');}
+  else acM('bad','Der Server hat die Kopie nicht bestätigt. Der lokale Spielstand ist unverändert. Prüfe mit „Aktualisieren“ und versuche es ggf. erneut.');
+  await acLoad(false,true);}
+/* Links aus Bestätigungs-/Reset-Mails kommen als #access_token=… zurück */
+async function authBoot(){
+  authLoad();
+  const h=location.hash.replace(/^#/,'');
+  if(!/(^|&)(access_token|error)=/.test(h))return;
+  const q=new URLSearchParams(h);
+  try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}   // Token nicht in der Adresszeile lassen
+  if(q.get('error')){acV='login';acM('bad',q.get('error_code')==='otp_expired'?'Der Link ist abgelaufen oder wurde schon benutzt. Fordere einen neuen an.':'Der Link ist ungültig. Fordere einen neuen an.');return acctUI();}
+  const tok=q.get('access_token'),ref=q.get('refresh_token');
+  if(!tok||!ref||q.get('token_type')&&q.get('token_type').toLowerCase()!=='bearer'){acV='login';acM('bad','Der Link ist ungültig.');return acctUI();}
+  const ur=await sbFetch('/auth/v1/user',{token:tok});
+  if(!ur.ok||!ur.j||!ur.j.id||!ur.j.email){acV='login';acM('bad',ur.net?authErr(ur):'Der Link ist ungültig oder abgelaufen. Fordere einen neuen an.');return acctUI();}
+  const exp=q.get('expires_at')?+q.get('expires_at')*1000:Date.now()+(+q.get('expires_in')||3600)*1000;
+  const sess={access_token:tok,refresh_token:ref,exp,user:{id:ur.j.id,email:ur.j.email}};
+  if(q.get('type')==='recovery'){AUTH.rec=sess;acV='reset';acM('ok','Link bestätigt. Wähle jetzt ein neues Passwort.');return acctUI();}
+  if(!(ur.j.email_confirmed_at||ur.j.confirmed_at)){acV='login';acM('bad','Bitte bestätige zuerst deine E-Mail-Adresse.');return acctUI();}
+  authStore(sess);acV='home';acM('ok','E-Mail bestätigt – du bist angemeldet.');acctUI();acLoad(true);}
+document.addEventListener('keydown',ev=>{ // Enter schickt das Formular ab
+  if(ev.key!=='Enter'||!ev.target.closest||!ev.target.closest('#acct')||ev.target.tagName!=='INPUT')return;
+  const b=$('#acct [data-p]');if(b&&!b.disabled)b.click();});
 let ipopU=0;
 function itemPop(uid){
   const g=gearOf(uid),el=$('#ipop');
@@ -2052,6 +2315,17 @@ document.addEventListener('click',ev=>{
       break;}
     case 'gearopen':gSlot=b.dataset.slot||'waffe';openSheet('gear');break;
     case 'chars':charDel=0;charDet=0;charsUI();break;
+    case 'acct':acOpen();break;
+    case 'acx':$('#acct').style.display='none';break;
+    case 'acv':acV=b.dataset.v;acMsg=null;acctUI();break;
+    case 'aclog':acLogin();break;
+    case 'acreg':acRegister();break;
+    case 'acfor':acForgot();break;
+    case 'acrst':acReset();break;
+    case 'acres':acResend();break;
+    case 'aclogout':acLogout();break;
+    case 'acref':acLoad(false);break;
+    case 'acup':acUpload(+b.dataset.slot,+(($('#acsel'+b.dataset.slot)||{}).value));break;
     case 'cclose':$('#chars').style.display='none';break;
     case 'cplay':{const n=+b.dataset.slot;if(n===SLOT)$('#chars').style.display='none';else switchSlot(n);break;}
     case 'cnew':createChar(+b.dataset.slot,($('#cnm'+b.dataset.slot)||{}).value||'');break;
@@ -2148,6 +2422,7 @@ window.addEventListener('pagehide',save);
 hud();buildSkillBar();
 if(loadNote.length)toast(loadNote.join(' '));
 if(S.test){/* Testmodus war aktiv: Start-Dialog bleibt, damit man wählen kann */}
+authBoot();
 /* Test-Schnittstelle: nur aktiv, wenn vor dem Laden window.__RW_TEST=true gesetzt wird (siehe tests/). Im normalen Spiel ohne Wirkung. */
 if(window.__RW_TEST)window.__RW={get S(){return S;},set S(v){S=v;},get sel(){return sel;},set sel(v){sel=v;},get P(){return P;},get nextAtk(){return nextAtk;},set nextAtk(v){nextAtk=v;},
   get psn(){return psn;},set psn(v){psn=v;},get gpsLost(){return gpsLost;},set gpsLost(v){gpsLost=v;},

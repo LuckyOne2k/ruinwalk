@@ -1,10 +1,10 @@
 /* Aufruf: node tests/run.js   (oder: npm test) */
 const H=require('./harness');
-const files=['save','gear','craft','combat','world','gps','ui','status','chars','session'];
+const files=['save','gear','craft','combat','world','gps','ui','status','chars','auth','session'];
 let pass=0,fail=0;const failed=[];
 (async()=>{
   const {srv,url}=await H.serve(),browser=await H.launch();
-  const T={browser,url,page:(seed,q)=>H.page(browser,url,seed,q)};
+  const T={browser,url,page:(seed,q,_x,pre)=>H.page(browser,url,seed,q,pre)};
   for(const f of files){
     const tests=require('./cases/'+f+'.js');
     console.log('\n## '+f);
