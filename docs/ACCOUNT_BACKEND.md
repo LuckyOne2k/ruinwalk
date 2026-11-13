@@ -8,6 +8,9 @@ Grundlage: Produktspezifikation „Accountsystem, Charakterauswahl und Charakter
 - **Datenbank:** `supabase/schema.sql` (profiles, account_entitlements, payment_events, characters, character_backups, audit_log).
 - **Zahlung (Phase 5):** Zahlungsanbieter ruft eine Edge Function (Webhook) auf, sie prüft die Signatur und schreibt mit der Service-Role `account_entitlements`. Der Browser kann nie schreiben. `payment_events.provider_event_id` ist Primärschlüssel, dadurch doppelt verarbeitete Webhooks wirkungslos.
 
+## Datenbank-Tests
+`bash supabase/tests/run.sh` startet ein temporäres PostgreSQL 16, spielt eine Supabase-Attrappe (Rollen `anon`/`authenticated`/`service_role`, `auth.users`, `auth.uid()`), das Schema und 126 Prüfungen ein. Sie laufen mit echten Rollenwechseln, also unter den tatsächlichen RLS-Regeln. Ob die Tests Fehler finden, wurde per Gegenprobe geprüft: 10 absichtlich eingebaute Lücken (z. B. fehlende Versions- oder Kontoprüfung, zu weite Policy, fehlender `search_path`) wurden alle erkannt.
+
 ## Sicherheit (im Schema umgesetzt)
 | Anforderung | Umsetzung |
 |---|---|
@@ -32,3 +35,22 @@ Grundlage: Produktspezifikation „Accountsystem, Charakterauswahl und Charakter
 1. Supabase-Projekt anlegen, `schema.sql` einspielen und gegen RLS testen (z. B. zwei Testaccounts).
 2. Phase 2: Registrierung, Login, Passwort-Reset im Frontend.
 3. Phase 3/4: lokalen Speicher hinter eine Schnittstelle (`load(slot)` / `save(slot, version)`) legen, Cloud-Speicherung und Migration des lokalen Platzes 1 einbauen (lokale Kopie bleibt als Sicherheitskopie).
+
+## Sicherheitsprüfung des Schemas (Ergebnis)
+Behoben gegenüber dem ersten Entwurf:
+- `save_character` war `SECURITY INVOKER` ohne UPDATE-Policy und hätte nie funktioniert; jetzt `SECURITY DEFINER` mit fester `account_id = auth.uid()`-Bedingung in jeder Anweisung. Clients haben auf Tabellen nur SELECT, keine Schreibrechte und keine schreibenden Policies.
+- Anlegen nur noch über `create_character` (kein direktes INSERT): Client kann weder ID, Version noch Zeitstempel setzen. Klasse und Level werden aus den Daten abgeleitet und begrenzt, `cid` in den Daten wird serverseitig überschrieben.
+- Fehlermeldung bei fremdem oder unbekanntem Charakter ist identisch (`version_conflict`) und verrät nichts über fremde IDs.
+- `has_entitlement` war über RPC aufrufbar (Abfrage fremder Käufe); jetzt nur intern.
+- Alle SECURITY-DEFINER-Funktionen: fester `search_path`, `EXECUTE` für PUBLIC entzogen, nur gezielte Freigaben.
+- Profil wird per Trigger bei der Registrierung angelegt (Benutzername aus den Registrierungsdaten, Format und Eindeutigkeit geprüft). Nachträgliche Änderungen der Nutzer-Metadaten wirken nicht auf das Profil; Umbenennen ist für Clients unmöglich (kein Recht, keine Policy, zusätzlich Trigger).
+- Spielen/Speichern erst mit bestätigter E-Mail (Spezifikation 2.1).
+- Sicherungen: auch beim Löschen eines Charakters, bleiben danach erhalten; beim Löschen des Kontos werden sie mitgelöscht.
+
+Bekannte Grenzen und Hinweise:
+- **Wegwerf-Registrierungen:** Unbestätigte Konten halten ihren Benutzernamen. Dafür später einen Aufräum-Job (z. B. nach 24 h ohne Bestätigung) einplanen.
+- **Namensabfrage:** `username_available` ist anonym aufrufbar (nötig für die Registrierung) und erlaubt das Durchprobieren von Namen. Rate-Limit über Supabase/Edge Function setzen.
+- **Speicherfrequenz:** Jedes Speichern legt den alten Stand (bis 1 MB) als Backup ab. Der Client sollte nicht alle 5 s, sondern gebündelt (z. B. bei Änderungen, höchstens alle 30–60 s) speichern; ein serverseitiges Rate-Limit fehlt noch.
+- **Rückerstattung:** Ein bereits angelegter Charakter auf Platz 3 bleibt nach Rückerstattung bestehen und speicherbar, nur das Neuanlegen wird gesperrt. Falls anders gewünscht, ist das eine Produktentscheidung.
+- **Supabase-Besonderheiten:** Der Trigger auf `auth.users` muss im SQL-Editor als `postgres` angelegt werden. Neue Funktionen in `public` erhalten standardmäßig EXECUTE für PUBLIC; nach jeder Erweiterung das `revoke ... from public` aus dem Schema wiederholen (Test „Angemeldete Nutzer dürfen nur die vorgesehenen Funktionen aufrufen" fängt das ab).
+- **Nicht getestet:** Das echte Supabase (GoTrue, PostgREST, Edge Functions). Die Tests laufen gegen PostgreSQL mit Attrappe; vor dem Produktivstart ein Durchlauf mit zwei echten Testkonten.
