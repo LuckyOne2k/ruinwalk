@@ -30,6 +30,19 @@ button{font-family:inherit;color:inherit}
 #loc{position:absolute;right:12px;bottom:calc(76px + var(--sb));z-index:500;width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:var(--card);font-size:22px;box-shadow:0 2px 8px rgba(0,0,0,.25)}
 #loc.off{background:var(--acc);color:#1a0f08}
 #attr{position:absolute;left:8px;bottom:calc(68px + var(--sb));z-index:400;font-size:10px;background:rgba(255,255,255,.7);padding:1px 5px;border-radius:4px}
+/* Status-Effekte (Spieler: Leiste unter dem HUD, Monster: in der Karte und über dem Kopf) */
+#fx{position:absolute;left:10px;top:calc(64px + var(--st));z-index:499;display:flex;gap:6px;flex-wrap:wrap;max-width:calc(100% - 20px);pointer-events:none}
+body.cbt #fx{top:calc(182px + var(--st))}
+#fx:empty,.fxrow:empty{display:none}
+.fxc{pointer-events:auto;position:relative;min-width:40px;height:46px;border-radius:12px;background:rgba(31,24,20,.94);border:1px solid var(--line);box-shadow:0 2px 6px rgba(0,0,0,.25);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2px 3px;font-size:11px;font-weight:bold;line-height:1;color:var(--ink)}
+.fxc i.fi{display:block;width:28px;height:28px;background-size:100% 100%;image-rendering:pixelated}
+.fxc.bad{border-color:#a8453f}.fxc.good{border-color:#3d7f55}
+.fxc em{font-style:normal;margin-top:2px;font-size:11px;font-variant-numeric:tabular-nums}
+.fxc b.n{position:absolute;right:-4px;top:-5px;min-width:17px;height:17px;border-radius:9px;background:var(--acc);color:#1a0f08;font-size:11px;line-height:17px;text-align:center;padding:0 3px}
+.fxrow{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 0}
+.fxrow .fxc{min-width:36px;height:42px}
+.mfx{position:absolute;left:50%;top:-17px;transform:translateX(-50%);display:flex;gap:1px;pointer-events:none;white-space:nowrap}
+.mfx i{display:block;width:18px;height:18px;background-size:100% 100%;image-rendering:pixelated}
 /* Nav */
 #nav{position:absolute;left:0;right:0;bottom:0;z-index:600;display:flex;justify-content:space-around;background:var(--card);border-top:1px solid var(--line);padding:6px 4px calc(6px + var(--sb))}
 #nav button{position:relative;flex:1;border:0;background:none;font-size:11px;padding:2px 0;display:flex;flex-direction:column;align-items:center;gap:1px}
@@ -162,6 +175,7 @@ body.cbt #react:not(.boss) [data-a=potion]{left:0;bottom:0}
 <body>
 <div id="map"></div>
 
+<div id="fx"></div>
 <div id="hud">
   <div id="lv">1</div>
   <div class="bars">
@@ -866,7 +880,7 @@ function addXP(n){
     toast(msg);}
   if(S.lv>=LV_CAP)S.xp=0;
 }
-let psn=null,myStun=0;   // Gift (Schaden/s, Restzeit) und Betäubung durch Monster (nicht gespeichert)
+let psn=null,myStun=0,myStunK='',stunId=null;   // Gift (Schaden/s, Restzeit) und Betäubung durch Monster (nicht gespeichert)
 function regen(dt){
   if(!(dt>0))return;
   S.hp=Math.min(maxHP(),S.hp+dt/5);
@@ -1177,7 +1191,7 @@ function roamTick(dt){
   }
 }
 function monsterHit(m,e){
-  if(S.stun>0){S.stun--;toast('😵 '+m.n+' ist gelähmt');return;}
+  if(S.stun>0&&(!stunId||stunId===e.id)){S.stun--;toast('😵 '+m.n+' ist gelähmt');return;}
   const r=roam.get(e.id)||{},hpNow=S.mh[e.id]??m.hp;
   r.n=(r.n||0)+1;
   if(m.ab==='heil'&&hpNow<m.hp*.6&&r.n%3===0){
@@ -1197,8 +1211,8 @@ function monsterHit(m,e){
   if(S.hp<=0){faint(m,e);hud();return;}
   let extra='';
   {const rs=SB().rescue;if(rs&&!rescueUsed&&S.hp<maxHP()*.3){rescueUsed=true;const g0=Math.round(maxHP()*rs);S.hp=Math.min(maxHP(),S.hp+g0);fMe('+'+g0,'heal',0);extra=' · 🌿 Hainsegen +'+g0;}}
-  if(m.ab==='gift'&&Math.random()<.4){psn={dps:Math.max(1,Math.round(m.max*.1*(1-(SB().poisonRes||0)))),t:8};extra=' · ☠️ vergiftet';}
-  else if(m.ab==='bruell'&&r.n%4===0&&Date.now()>=myStun){myStun=Date.now()+2500;extra=' · 😵 betäubt';}
+  if(m.ab==='gift'&&Math.random()<.4){psn={k:'gift',dps:Math.max(1,Math.round(m.max*.1*(1-(SB().poisonRes||0)))),t:8};extra=' · ☠️ vergiftet';}
+  else if(m.ab==='bruell'&&r.n%4===0&&Date.now()>=myStun){myStun=Date.now()+2500;myStunK='bruell';extra=' · 😵 betäubt';}
   else if(m.ab==='saug'){const g=Math.round(h*.5);S.mh[e.id]=Math.min(m.hp,hpNow+g);extra=' · 🩸 saugt '+g;refreshWorld();}
   else if(m.ab==='dieb'&&S.cu>0&&Math.random()<.35){
     const st=Math.min(S.cu,Math.max(2,Math.round(S.cu*.06)));S.cu-=st;
@@ -1283,11 +1297,11 @@ function renderCard(){
   }
   const subH='<small id="cSub">'+sub+'</small>',btnTail='>'+label+'</button>';
   const html='<div class="ch"><div class="ci">'+d.i+'</div><div><b>'+dn+'</b>'+subH+'</div>'+(isMob?'<button class="x" data-a="info" aria-label="Info" style="margin-right:6px">ⓘ</button>':'')+'<button class="x" data-a="close">✕</button></div>'
-    +body+'<button id="cAct" class="act" data-a="'+(action||'close')+'" '+(dis?'disabled':'')+btnTail;
+    +'<div id="cFx" class="fxrow"></div>'+body+'<button id="cAct" class="act" data-a="'+(action||'close')+'" '+(dis?'disabled':'')+btnTail;
   const key=html.replace(subH,'').replace(btnTail,'></button>');
   if(c._k!==key){c.innerHTML=html;c._k=key;}
   else{const a=$('#cSub'),b=$('#cAct');if(a)a.textContent=sub;if(b)b.textContent=label;}
-  c.style.display='block';updateSkillUI();
+  fxCard();c.style.display='block';updateSkillUI();
 }
 
 /* ---------- Aktionen ---------- */
@@ -1325,15 +1339,15 @@ const bPhase=(m,hp)=>{const f=hp/m.hp;return f>.75?0:f>.5?1:f>.25?2:3;};
 const activeBf=()=>{for(const bf of bossFx.values())if(bf.tele)return bf;return null;};
 function bossResolve(m,e,bf){
   const t=bf.tele,a=t.a;let dmg=Math.round(maxHP()*a.p*(1+bf.ph*.12));
-  if(t.ok==='intr'){toast('⚡ Unterbrochen! '+a.n+' misslingt');S.stun=Math.max(S.stun||0,1);return;}
+  if(t.ok==='intr'){toast('⚡ Unterbrochen! '+a.n+' misslingt');S.stun=Math.max(S.stun||0,1);stunId=e.id;return;}
   if(t.ok==='guard'){dmg=Math.round(dmg*(S.cls==='krieger'?(S.tier?.15:.25):(S.tier?.28:.4)));toast('🛡️ Abgewehrt! '+a.n+' richtet nur '+dmg+' an');}
   else if(S.shield>0){S.shield--;dmg=Math.round(dmg*.3);}
   S.hp-=dmg;fMe('-'+dmg,'dmg',0);
   if(S.hp<=0){bossFx.delete(e.id);faint(m,e);hud();return;}
   if(t.ok!=='guard'){
-    if(a.k==='wurzeln'){myStun=Date.now()+3500;toast('🌿 Du hängst in den Wurzeln fest: -'+dmg);}
-    else if(a.k==='gift'){bf.stack=Math.min(5,(bf.stack||0)+1);psn={dps:Math.max(1,Math.round(m.max*.05))*bf.stack,t:14};toast('☠️ Vergiftet (Stufe '+bf.stack+'): -'+dmg+'. Ein Trank entfernt das Gift');}
-    else if(a.k==='feuer'){psn={dps:Math.max(1,Math.round(m.max*.04)),t:6};toast('🔥 Du brennst: -'+dmg);}
+    if(a.k==='wurzeln'){myStun=Date.now()+3500;myStunK='wurzeln';toast('🌿 Du hängst in den Wurzeln fest: -'+dmg);}
+    else if(a.k==='gift'){bf.stack=Math.min(5,(bf.stack||0)+1);psn={k:'gift',stack:bf.stack,dps:Math.max(1,Math.round(m.max*.05))*bf.stack,t:14};toast('☠️ Vergiftet (Stufe '+bf.stack+'): -'+dmg+'. Ein Trank entfernt das Gift');}
+    else if(a.k==='feuer'){psn={k:'feuer',dps:Math.max(1,Math.round(m.max*.04)),t:6};toast('🔥 Du brennst: -'+dmg);}
     else toast(a.n+' trifft dich: -'+dmg);
   }
   hud();
@@ -1428,7 +1442,7 @@ function strike(o){
   hv=hv*(1+(sb.healMul||0))+dmg*(sb.lifesteal||0)+(crit?maxHP()*(sb.critHeal||0):0);
   if(hv){const b0=S.hp;S.hp=Math.min(maxHP(),S.hp+hv);if(S.hp>b0){heal=' · +'+Math.round(S.hp-b0)+' ❤️';fMe('+'+Math.round(S.hp-b0),'heal',0);}}
   if(o.shield)S.shield=o.shield;
-  if(o.stun)S.stun=o.stun;
+  if(o.stun){S.stun=o.stun;stunId=e.id;}
   fMob(e,'-'+dmg,'dmg'+(crit?' crit':''),0);
   if(m.ab==='dorn'){const rf=Math.max(1,Math.round(dmg*.12));S.hp=Math.max(1,S.hp-rf);fMe('-'+rf,'dmg',0);}
   const hp=(S.mh[e.id]??m.hp)-dmg;
@@ -1789,8 +1803,60 @@ function closeSheet(){$('#sheet').style.display='none';curSheet=null;confirmRese
 let tt=null;
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600);}
 let upNote=-1;
+/* ---------- Status-Effekte ---------- */
+const FX={
+  gift:{n:'Vergiftet',d:'Du verlierst laufend Leben. Ein Heiltrank entfernt das Gift.',g:0},
+  feuer:{n:'Brennend',d:'Du nimmst Feuerschaden über Zeit. Ein Heiltrank löscht die Flammen.',g:0},
+  betaeubt:{n:'Betäubt',d:'Du kannst nicht angreifen, bis die Zeit abläuft.',g:0},
+  wurzeln:{n:'Festgewurzelt',d:'Wurzeln halten dich fest, du kannst nicht angreifen.',g:0},
+  schutz:{n:'Schutz',d:'Die nächsten Treffer richten 70 % weniger Schaden an.',g:1},
+  erschoepft:{n:'Erschöpft',d:'Kein Kampf, Laufen und Sammeln gehen. Tippe auf die Anzeige oben, um es zu beenden.',g:0},
+  gelaehmt:{n:'Gelähmt',d:'Das Monster verfehlt seine nächsten Angriffe.',g:1},
+  harthaut:{n:'Harte Haut',d:'Der Troll nimmt kaum Schaden. Ein kritischer Treffer bricht die Haut.',g:0},
+  flug:{n:'Flugphase',d:'Nur Fernkämpfer treffen den Drachen.',g:0},
+  sproessling:{n:'Sprösslinge',d:'Besiege die Sprösslinge, sonst heilen sie den Riesen.',g:0},
+  raserei:{n:'Raserei',d:'Das Monster schlägt härter zu.',g:0}
+};
+const fmtS=s=>s>=60?Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0'):Math.ceil(s)+' s';
+function playerFx(){
+  const now=Date.now(),o=[];
+  if(psn&&psn.t>0)o.push({id:psn.k==='feuer'?'feuer':'gift',left:psn.t,n:psn.stack>1?psn.stack:0});
+  if(myStun>now)o.push({id:myStunK==='wurzeln'?'wurzeln':'betaeubt',left:(myStun-now)/1000});
+  if(S.shield>0)o.push({id:'schutz',n:S.shield});
+  if(S.exh>now)o.push({id:'erschoepft',left:(S.exh-now)/1000});
+  return o;
+}
+function mobFx(e){
+  if(!e||e.kind!=='mob')return [];
+  const now=Date.now(),m=MOBS[e.type],bf=bossFx.get(e.id),hp=S.mh[e.id]??m.hp,o=[];
+  if(S.stun>0&&(!stunId||stunId===e.id))o.push({id:'gelaehmt',n:S.stun});
+  if(bf){
+    if(bf.haut)o.push({id:'harthaut'});
+    if(bf.fly>now)o.push({id:'flug',left:(bf.fly-now)/1000});
+    if(bf.adds>0)o.push({id:'sproessling',n:bf.adds});
+  }
+  if((m.tier==='area'&&hp<m.hp*.35)||(m.ab==='wut'&&hp<m.hp*.3))o.push({id:'raserei'});
+  return o;
+}
+const fxChip=(x,mini)=>{const d=FX[x.id];return mini?'<i style="background-image:url(status/'+x.id+'.png?v=1)"></i>'
+  :'<div class="fxc '+(d.g?'good':'bad')+'" data-a="fxinfo" data-id="'+x.id+'"><i class="fi" style="background-image:url(status/'+x.id+'.png?v=1)"></i>'+(x.left!==undefined?'<em>'+fmtS(x.left)+'</em>':'')+(x.n>1?'<b class="n">'+x.n+'</b>':'')+'</div>';};
+let fxK='';
+function fxCard(){const cf=$('#cFx');if(cf){const h=sel&&sel.kind==='mob'?mobFx(sel).map(x=>fxChip(x)).join(''):'';if(cf._k!==h){cf._k=h;cf.innerHTML=h;}}}
+function fxUI(){
+  const el=$('#fx');if(!el)return;
+  const html=playerFx().map(x=>fxChip(x)).join('');
+  if(html!==fxK){fxK=html;el.innerHTML=html;}
+  fxCard();
+  for(const [id,o] of ents){
+    if(o.e.kind!=='mob')continue;const f=mobFx(o.e),k=f.map(x=>x.id).join(',');
+    if(o.fk===k)continue;o.fk=k;
+    const n=o.m.getElement&&o.m.getElement(),ent=n&&n.firstElementChild;if(!ent)continue;
+    let w=ent.querySelector('.mfx');if(!w){w=document.createElement('span');w.className='mfx';ent.appendChild(w);}
+    w.innerHTML=f.map(x=>fxChip(x,true)).join('');
+  }
+}
 function hud(){
-  updMe();
+  updMe();fxUI();
   const mx=maxHP();
   $('#lv').textContent=S.lv;
   $('#hpb').style.width=(100*S.hp/mx)+'%';$('#hpt').textContent=Math.floor(S.hp)+'/'+mx;
@@ -1851,6 +1917,7 @@ document.addEventListener('click',ev=>{
     case 'gearopen':gSlot=b.dataset.slot||'waffe';openSheet('gear');break;
     case 'gslot':gSlot=b.dataset.slot;openSheet('gear');break;
     case 'gequip':if(equip(+b.dataset.id)){save();hud();openSheet('gear');}break;
+    case 'fxinfo':{const d=FX[b.dataset.id];if(d)toast(d.n+': '+d.d);break;}
     case 'potion':usePotion();break;
     case 'guard':reactDo('guard');break;
     case 'intr':reactDo('intr');break;
@@ -1938,6 +2005,7 @@ if(window.__RW_TEST)window.__RW={get S(){return S;},set S(v){S=v;},get sel(){ret
   strike,shoot,monsterHit,faint,setPos,countWalk,select,refreshWorld,cellEnts,areaEnts,usePotion,useItem,rollGear,rollPathSet,rollSet,have,add,claimQuest,checkQuests,
   ents,roam,eng,SETS,SETD,PATHS,MOBS,GR,RECIPES,QUESTS,ITEMS,NODES,SELL,BUY,ABIL,CW,TIERS,COIN,HAB,CLASSES,SSLOTS,ARM,ATYPES,ARMT,SECRET,UPQ,effClass,UPCOST,UPFEE,UPMAX,UP_LV,LV_CAP,QM,QN,
   wK,oK,enc,gBuyPrice,rollQ,DROPQ,RDROPQ,DROPT,DROPCH,RDROPCH,pickMob,hash,mulberry,dist,DLAT,DLON,RANGE,gpsWatch,setLastFix:v=>{lastFix=v;},setWatch:v=>{watchId=v;},roamTick,
+  playerFx,mobFx,FX,fxUI,get stunId(){return stunId;},set stunId(v){stunId=v;},get myStun(){return myStun;},set myStun(v){myStun=v;},set myStunK(v){myStunK=v;},
   _:0};
 })();
 </script>

@@ -1,6 +1,6 @@
 /* Aufruf: node tests/run.js   (oder: npm test) */
 const H=require('./harness');
-const files=['save','gear','craft','combat','world','gps','ui','session'];
+const files=['save','gear','craft','combat','world','gps','ui','status','session'];
 let pass=0,fail=0;const failed=[];
 (async()=>{
   const {srv,url}=await H.serve(),browser=await H.launch();
