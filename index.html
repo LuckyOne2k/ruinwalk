@@ -509,6 +509,7 @@ function addGear(bid,q,quiet){
   let auto=false;if(!S.eq[b.slot]&&!canEquip(g)){S.eq[b.slot]=g.u;auto=true;}
   return {g,auto};
 }
+const DEV=()=>S.test||/[?&]dev(=|&|$)/.test(location.search);   // Entwicklerwerkzeuge nur im Testmodus oder mit ?dev=1
 const SETC='#13c2b0';
 const gC=g=>getBase(g.b).set?SETC:QC[g.q];
 const gName=g=>{const b=getBase(g.b);return '<span style="color:'+gC(g)+';font-weight:bold">'+b.i+' '+b.n+(g.p?' +'+g.p:'')+'</span>';};
@@ -773,11 +774,62 @@ const atkRange=()=>C0().range+(SB().range||0);
 /* ---------- Spielstand ---------- */
 const def=()=>({lv:1,xp:0,hp:100,en:100,inv:{},tools:[],skills:{holz:0,berg:0,sammeln:0},cd:{},mh:{},
   stats:{col:{},nodes:{},kills:0,crafted:{},kt:{normal:0,rare:0,elite:0,boss:0,area:0},walk:0,night:0,faints:0},cu:0,path:'',tier:0,qb:null,gear:[],eq:{},gid:0,gv:0,qdone:[],qready:[],def:0,cls:'wanderer',scd:{},shield:0,stun:0,exh:0,last:Date.now(),test:false});
-let S=def();
+const LV_CAP=50;
+const isObj=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
+const numIn=(v,d,lo,hi)=>{v=+v;return isFinite(v)?Math.min(hi,Math.max(lo,v)):d;};
+/* Macht aus beliebigem (auch beschädigtem oder altem) JSON einen gültigen Spielstand. Unbrauchbare Einträge fallen weg, der Rest bleibt erhalten. */
+function sanitize(o){
+  const D=def();if(!isObj(o))return D;
+  const s=Object.assign(D,o),now=Date.now(),d0=def();
+  s.stats=Object.assign(d0.stats,isObj(o.stats)?o.stats:{});
+  s.stats.kt=Object.assign(def().stats.kt,isObj((o.stats||{}).kt)?o.stats.kt:{});
+  for(const k of['col','nodes','crafted'])if(!isObj(s.stats[k]))s.stats[k]={};
+  for(const k of['kills','walk','night','faints'])s.stats[k]=numIn(s.stats[k],0,0,1e9);
+  for(const k in s.stats.kt)s.stats.kt[k]=numIn(s.stats.kt[k],0,0,1e9);
+  s.skills=Object.assign(def().skills,isObj(o.skills)?o.skills:{});for(const k in s.skills)s.skills[k]=numIn(s.skills[k],0,0,1e6);
+  s.lv=Math.floor(numIn(s.lv,1,1,LV_CAP));s.xp=Math.floor(numIn(s.xp,0,0,1e9));
+  s.hp=numIn(s.hp,100,1,1e6);s.en=numIn(s.en,100,0,100);s.cu=Math.floor(numIn(s.cu,0,0,1e12));
+  s.def=numIn(s.def,0,0,1e6);s.shield=Math.floor(numIn(s.shield,0,0,99));s.stun=Math.floor(numIn(s.stun,0,0,99));
+  s.exh=numIn(s.exh,0,0,now+EXH_MS);s.last=numIn(s.last,now,0,now);s.gv=numIn(s.gv,0,0,99);
+  s.test=!!s.test;s.mh=isObj(s.mh)?s.mh:{};s.cd=isObj(s.cd)?s.cd:{};s.scd=isObj(s.scd)?s.scd:{};
+  for(const k of Object.keys(s.cd)){const v=+s.cd[k];if(!isFinite(v)||v<=0)delete s.cd[k];else s.cd[k]=Math.min(v,now);}
+  for(const k of Object.keys(s.mh)){const v=+s.mh[k];if(!isFinite(v)||v<=0)delete s.mh[k];else s.mh[k]=v;}
+  for(const k of Object.keys(s.scd)){const v=+s.scd[k];if(!isFinite(v))delete s.scd[k];else s.scd[k]=Math.min(v,now+3600e3);}
+  const inv={};if(isObj(s.inv))for(const k in s.inv){const n=Math.floor(+s.inv[k]);if(ITEMS[k]&&isFinite(n)&&n>0)inv[k]=Math.min(n,1e7);}s.inv=inv;
+  s.tools=(Array.isArray(s.tools)?s.tools:[]).filter(t=>isObj(t)&&ITEMS[t.id]&&isFinite(+t.dur)&&+t.dur>0).map(t=>({id:t.id,type:t.type,dur:Math.floor(+t.dur)}));
+  const seen=new Set(),gear=[];let mx=0;
+  for(const g of(Array.isArray(s.gear)?s.gear:[])){
+    if(!isObj(g)||typeof g.b!=='string')continue;
+    try{getBase(g.b);}catch(e){continue;}
+    let u=Math.floor(+g.u);const dupe=!isFinite(u)||u<1||seen.has(u);
+    if(!dupe){seen.add(u);mx=Math.max(mx,u);}
+    gear.push({u:dupe?0:u,b:g.b,q:Math.floor(numIn(g.q,0,0,QN.length-1)),p:Math.floor(numIn(g.p,0,0,UPMAX))});
+  }
+  mx=Math.max(mx,Math.floor(numIn(s.gid,0,0,1e9)));
+  for(const g of gear)if(!g.u){g.u=++mx;seen.add(g.u);}
+  s.gear=gear;s.gid=mx;
+  const eq={};if(isObj(s.eq))for(const sl in s.eq){const g=gear.find(x=>x.u===s.eq[sl]);if(g&&getBase(g.b).slot===sl)eq[sl]=g.u;}s.eq=eq;
+  s.qdone=Array.isArray(s.qdone)?s.qdone.filter(x=>typeof x==='string'):[];
+  s.qready=Array.isArray(s.qready)?s.qready.filter(x=>typeof x==='string'&&!s.qdone.includes(x)):[];
+  s.qb=isObj(s.qb)?s.qb:null;
+  if(!CLASSES[s.cls])s.cls='wanderer';
+  s.path=typeof s.path==='string'&&PATHS[s.path]?s.path:'';s.tier=s.path?Math.floor(numIn(s.tier,0,0,3)):0;
+  return s;
+}
+let S=def();const loadNote=[];
 try{
-  const raw=localStorage.getItem(KEY);
-  if(raw){const o=JSON.parse(raw);S=Object.assign(def(),o);S.stats=Object.assign(def().stats,o.stats||{});S.skills=Object.assign(def().skills,o.skills||{});S.stats.kt=Object.assign(def().stats.kt,(o.stats||{}).kt||{});}
-}catch(e){}
+  let raw=null;try{raw=localStorage.getItem(KEY);}catch(e){}
+  if(raw){
+    let o=null;try{o=JSON.parse(raw);}catch(e){}
+    if(!isObj(o)){
+      try{localStorage.setItem(KEY+'_corrupt',raw);}catch(e){}
+      loadNote.push('⚠️ Dein Spielstand war beschädigt. Eine Kopie wurde gesichert, das Spiel startet neu.');
+    }else{
+      try{localStorage.setItem(KEY+'_bak',raw);}catch(e){}   // Sicherung des letzten gültigen Stands
+      S=sanitize(o);
+    }
+  }
+}catch(e){S=def();loadNote.push('⚠️ Spielstand konnte nicht gelesen werden, das Spiel startet neu.');}
 if(!CLASSES[S.cls])S.cls='wanderer';
 if(S.path&&!PATHS[S.path]){S.path='';S.tier=0;}
 try{fixEq();}catch(e){}
@@ -788,10 +840,14 @@ if(!S.gv){ // alte Rüstungen in das neue System übernehmen
   for(const k in mp)if(S.stats.crafted[k])addGear(mp[k].replace(/\|(schwer|mittel|leicht)\|/,'|'+ARMT[S.cls][0]+'|'),0,true);
   S.def=0;fixGear();
 }
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+let noSave=false,saveWarned=false;
+function save(){
+  if(noSave)return false;
+  try{localStorage.setItem(KEY,JSON.stringify(S));saveWarned=false;return true;}
+  catch(e){if(!saveWarned){saveWarned=true;try{toast('⚠️ Speichern fehlgeschlagen (Speicher voll oder gesperrt). Fortschritt kann verloren gehen.');}catch(_){}}return false;}
+}
 
-const LV_CAP=50;
-if(S.lv>LV_CAP){S.lv=LV_CAP;S.xp=0;}
+if(S.lv>=LV_CAP)S.xp=0;
 const maxHP=()=>Math.round((100+10*(S.lv-1))*(1+(C0().hpb||0)+(SB().hpb||0)))+gs('hp');
 const defense=()=>S.def+(C0().def||0)+gs('def')+(SB().def||0);
 const atk=()=>10+2*S.lv+gs('atk');
@@ -812,6 +868,7 @@ function addXP(n){
 }
 let psn=null,myStun=0;   // Gift (Schaden/s, Restzeit) und Betäubung durch Monster (nicht gespeichert)
 function regen(dt){
+  if(!(dt>0))return;
   S.hp=Math.min(maxHP(),S.hp+dt/5);
   if(psn&&dt<5){S.hp=Math.max(1,S.hp-psn.dps*dt);psn.t-=dt;if(psn.t<=0)psn=null;}
   let fight=false;try{fight=eng.size>0;}catch(e){}
@@ -960,7 +1017,8 @@ function cellEnts(cx,cy){
 }
 function def2(e){return e.kind==='node'?NODES[e.type]:e.kind==='shop'?SHOPS[e.type]:MOBS[e.type];}
 function alive(e){const c=S.cd[e.id];return !c||Date.now()-c>=def2(e).res;}
-function pruneCd(){const now=Date.now();for(const k in S.cd){if(now-S.cd[k]>13*3600e3){delete S.cd[k];delete S.mh[k];}}}
+function pruneCd(){const now=Date.now();for(const k in S.cd){if(now-S.cd[k]>13*3600e3){delete S.cd[k];delete S.mh[k];}}
+  const mk=Object.keys(S.mh);if(mk.length>300)for(const k of mk.slice(0,mk.length-300))delete S.mh[k];}
 pruneCd();
 
 /* ---------- Karte ---------- */
@@ -972,6 +1030,7 @@ const eqLook=()=>'';
 window.PX_EQ=()=>null;
 let meK='',meFlip=false;const figTok=()=>{if(S.path&&S.tier&&PATHS[S.path]){const st=PATHS[S.path].st[S.tier-1];const m=st&&/^:st_(\w+):$/.exec(st.i);if(m)return ':ch_'+m[1]+':';}return ':ch_'+S.cls+':';},meTok=()=>figTok()+eqLook(),meIcon=()=>L.divIcon({className:'',html:'<div class="mech'+(meFlip?' mflip':'')+'">'+figTok()+'</div>',iconSize:[52,52],iconAnchor:[26,38]});
 function updMe(){if(pm&&meK!==meTok()&&pm.setIcon){meK=meTok();pm.setIcon(meIcon());}}
+let lastFix=0,gpsLost=false,lastErrT=0,lastRestart=0;
 let P=null,acc=null,pm=null,pc=null,pr=null,follow=true,watchId=null,lastGps=null,lastCell='';
 const ents=new Map();
 const roam=new Map(), eng=new Map();   // laufende Monsterpositionen / Kampf-Zeitpunkte
@@ -981,8 +1040,18 @@ function idleRoam(e){return SPEED[MOBS[e.type].tier]!==undefined&&strHash(e.id)%
 function ep(e){return roam.get(e.id)||e;}
 let sel=null;
 
+/* Laufstrecke: Es zählt erst, wenn du dich deutlich vom letzten gezählten Punkt entfernt hast (mindestens 8 m und 1,5-fache GPS-Genauigkeit). So zählt echtes Gehen auch bei dichten GPS-Updates, Stehen mit Rauschen aber nicht. */
+let walkA=null;
+function countWalk(lat,lon,a){
+  if(S.test||(a||99)>60){walkA=null;return;}
+  if(!walkA){walkA={lat,lon};return;}
+  const d=dist(walkA,{lat,lon});
+  if(d<Math.max(8,1.5*(a||0)))return;
+  if(d<150)S.stats.walk=(S.stats.walk||0)+d;
+  walkA={lat,lon};
+}
 function setPos(lat,lon,a){
-  if(P&&!S.test&&(a||99)<=60){const d=dist(P,{lat,lon});if(d>=8&&d<150)S.stats.walk=(S.stats.walk||0)+d;}
+  countWalk(lat,lon,a);
   if(P&&Math.abs(lon-P.lon)>2e-6&&meFlip!==(lon<P.lon)){meFlip=lon<P.lon;const e=pm&&pm.getElement&&pm.getElement();if(e&&e.firstChild)e.firstChild.classList.toggle('mflip',meFlip);}
   P={lat,lon};acc=a;
   if(!pm){
@@ -1007,11 +1076,13 @@ function gpsChip(msg){
   g.className=acc<30?'good':acc<80?'ok':'bad';
 }
 function onPos(p){
+  lastFix=Date.now();
   lastGps={lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy};
   if(S.test)return;
   setPos(lastGps.lat,lastGps.lon,lastGps.acc);
 }
 function onErr(err){
+  if(Date.now()-lastErrT<15000)return;lastErrT=Date.now();
   const m={1:'Standort verweigert – bitte im Browser erlauben',2:'Position nicht verfügbar',3:'GPS-Timeout – besser draußen probieren'};
   gpsChip(m[err.code]||'GPS-Fehler');
   toast(m[err.code]||'GPS-Fehler');
@@ -1081,7 +1152,7 @@ function roamTick(dt){
     o.m.setLatLng([r.lat,r.lon]);
   }
   /* Aggressive Monster entdecken dich in ihrem Radius (nur bei brauchbarem GPS, nicht während der Erschöpfung) */
-  if(P&&(acc==null||acc<=50)&&Date.now()>S.exh){
+  if(P&&!gpsLost&&(acc==null||acc<=50)&&Date.now()>S.exh){
     for(const [id,o] of ents){
       if(o.e.kind!=='mob')continue;const m=MOBS[o.e.type];if(!m.ag||eng.has(id))continue;
       const r=roam.get(id)||o.e;
@@ -1091,8 +1162,8 @@ function roamTick(dt){
       }else o.notice=0;
     }
   }
-  /* Monster greifen von selbst an, sobald sie im Kampf sind und nah genug dran */
-  if(P){
+  /* Monster greifen von selbst an, sobald sie im Kampf sind und nah genug dran (nicht bei GPS-Ausfall) */
+  if(P&&!gpsLost){
     for(const [id,o] of ents){
       const r=roam.get(id);if(!r||eng.get(id)===undefined)continue;
       const m=MOBS[o.e.type];
@@ -1335,8 +1406,8 @@ function strike(o){
   const bf0=bossFx.get(e.id);
   if(bf0&&bf0.fly>Date.now()&&C.range<45){toast('🐲 Der Drache fliegt, nur Fernkämpfer treffen ihn');return false;}
   const first=!eng.has(e.id),sb=SB();
+  if(S.en<o.en){toast('Zu erschöpft');return false;}   // ohne Energie kein Angriff und kein Kampfeintritt
   eng.set(e.id,Date.now());
-  if(S.en<o.en){toast('Zu erschöpft');return false;}
   S.en-=o.en;
   if(bf0&&bf0.adds>0){bf0.adds--;toast('🌱 Spross besiegt ('+bf0.adds+' übrig)');save();hud();renderCard();return true;}
   let dmg=0,crit=false;
@@ -1494,10 +1565,7 @@ function usePotion(){
   toast('🧪 +'+Math.round(S.hp-b0)+' Leben');fMe('+'+Math.round(S.hp-b0),'heal',0);hud();save();updateSkillUI();
 }
 function useItem(id){
-  if(id==='trank'&&have('trank')>0){
-    if(S.hp>=maxHP()){toast('Leben ist schon voll');return;}
-    S.inv.trank--;const hv=potHeal();S.hp=Math.min(maxHP(),S.hp+hv);psn=null;toast('🧪 +'+hv+' Leben');fMe('+'+hv,'heal',0);hud();save();openSheet('inv');
-  }
+  if(id==='trank'){usePotion();openSheet('inv');}   // gleiche Regeln und Abklingzeit wie im Kampf
 }
 
 /* ---------- Quests ---------- */
@@ -1512,6 +1580,7 @@ const QUESTS=[
   {id:'q4',t:'Bergmann',d:'Stelle eine Spitzhacke her und baue Eisenerz ab.',rt:'30 XP · :i_silber:1 :i_kupfer:50',
    goals:()=>[['Spitzhacke herstellen',S.stats.crafted.spitzhacke||0,1],['Eisenerz abbauen',S.stats.nodes.erz||0,2]],reward:()=>{addXP(30);earn(150);}}
 ];
+{const qid=QUESTS.map(q=>q.id);S.qdone=[...new Set(S.qdone.filter(x=>qid.includes(x)))];S.qready=[...new Set(S.qready.filter(x=>qid.includes(x)&&!S.qdone.includes(x)))];}
 function checkQuests(){
   for(const q of QUESTS){
     if(S.qdone.includes(q.id)||S.qready.includes(q.id))continue;
@@ -1532,7 +1601,7 @@ function claimQuest(id){
 }
 
 /* ---------- Menüs ---------- */
-let curSheet=null,confirmReset=false,qtab='cur',pickCls=null,pickPath=null,gSlot='waffe',ctab='tool',shopE=null,stab='buy',sellOk=0,skipArmed=0;
+let curSheet=null,confirmReset=false,qtab='cur',pickCls=null,pickPath=null,gSlot='waffe',ctab='tool',shopE=null,stab='buy',sellOk=0,skipArmed=0,resetT=0,sellT=0,skipT=0,upT=0;
 function openSheet(s){
   curSheet=s;
   const titles={inv:'Inventar',craft:'Herstellen',quests:'Quests',char:'Charakter',set:'Mehr',dev:'Klassen-Vorschau',class:'Klasse wählen',up:'Klassenentwicklung',gear:'Ausrüstung',shop:'Händler'};
@@ -1704,8 +1773,8 @@ function openSheet(s){
   if(s==='set'){
     h+='<h3>Testmodus</h3><p style="font-size:14px">Im Testmodus ignoriert das Spiel dein GPS. Tippe auf die Karte, um dich dorthin zu bewegen, zum Beispiel drinnen oder am Schreibtisch.</p>'
       +'<button class="btn" data-a="test">Testmodus: '+(S.test?'AN (ausschalten)':'AUS (einschalten)')+'</button>'
-      +'<button class="btn sec" style="margin-top:8px" data-a="opendev">🧪 Klasse wechseln (Vorschau)</button>'
-      +'<button class="btn sec" style="margin-top:8px" data-a="cheatmat">🧪 Upgrade-Material ins Inventar</button>'
+      +(DEV()?'<button class="btn sec" style="margin-top:8px" data-a="opendev">🧪 Klasse wechseln (Vorschau)</button>'
+      +'<button class="btn sec" style="margin-top:8px" data-a="cheatmat">🧪 Upgrade-Material ins Inventar</button>':'')
       +((S.test&&S.cls!=='wanderer'&&S.tier<3)?'<button class="btn sec" style="margin-top:8px" data-a="cheatup">🧪 Nächste Klassenentwicklung freischalten</button>':'')
       +'<h3>Spielstand</h3><p style="font-size:14px">Wird automatisch in diesem Browser gespeichert.</p>'
       +'<button class="btn sec" data-a="reset">'+(confirmReset?'Wirklich alles löschen? Nochmal tippen':'Spielstand löschen')+'</button>'
@@ -1756,8 +1825,9 @@ document.addEventListener('click',ev=>{
     case 'use':useItem(b.dataset.id);break;
     case 'test':setTest(!S.test);openSheet('set');break;
     case 'reset':
-      if(!confirmReset){confirmReset=true;openSheet('set');}
-      else{try{localStorage.removeItem(KEY);}catch(e){}location.reload();}
+      if(!confirmReset){confirmReset=true;resetT=Date.now();openSheet('set');}
+      else if(Date.now()-resetT<400){/* Doppeltipp: ignorieren */}
+      else{noSave=true;try{localStorage.removeItem(KEY);localStorage.removeItem(KEY+'_bak');localStorage.removeItem(KEY+'_corrupt');}catch(e){}location.reload();}
       break;
     case 'shop':if(sel&&sel.kind==='shop'){shopE=sel;stab='buy';openSheet('shop');}break;
     case 'stab':stab=b.dataset.t;sellOk=0;openSheet('shop');break;
@@ -1767,15 +1837,16 @@ document.addEventListener('click',ev=>{
       if(a==='sbuy'){const pr=BUY[id];if(pr&&(S.cu||0)>=pr){S.cu-=pr;add(id,1);toast('Gekauft: '+ITEMS[id].n);}}
       if(a==='sbuyg'){const pr=gBuyPrice(id);if((S.cu||0)>=pr){S.cu-=pr;const r2=addGear(id,0);toast('Gekauft: '+gNameT(r2.g)+(r2.auto?' (angelegt)':''));}}
       if(a==='ssell'){const n=b.dataset.n==='all'?have(id):1,q=Math.min(n,have(id));if(q>0&&SELL[id]){S.inv[id]-=q;earn(SELL[id]*q);toast('Verkauft: '+q+'× '+ITEMS[id].n+' für '+fmtM(SELL[id]*q));}}
-      if(a==='ssellg'){const g=gearOf(+id);if(g&&!Object.values(S.eq).includes(g.u)){if(sellOk===g.u){earn(gSell(g));S.gear=S.gear.filter(x=>x.u!==g.u);sellOk=0;toast('Verkauft: '+gNameT(g)+' für '+fmtM(gSell(g)));}else{sellOk=g.u;openSheet('shop');break;}}}
+      if(a==='ssellg'){const g=gearOf(+id);if(g&&!Object.values(S.eq).includes(g.u)){if(sellOk===g.u&&Date.now()-sellT>=400){earn(gSell(g));S.gear=S.gear.filter(x=>x.u!==g.u);sellOk=0;toast('Verkauft: '+gNameT(g)+' für '+fmtM(gSell(g)));}else if(sellOk!==g.u){sellOk=g.u;sellT=Date.now();openSheet('shop');break;}else break;}}
       if(a==='srep'){const t=S.tools[+b.dataset.i];if(t){const m=(RECIPES.find(r=>r.id===t.id)||{dur:15}).dur,c=(m-t.dur)*REPAIR_PER;if(c>0&&(S.cu||0)>=c){S.cu-=c;t.dur=m;toast('Repariert: '+ITEMS[t.id].n);}}}
       save();hud();openSheet('shop');break;}
     case 'skipexh':{
       const rr=S.exh-Date.now();if(rr<=0)break;const cost=S.lv*20;
+      if(skipArmed>Date.now()&&Date.now()-skipT<400)break;
       if(skipArmed>Date.now()){
         if((S.cu||0)<cost){toast('Zu wenig Ruinmünzen ('+fmtM(cost)+')');break;}
         S.cu-=cost;S.exh=0;skipArmed=0;toast('✨ Erschöpfung beendet');save();hud();exhUI();renderCard();updateSkillUI();
-      }else{skipArmed=Date.now()+4000;toast('Nochmal tippen: Erschöpfung beenden für '+fmtM(cost));}
+      }else{skipArmed=Date.now()+4000;skipT=Date.now();toast('Nochmal tippen: Erschöpfung beenden für '+fmtM(cost));}
       break;}
     case 'gearopen':gSlot=b.dataset.slot||'waffe';openSheet('gear');break;
     case 'gslot':gSlot=b.dataset.slot;openSheet('gear');break;
@@ -1784,7 +1855,7 @@ document.addEventListener('click',ev=>{
     case 'guard':reactDo('guard');break;
     case 'intr':reactDo('intr');break;
     case 'gunequip':delete S.eq[b.dataset.slot];save();hud();openSheet('gear');break;
-    case 'gup':upgradeGear(+b.dataset.id);break;
+    case 'gup':if(Date.now()-upT<500)break;upT=Date.now();upgradeGear(+b.dataset.id);break;
     case 'rune':useRune=+b.dataset.q;openSheet('gear');break;
     case 'ctab':ctab=b.dataset.t;openSheet('craft');break;
     case 'cgear':craftGear(b.dataset.id);break;
@@ -1800,15 +1871,18 @@ document.addEventListener('click',ev=>{
       toast((S.tier===3?'🌟 Verborgene Klasse erweckt: ':'⬆️ Aufstieg: ')+st.i+' '+st.n+'! Neue Fähigkeit: '+st.sk.n+' · 🎁 '+gNameT(qw.g));
       save();hud();renderCard();updateNear();
       break;}
-    case 'opendev':openSheet('dev');break;
+    case 'opendev':if(!DEV())break;openSheet('dev');break;
     case 'devset':{
+      if(!DEV())break;
       S.cls=b.dataset.cls;S.path=b.dataset.path;S.tier=+b.dataset.tier;S.qb=cnt();S.scd={};S.shield=0;S.stun=0;fixEq();
       pickPath='';buildSkillBar();S.hp=Math.min(S.hp,maxHP());save();hud();toast('Klasse: '+C0().n);openSheet('dev');break;}
     case 'cheatmat':{
+      if(!DEV())break;
       const M={eisenerz:2000,stein:500,kristall:30,steinherz:15,tyrannenzahn:5,moorperle:5,gebietsherz:5,drachenschuppe:10,rune0:10,rune1:10,rune2:10,rune3:10,rune4:10};
       for(const k in M)add(k,M[k]);
       S.cu=(S.cu||0)+100000;save();hud();toast('🧪 Material + Runen + 10 Gold erhalten');openSheet('set');break;}
     case 'cheatup':{
+      if(!DEV()||!S.test)break;
       const c=cnt();S.lv=Math.max(S.lv,UP_LV[Math.min(S.tier,2)]);
       S.qb={kills:c.kills-300,rare:c.rare-10,elite:c.elite-10,boss:c.boss-10,walk:c.walk-20000};
       if(S.tier===2&&S.path){const k=S.stats.kt;k.elite+=5;k.area+=1;k.rare+=15;k.boss+=3;S.stats.walk+=20000;S.stats.night+=10;S.stats.faints+=3;S.stats.nodes.baum=(S.stats.nodes.baum||0)+150;S.stats.nodes.erz=(S.stats.nodes.erz||0)+30;S.stats.nodes.kraut=(S.stats.nodes.kraut||0)+100;S.stats.crafted.trank=(S.stats.crafted.trank||0)+10;}
@@ -1828,9 +1902,18 @@ document.addEventListener('click',ev=>{
 });
 
 /* ---------- Takt ---------- */
+function gpsWatch(){
+  if(S.test||!watchId||!lastFix){if(gpsLost){gpsLost=false;gpsChip();}return;}
+  const age=Date.now()-lastFix,lost=age>45000;
+  if(lost){
+    if(!gpsLost){gpsLost=true;toast('📡 GPS-Signal verloren. Monster greifen nicht an, bis es wieder da ist.');}
+    gpsChip('📡 Kein GPS-Signal ('+Math.round(age/1000)+' s)');
+    if(Date.now()-lastRestart>60000){lastRestart=Date.now();try{navigator.geolocation.clearWatch(watchId);watchId=navigator.geolocation.watchPosition(onPos,onErr,{enableHighAccuracy:true,maximumAge:2000,timeout:20000});}catch(e){}}
+  }else if(gpsLost){gpsLost=false;gpsChip();}
+}
 let tc=0;
 setInterval(()=>{
-  const now=Date.now(),dt=(now-S.last)/1000;S.last=now;
+  const now=Date.now(),dt=Math.max(0,(now-S.last)/1000);S.last=now;
   regen(dt);hud();tc++;
   roamTick(Math.min(3,dt>0?dt:1));
   if(P)updateNear();
@@ -1838,13 +1921,24 @@ setInterval(()=>{
   if(sel)renderCard();
   updateSkillUI();exhUI();
   if(tc%5===0)save();
+  if(tc%300===0)pruneCd();
+  gpsWatch();
 },1000);
 setInterval(()=>{if(sel&&sel.kind==='mob'&&Date.now()<nextAtk+300)renderCard();},250);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)save();});
 window.addEventListener('pagehide',save);
 
 hud();buildSkillBar();
+if(loadNote.length)toast(loadNote.join(' '));
 if(S.test){/* Testmodus war aktiv: Start-Dialog bleibt, damit man wählen kann */}
+/* Test-Schnittstelle: nur aktiv, wenn vor dem Laden window.__RW_TEST=true gesetzt wird (siehe tests/). Im normalen Spiel ohne Wirkung. */
+if(window.__RW_TEST)window.__RW={get S(){return S;},set S(v){S=v;},get sel(){return sel;},set sel(v){sel=v;},get P(){return P;},get nextAtk(){return nextAtk;},set nextAtk(v){nextAtk=v;},
+  get psn(){return psn;},set psn(v){psn=v;},get gpsLost(){return gpsLost;},set gpsLost(v){gpsLost=v;},
+  KEY,save,sanitize,def,regen,pruneCd,toast,getBase,gearOf,addGear,equip,canEquip,fixEq,fixGear,upgradeGear,craftGear,craft,addXP,maxHP,defense,atk,critCh,gVal,gSell,gStats,SB,
+  strike,shoot,monsterHit,faint,setPos,countWalk,select,refreshWorld,cellEnts,areaEnts,usePotion,useItem,rollGear,rollPathSet,rollSet,have,add,claimQuest,checkQuests,
+  ents,roam,eng,SETS,SETD,PATHS,MOBS,GR,RECIPES,QUESTS,ITEMS,NODES,SELL,BUY,ABIL,CW,TIERS,COIN,HAB,CLASSES,SSLOTS,ARM,ATYPES,ARMT,SECRET,UPQ,effClass,UPCOST,UPFEE,UPMAX,UP_LV,LV_CAP,QM,QN,
+  wK,oK,enc,gBuyPrice,rollQ,DROPQ,RDROPQ,DROPT,DROPCH,RDROPCH,pickMob,hash,mulberry,dist,DLAT,DLON,RANGE,gpsWatch,setLastFix:v=>{lastFix=v;},setWatch:v=>{watchId=v;},roamTick,
+  _:0};
 })();
 </script>
 </body>
