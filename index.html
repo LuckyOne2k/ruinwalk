@@ -258,8 +258,28 @@ if(!window.isSecureContext){
    Der aktive Platz steht in ruinwalk_slot. Wechsel = Speichern + Neuladen, damit sich zwei Charaktere nie vermischen. */
 const SLOT_KEY='ruinwalk_slot',MAX_SLOTS=3,FREE_SLOTS=2;
 const slotKey=n=>n===1?'ruinwalk_v1':'ruinwalk_v1_s'+n;
-const SLOT=(()=>{try{const v=+localStorage.getItem(SLOT_KEY);return v>=1&&v<=MAX_SLOTS&&v===Math.floor(v)?v:1;}catch(e){return 1;}})();
-const KEY=slotKey(SLOT);
+/* Aktiver Charakter: lokaler Platz (1–3) ODER ein Cloud-Charakter ('c:<uuid>' in ruinwalk_slot). Cloud-Charaktere haben vollständig
+   eigene Schlüssel (ruinwalk_cc_<id> = Zwischenspeicher mit eigenem _bak/_corrupt, ruinwalk_cm_<id> = Sync-Daten) und teilen nichts mit den
+   lokalen Plätzen (ruinwalk_v1*). Ein ungültiger/unvollständiger Cloud-Eintrag fällt IMMER auf lokalen Platz 1 zurück (nur im Speicher,
+   es wird nichts überschrieben oder gelöscht). Zwischenspeicher werden nie automatisch gelöscht. */
+const CLOUD_ID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const cloudKey=id=>'ruinwalk_cc_'+id,cloudMetaKey=id=>'ruinwalk_cm_'+id;
+function metaOk(m,id){return !!m&&typeof m==='object'&&!Array.isArray(m)&&m.v===1&&m.cloudId===id&&CLOUD_ID_RE.test(id)&&typeof m.uid==='string'&&CLOUD_ID_RE.test(m.uid)
+  &&[1,2,3].includes(m.slot)&&Number.isInteger(m.baseVersion)&&m.baseVersion>=1&&typeof m.dirty==='boolean'&&Number.isFinite(m.syncedAt)&&m.syncedAt>=0;}
+function readMeta(id){if(!CLOUD_ID_RE.test(id))return null;try{const m=JSON.parse(localStorage.getItem(cloudMetaKey(id))||'null');return metaOk(m,id)?m:null;}catch(e){return null;}}
+function writeMeta(m){if(!m||!metaOk(m,m.cloudId))return false;try{localStorage.setItem(cloudMetaKey(m.cloudId),JSON.stringify(m));return true;}catch(e){return false;}}
+const ACTIVE=(()=>{
+  let raw=null;try{raw=localStorage.getItem(SLOT_KEY);}catch(e){}
+  const mc=/^c:([0-9a-f-]{36})$/.exec(raw||'');
+  if(mc){
+    let has=false;try{has=!!localStorage.getItem(cloudKey(mc[1]));}catch(e){}
+    if(has&&readMeta(mc[1]))return {type:'cloud',id:mc[1],slot:0};
+    return {type:'local',slot:1,fallback:true};      // Cloud-Charakter hier nicht verfügbar: lokaler Platz 1, Cloud-Daten bleiben unberührt
+  }
+  const v=+raw;return {type:'local',slot:v>=1&&v<=MAX_SLOTS&&v===Math.floor(v)?v:1};
+})();
+const SLOT=ACTIVE.slot;   // lokaler Platz; 0 = ein Cloud-Charakter ist aktiv
+const KEY=ACTIVE.type==='cloud'?cloudKey(ACTIVE.id):slotKey(SLOT);
 const DLAT=0.0015, DLON=0.00226;   // Zellgröße ca. 165 m x 165 m
 const RANGE=40, VIEW=2, SHOW_DIST=500, CLASS_LV=5;
 const START_POS=[48.3705,10.8978]; // Augsburg Rathausplatz (Testmodus)
@@ -850,7 +870,7 @@ function sanitize(o){
   s.created=numIn(s.created,0,0,4e12)||now;s.played=Math.floor(numIn(s.played,0,0,1e9));s.lp=numIn(s.lp,0,0,4e12);
   return s;
 }
-let S=def();const loadNote=[];
+let S=def();const loadNote=[];let cloudBroken=false;   // Cloud-Zwischenspeicher unlesbar (kein Backup): nie leeren Stand daraus speichern
 /* liefert den bereinigten Spielstand oder null (kaputtes JSON, falsche Struktur) – schreibt nichts */
 function tryLoad(raw){
   if(!raw)return null;let o=null;try{o=JSON.parse(raw);}catch(e){return null;}
@@ -867,10 +887,16 @@ try{
       wr(KEY+'_corrupt',raw);                          // Rohdaten bleiben für Analyse erhalten
       const bk=tryLoad(rd(KEY+'_bak'));
       if(bk){S=bk;loadNote.push('⚠️ Dein Spielstand war beschädigt. Er wurde aus der letzten gültigen Sicherung wiederhergestellt (Rohdaten separat gesichert).');}
-      else loadNote.push('⚠️ Dein Spielstand war beschädigt. Eine Kopie wurde gesichert, das Spiel startet neu.');
+      else{loadNote.push('⚠️ Dein Spielstand war beschädigt. Eine Kopie wurde gesichert, das Spiel startet neu.');if(ACTIVE.type==='cloud')cloudBroken=true;}
     }
   }
-}catch(e){S=def();loadNote.push('⚠️ Spielstand konnte nicht gelesen werden, das Spiel startet neu.');}
+}catch(e){S=def();loadNote.push('⚠️ Spielstand konnte nicht gelesen werden, das Spiel startet neu.');if(ACTIVE.type==='cloud')cloudBroken=true;}
+if(cloudBroken){   // nichts aus diesem Zwischenspeicher speichern; auf den lokalen Platz 1 ausweichen (Cloud-Daten bleiben unberührt)
+  try{localStorage.setItem(SLOT_KEY,'1');sessionStorage.setItem('rw_cloudbroken','1');}catch(e){}
+  setTimeout(()=>location.reload(),0);
+}else try{if(sessionStorage.getItem('rw_cloudbroken')){sessionStorage.removeItem('rw_cloudbroken');loadNote.push('⚠️ Der Zwischenspeicher des Cloud-Charakters war beschädigt. Dein lokaler Charakter wurde geladen; die Rohdaten sind separat gesichert, die Cloud-Daten unverändert.');}}catch(e){}
+if(ACTIVE.type==='cloud')S.cid=ACTIVE.id;   // Identität = Cloud-ID
+if(ACTIVE.fallback)loadNote.push('⚠️ Der Cloud-Charakter ist auf diesem Gerät nicht verfügbar. Es wurde dein lokaler Charakter geladen; die Cloud-Daten sind unverändert.');
 if(!CLASSES[S.cls])S.cls='wanderer';
 if(S.path&&!PATHS[S.path]){S.path='';S.tier=0;}
 try{fixEq();}catch(e){}
@@ -881,7 +907,7 @@ if(!S.gv){ // alte Rüstungen in das neue System übernehmen
   for(const k in mp)if(S.stats.crafted[k])addGear(mp[k].replace(/\|(schwer|mittel|leicht)\|/,'|'+ARMT[S.cls][0]+'|'),0,true);
   S.def=0;fixGear();
 }
-let noSave=false,saveWarned=false,lastValidRaw=null;
+let noSave=cloudBroken,saveWarned=false,lastValidRaw=null;
 /* Rollende Sicherung. Reihenfolge: (1) bisherigen Hauptstand lesen und prüfen, (2) nur wenn gültig als Backup ablegen,
    (3) erst dann den neuen Stand schreiben. Scheitert (3), ist der alte Stand unverändert im Hauptschlüssel UND im Backup.
    Ein beschädigter Hauptstand wird nie zum Backup, sondern separat als _corrupt aufbewahrt. */
@@ -1842,7 +1868,7 @@ function openSheet(s){
       +(DEV()?'<button class="btn sec" style="margin-top:8px" data-a="opendev">🧪 Klasse wechseln (Vorschau)</button>'
       +'<button class="btn sec" style="margin-top:8px" data-a="cheatmat">🧪 Upgrade-Material ins Inventar</button>':'')
       +((S.test&&S.cls!=='wanderer'&&S.tier<3)?'<button class="btn sec" style="margin-top:8px" data-a="cheatup">🧪 Nächste Klassenentwicklung freischalten</button>':'')
-      +'<h3>Charakter</h3><p style="font-size:14px">Aktiv: <b>'+charLabel(S)+'</b> (Platz '+SLOT+'). Jeder Charakter hat einen eigenen Spielstand.</p><button class="btn sec" data-a="chars">👥 Charakter wechseln</button>'
+      +'<h3>Charakter</h3><p style="font-size:14px">Aktiv: <b>'+charLabel(S)+'</b> ('+(ACTIVE.type==='cloud'?'Cloud':'Platz '+SLOT)+'). Jeder Charakter hat einen eigenen Spielstand.</p><button class="btn sec" data-a="chars">👥 Charakter wechseln</button>'
       +'<h3>Konto</h3><p style="font-size:14px">Optional: Mit einem Konto kannst du Charaktere in der Cloud sichern. Ohne Konto spielst du wie bisher.</p><button class="btn sec" data-a="acct">☁️ Konto &amp; Cloud</button>'
       +'<h3>Spielstand</h3><p style="font-size:14px">Wird automatisch in diesem Browser gespeichert.</p>'
       +'<button class="btn sec" data-a="reset">'+(confirmReset?'Wirklich alles löschen? Nochmal tippen':'Spielstand löschen')+'</button>'
@@ -1892,6 +1918,31 @@ function switchSlot(n){ // aktuellen Charakter sichern, Platz merken, neu laden
   noSave=true;try{localStorage.setItem(SLOT_KEY,String(n));}catch(e){}
   location.reload();
 }
+function switchCloud(id){ // nur für vorhandene, gültige Cloud-Zwischenspeicher; sichert vorher den aktuellen Charakter
+  if(!CLOUD_ID_RE.test(id)||!readMeta(id))return false;
+  let has=false;try{has=!!localStorage.getItem(cloudKey(id));}catch(e){}
+  if(!has)return false;
+  save();noSave=true;try{localStorage.setItem(SLOT_KEY,'c:'+id);}catch(e){noSave=false;return false;}
+  location.reload();return true;
+}
+/* Legt den Zwischenspeicher eines Cloud-Charakters NEU an. Überschreibt nie etwas Vorhandenes (Spielstand oder Sync-Daten);
+   Ersetzen/Abgleich gehört in den Synchronisierungs-Schritt mit Konfliktprüfung. Der Zustand wird bereinigt (sanitize). */
+function cloudCachePut(meta,state){
+  if(!meta||!metaOk(meta,meta.cloudId))return false;
+  const id=meta.cloudId;let st;
+  try{st=sanitize(Object.assign({},state,{cid:id}));}catch(e){return false;}
+  try{
+    if(localStorage.getItem(cloudKey(id))||localStorage.getItem(cloudMetaKey(id)))return false;
+    localStorage.setItem(cloudKey(id),JSON.stringify(st));
+    try{localStorage.setItem(cloudMetaKey(id),JSON.stringify(meta));}catch(e){localStorage.removeItem(cloudKey(id));return false;}   // nur die gerade angelegte Hälfte zurücknehmen
+    return true;
+  }catch(e){return false;}
+}
+/* gültige Cloud-Zwischenspeicher dieses Geräts (nur lesend) */
+function cloudCaches(){
+  const out=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i),m=/^ruinwalk_cm_([0-9a-f-]{36})$/.exec(k||'');
+    if(m){const meta=readMeta(m[1]);if(meta&&localStorage.getItem(cloudKey(m[1]))!==null)out.push(meta);}}}catch(e){}
+  return out;}
 function createChar(n,name){
   if(n<1||n>MAX_SLOTS||!slotOpen(n))return false;
   try{if(localStorage.getItem(slotKey(n)))return false;}catch(e){return false;}   // nie einen belegten Platz überschreiben
@@ -2426,7 +2477,7 @@ authBoot();
 /* Test-Schnittstelle: nur aktiv, wenn vor dem Laden window.__RW_TEST=true gesetzt wird (siehe tests/). Im normalen Spiel ohne Wirkung. */
 if(window.__RW_TEST)window.__RW={get S(){return S;},set S(v){S=v;},get sel(){return sel;},set sel(v){sel=v;},get P(){return P;},get nextAtk(){return nextAtk;},set nextAtk(v){nextAtk=v;},
   get psn(){return psn;},set psn(v){psn=v;},get gpsLost(){return gpsLost;},set gpsLost(v){gpsLost=v;},
-  KEY,SLOT,createChar,save,sanitize,def,regen,pruneCd,toast,getBase,gearOf,addGear,equip,canEquip,fixEq,fixGear,upgradeGear,craftGear,craft,addXP,maxHP,defense,atk,critCh,gVal,gSell,gStats,SB,
+  KEY,SLOT,ACTIVE,cloudKey,cloudMetaKey,readMeta,writeMeta,cloudCachePut,cloudCaches,switchCloud,CLOUD_ID_RE,createChar,save,sanitize,def,regen,pruneCd,toast,getBase,gearOf,addGear,equip,canEquip,fixEq,fixGear,upgradeGear,craftGear,craft,addXP,maxHP,defense,atk,critCh,gVal,gSell,gStats,SB,
   strike,shoot,monsterHit,faint,setPos,countWalk,select,refreshWorld,cellEnts,areaEnts,usePotion,useItem,rollGear,rollPathSet,rollSet,have,add,claimQuest,checkQuests,
   ents,roam,eng,SETS,SETD,PATHS,MOBS,GR,RECIPES,QUESTS,ITEMS,NODES,SELL,BUY,ABIL,CW,TIERS,COIN,HAB,CLASSES,SSLOTS,ARM,ATYPES,ARMT,SECRET,UPQ,effClass,UPCOST,UPFEE,UPMAX,UP_LV,LV_CAP,QM,QN,
   wK,oK,enc,gBuyPrice,rollQ,DROPQ,RDROPQ,DROPT,DROPCH,RDROPCH,pickMob,hash,mulberry,dist,DLAT,DLON,RANGE,gpsWatch,setLastFix:v=>{lastFix=v;},setWatch:v=>{watchId=v;},setWatchStart:v=>{watchStart=v;lastRestart=v;},get watchId(){return watchId;},get gpsDenied(){return gpsDenied;},get lastRestart(){return lastRestart;},onPos,onErr,startGPS,roamTick,

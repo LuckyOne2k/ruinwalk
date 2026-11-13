@@ -72,3 +72,12 @@ Stand: Analyse von Commit e2eb942 (13.11.2026). Es ist **nichts implementiert**;
 - **C:** Platz 3 nur online spielbar (Start nur nach erfolgreicher Server-Prüfung).
 - **D:** Neue Cloud-Charaktere können in Phase 3 direkt auf Platz 1/2 angelegt werden.
 - Status: Plan freigegeben, Umsetzung beginnt mit 3a nach ausdrücklichem Start.
+
+## 10. Fortschritt
+### 3a Fundament – erledigt (13.11.2026)
+- **Aktiver Charakter** ist jetzt `ACTIVE` = `{type:'local', slot}` oder `{type:'cloud', id}`; `SLOT` bleibt der lokale Platz (0, wenn ein Cloud-Charakter aktiv ist). Auswahl in `ruinwalk_slot` (`1`–`3` wie bisher oder `c:<uuid>`).
+- **Eigene Schlüssel für Cloud-Charaktere:** `ruinwalk_cc_<id>` (Zwischenspeicher, mit eigenem `_bak`/`_corrupt` über die unveränderte `save()`-Logik) und `ruinwalk_cm_<id>` (Sync-Daten: Konto, Platz, `baseVersion`, `dirty`, `syncedAt`). Kein Schlüssel- oder Präfix-Überschneidung mit `ruinwalk_v1*`.
+- **Sicherheitsregeln im Code:** ungültige/unvollständige Cloud-Auswahl → lokaler Platz 1 (nur im Speicher, nichts überschrieben); unlesbarer Cloud-Zwischenspeicher ohne Backup → `noSave`, Rohdaten nach `_corrupt`, Ausweichen auf Platz 1, nie ein leerer Stand gespeichert; `S.cid` = Cloud-ID erzwungen; `cloudCachePut` überschreibt nie Vorhandenes; Zwischenspeicher werden nie automatisch gelöscht; `save()` ändert die Sync-Daten nicht.
+- **Neue Hilfen (noch ohne Oberfläche/Netz):** `readMeta`, `writeMeta`, `cloudCachePut`, `cloudCaches`, `switchCloud`.
+- **Tests:** 13 neue (`tests/cases/cloudbase.js`), gesamt **135/135**. Absichtlich eingebaute Fehler (Cloud schreibt in lokalen Schlüssel; Identität nicht erzwungen) werden von den Tests erkannt.
+- Nicht geändert: Live-Supabase, Schema, Spielmechanik, GPS, Kampf, Inventar, Quests, Konto-Code.
