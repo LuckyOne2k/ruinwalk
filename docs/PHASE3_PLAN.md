@@ -66,8 +66,9 @@ Stand: Analyse von Commit e2eb942 (13.11.2026). Es ist **nichts implementiert**;
 5. **3e Platz 3 & Sperrzustand:** `locked`-Pfade, Verschieben gesperrter Charaktere in der Oberfläche.
 6. **3f Härtung:** Tab-Sperre (optional), Live-Prüfung, Bericht. Pro Schritt: Tests grün, Commit, kurzer Bericht.
 
-## 9. Offene Entscheidungen
-- **A – Hochgeladene lokale Charaktere:** (1) lokales Original bleibt unabhängig spielbar (Kopien driften auseinander), (2) Original wird als „in Cloud“ markiert, Spielen läuft über die Cloud-Version, das Original bleibt als Sicherung unangetastet *(empfohlen)*.
-- **B – Schema S1** (Sicherungen ausdünnen) freigeben?
-- **C – Platz 3:** nur online spielbar *(empfohlen)* oder auch mit lokaler Kopie offline?
-- **D – Neuer Cloud-Charakter** direkt in Phase 3 (Platz 1/2) oder zunächst nur Upload bestehender?
+## 9. Entscheidungen (13.11.2026, vom Auftraggeber bestätigt)
+- **A:** Hochgeladene lokale Charaktere werden als „in Cloud“ markiert; Spielen läuft über die Cloud-Version, das lokale Original bleibt unangetastet als Sicherung.
+- **B:** Schema-Änderung S1 ist freigegeben (neue Sicherung nur, wenn die letzte älter als 10 Minuten ist). Umsetzung mit Migration, angepassten SQL-Tests und Live-Prüfung, vor dem produktiven Einspielen kurz berichten.
+- **C:** Platz 3 nur online spielbar (Start nur nach erfolgreicher Server-Prüfung).
+- **D:** Neue Cloud-Charaktere können in Phase 3 direkt auf Platz 1/2 angelegt werden.
+- Status: Plan freigegeben, Umsetzung beginnt mit 3a nach ausdrücklichem Start.
