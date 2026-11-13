@@ -29,5 +29,18 @@ module.exports={
  'Upgrade-Taste: schnelles Doppeltippen löst nur einen Versuch aus':async(T,eq)=>{
   const p=await T.page({lv:30,cls:'krieger',cu:1e6,inv:{eisenerz:500,stein:500}});await U.install(p);
   const r=await p.evaluate(()=>{const R=__RW,g=R.addGear('w|schwert|1',0).g;T.rand([],.0001);T.tap('gup',{id:String(g.u)});T.tap('gup',{id:String(g.u)});return g.p;});
-  eq(r,1);await p.context().close();}
+  eq(r,1);await p.context().close();},
+ 'Item-Popup: öffnet per Tipp, zeigt Details, Anlegen/Schließen funktionieren':async(T,eq)=>{
+  const p=await T.page({lv:30,cls:'krieger',cu:1e6,inv:{eisenerz:500,stein:500}});await U.install(p);
+  const r=await p.evaluate(()=>{const R=__RW,g=R.addGear('w|schwert|1',2).g;delete R.S.eq.waffe;
+    T.tap('gearopen',{slot:'waffe'});
+    const rows=document.querySelectorAll('#shB [data-a=gitem]').length;
+    const inlineBtn=!!document.querySelector('#shB [data-a=gequip]');
+    T.tap('gitem',{id:String(g.u)});const pop=document.querySelector('#ipop');
+    const vis=getComputedStyle(pop).display!=='none',txt=pop.textContent,hasEq=!!pop.querySelector('[data-a=gequip]'),hasUp=!!pop.querySelector('[data-a=gup]');
+    pop.querySelector('[data-a=gequip]').click();
+    const eqd=R.S.eq.waffe===g.u,stay=getComputedStyle(pop).display!=='none',unb=!!pop.querySelector('[data-a=gunequip]');
+    T.tap('ipx');const closed=getComputedStyle(pop).display==='none';
+    return {rows,inlineBtn,vis,hasEq,hasUp,eqd,stay,unb,closed,txt:/Level|Verkaufswert/.test(txt)};});
+  eq(r,{rows:1,inlineBtn:false,vis:true,hasEq:true,hasUp:true,eqd:true,stay:true,unb:true,closed:true,txt:true});await p.context().close();}
 };

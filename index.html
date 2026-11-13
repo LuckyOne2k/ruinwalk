@@ -61,6 +61,7 @@ body.cbt #fx{top:calc(182px + var(--st))}
 .hpbar{height:10px;border-radius:6px;background:#3a2f27;overflow:hidden;margin-top:6px}
 .hpbar i{display:block;height:100%;background:var(--hp)}
 /* Sheet */
+#ipop{position:absolute;inset:0;z-index:900;display:none;align-items:center;justify-content:center;padding:16px}#ipop .bd{position:absolute;inset:0;background:rgba(0,0,0,.6)}#ipop .bx{position:relative;width:100%;max-width:420px;max-height:86%;overflow:auto;background:var(--card);border:2px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.5)}#ipop .big{font-size:46px;text-align:center;line-height:1.1}#ipop .x{position:absolute;top:8px;right:10px}.rec.tap{cursor:pointer}
 #sheet{position:absolute;left:0;right:0;bottom:0;top:12%;z-index:800;background:var(--card);border-radius:22px 22px 0 0;box-shadow:0 -4px 20px rgba(0,0,0,.35);display:none;flex-direction:column}
 .sh-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 8px;background:linear-gradient(#4a2d1a,var(--card));border-radius:22px 22px 0 0}
 .sh-head h2{margin:0;font-size:22px}
@@ -207,6 +208,8 @@ body.cbt #react:not(.boss) [data-a=potion]{left:0;bottom:0}
   <div class="sh-head"><h2 id="shT"></h2><button class="x" data-a="shx">✕</button></div>
   <div id="shB"></div>
 </div>
+
+<div id="ipop"></div>
 
 <div id="faint"><div class="fbox" id="fbox"></div></div>
 
@@ -1706,7 +1709,7 @@ function openSheet(s){
       h+='<h3>Material</h3>'+(mats.length?mats.map(k=>'<div class="rec" style="padding:8px"><div class="t">'+ITEMS[k].i+' '+ITEMS[k].n+' ×'+S.inv[k]+'</div><div class="c">je '+fmtM(SELL[k])+'</div><button class="btn sec" data-a="ssell" data-id="'+k+'" data-n="1">1 verkaufen</button> <button class="btn" data-a="ssell" data-id="'+k+'" data-n="all">Alle ('+fmtM(SELL[k]*S.inv[k])+')</button></div>').join(''):'<p style="font-size:14px">Kein verkäufliches Material.</p>');
       const eqIds=Object.values(S.eq);
       const gl=S.gear.filter(g=>!eqIds.includes(g.u));
-      h+='<h3>Ausrüstung im Beutel</h3>'+(gl.length?gl.sort((a,b)=>gSell(b)-gSell(a)).map(g=>'<div class="rec" style="border-color:'+gC(g)+';padding:8px"><div class="t">'+gName(g)+'</div><div class="c">'+gStr(gStats(g))+'<br>Verkaufspreis '+fmtM(gSell(g))+'</div><button class="btn'+(sellOk===g.u?'':' sec')+'" data-a="ssellg" data-id="'+g.u+'">'+(sellOk===g.u?'Wirklich verkaufen?':'Verkaufen')+'</button></div>').join(''):'<p style="font-size:14px">Nichts zu verkaufen. Angelegte Ausrüstung wird nicht angeboten.</p>');
+      h+='<h3>Ausrüstung im Beutel</h3>'+(gl.length?gl.sort((a,b)=>gSell(b)-gSell(a)).map(g=>'<div class="rec" style="border-color:'+gC(g)+';padding:8px"><div class="t tap" data-a="gitem" data-id="'+g.u+'">'+gName(g)+' <small style="opacity:.6">ⓘ</small></div><div class="c">'+gStr(gStats(g))+'<br>Verkaufspreis '+fmtM(gSell(g))+'</div><button class="btn'+(sellOk===g.u?'':' sec')+'" data-a="ssellg" data-id="'+g.u+'">'+(sellOk===g.u?'Wirklich verkaufen?':'Verkaufen')+'</button></div>').join(''):'<p style="font-size:14px">Nichts zu verkaufen. Angelegte Ausrüstung wird nicht angeboten.</p>');
     }
     if(stab==='rep'){
       const mx=id=>(RECIPES.find(r=>r.id===id)||{dur:15}).dur;
@@ -1733,10 +1736,8 @@ function openSheet(s){
       const c=g.p<UPMAX?UPCOST(g.p,b.t):null,okU=c&&Object.keys(c).every(k=>have(k)>=c[k])&&(S.cu||0)>=Math.round(UPFEE(g.p)*[1,1.5,2][b.t-1]);
       const fee=c?Math.round(UPFEE(g.p)*[1,1.5,2][b.t-1]):0;
       const cs=c?Object.keys(c).map(k=>'<span class="'+(have(k)>=c[k]?'good':'bad')+'">'+ITEMS[k].i+' '+have(k)+'/'+c[k]+'</span>').join(' ')+' <span class="'+((S.cu||0)>=fee?'good':'bad')+'">'+fmtM(fee)+'</span>':'';
-      return '<div class="rec" style="border-color:'+gC(g)+(on?';background:#4a2d1a':'')+'"><div class="t">'+gName(g)+(on?' <small>(angelegt)</small>':'')+'</div>'
-        +'<div class="c"><small style="color:'+QC[g.q]+'">'+(b.set?'<span style="color:'+SETC+'">✨ '+SETD[b.set].n+'</span> · ':'')+QN[g.q]+(b.type&&WTN[b.type]?' · '+WTN[b.type]:(ARMN[b.type]?' · '+ARMN[b.type]:''))+' · ab Lv '+b.lv+'</small><br>'+gStr(st)+(dif?'<br>'+dif:'')+'</div>'
-        +(on?'<button class="btn sec" data-a="gunequip" data-slot="'+sl+'">Ablegen</button> ':'<button class="btn" data-a="gequip" data-id="'+g.u+'"'+(why?' disabled':'')+'>'+(why||'Anlegen')+'</button> ')
-        +(c?'<div style="margin-top:6px;font-size:13px">⬆️ Auf +'+(g.p+1)+' · Chance <b>'+Math.round(upChance(g)*100)+' %</b></div><div style="font-size:13px;margin:3px 0">'+cs+'</div><button class="btn sec" data-a="gup" data-id="'+g.u+'"'+(okU?'':' disabled')+'>Verbessern versuchen</button>':'<small>Maximal verbessert (+'+UPMAX+')</small>')+'</div>';
+      return '<div class="rec tap" data-a="gitem" data-id="'+g.u+'" style="border-color:'+gC(g)+(on?';background:#4a2d1a':'')+'"><div class="t">'+gName(g)+(on?' <small>(angelegt)</small>':'')+'</div>'
+        +'<div class="c">'+gStr(st)+(dif?'<br>'+dif:'')+'<br><small style="opacity:.7">Tippen für Details ›</small></div></div>';
     }).join('');
   }
   if(s==='up'){
@@ -1796,8 +1797,41 @@ function openSheet(s){
   }
   $('#shB').innerHTML=h;
   $('#sheet').style.display='flex';
+  if(ipopU)itemPop(ipopU);
 }
-function closeSheet(){$('#sheet').style.display='none';curSheet=null;confirmReset=false;pickCls=null;pickPath=null;sellOk=0;}
+let ipopU=0;
+function itemPop(uid){
+  const g=gearOf(uid),el=$('#ipop');
+  if(!g){ipopU=0;el.style.display='none';return;}
+  ipopU=uid;
+  const b=getBase(g.b),st=gStats(g),sl=b.slot,on=S.eq[sl]===g.u,why=canEquip(g),eqg=gearOf(S.eq[sl]);
+  const cur=eqg&&!on?gStats(eqg):{def:0,atk:0,hp:0,crit:0};
+  const lab={def:'🛡️ Verteidigung',atk:'⚔️ Angriff',hp:'❤️ Leben',crit:'🎯 Krit'};
+  const row=k=>{if(!st[k]&&!(cur[k]))return '';const d=st[k]-cur[k],v=x=>k==='crit'?Math.round(x*100)+'%':Math.round(x);
+    return '<div class="kv"><span>'+lab[k]+'</span><b>'+v(st[k])+(eqg&&!on&&d?' <span class="'+(d>0?'good':'bad')+'">('+(d>0?'+':'')+v(d)+')</span>':'')+'</b></div>';};
+  let h='<div class="bd" data-a="ipx"></div><div class="bx" style="border-color:'+gC(g)+'"><button class="x" data-a="ipx">✕</button>'
+    +'<div class="big">'+b.i+'</div><h2 style="text-align:center;margin:6px 0 2px;font-size:18px">'+gName(g)+'</h2>'
+    +'<div style="text-align:center;font-size:13px;margin-bottom:8px"><span style="color:'+QC[g.q]+'">'+QN[g.q]+'</span>'
+    +(b.set?' · <span style="color:'+SETC+'">✨ '+SETD[b.set].n+'</span>':'')
+    +' · '+SLOTS.find(x=>x[0]===sl)[1]+(b.type&&WTN[b.type]?' · '+WTN[b.type]:(ARMN[b.type]?' · '+ARMN[b.type]:''))+'</div>'
+    +['atk','def','hp','crit'].map(row).join('')
+    +'<div class="kv"><span>Benötigt</span><b>Level '+b.lv+'</b></div>'
+    +'<div class="kv"><span>Verbesserung</span><b>+'+g.p+' / '+UPMAX+'</b></div>'
+    +'<div class="kv"><span>Verkaufswert</span><b>'+fmtM(gSell(g))+'</b></div>';
+  if(eqg&&!on)h+='<p style="font-size:12px;opacity:.7;margin:6px 0 0">Vergleich mit angelegtem: '+gName(eqg)+'</p>';
+  if(b.set){const n=Object.values(S.eq).map(gearOf).filter(x=>x&&getBase(x.b).set===b.set).length;h+='<p style="font-size:13px;margin:8px 0 0;color:'+SETC+'">✨ '+SETD[b.set].n+': '+n+' Teile angelegt</p>';}
+  if(curSheet==='gear'){
+    h+='<div style="margin-top:10px">'+(on?'<button class="btn sec" data-a="gunequip" data-slot="'+sl+'">Ablegen</button>':'<button class="btn" data-a="gequip" data-id="'+g.u+'"'+(why?' disabled':'')+'>'+(why||'Anlegen')+'</button>')+'</div>';
+    const c=g.p<UPMAX?UPCOST(g.p,b.t):null;
+    if(c){const fee=Math.round(UPFEE(g.p)*[1,1.5,2][b.t-1]),okU=Object.keys(c).every(k=>have(k)>=c[k])&&(S.cu||0)>=fee;
+      const cs=Object.keys(c).map(k=>'<span class="'+(have(k)>=c[k]?'good':'bad')+'">'+ITEMS[k].i+' '+have(k)+'/'+c[k]+'</span>').join(' ')+' <span class="'+((S.cu||0)>=fee?'good':'bad')+'">'+fmtM(fee)+'</span>';
+      h+='<div style="margin-top:10px;font-size:13px">⬆️ Auf +'+(g.p+1)+' · Chance <b>'+Math.round(upChance(g)*100)+' %</b></div><div style="font-size:13px;margin:3px 0">'+cs+'</div><button class="btn sec" data-a="gup" data-id="'+g.u+'"'+(okU?'':' disabled')+'>Verbessern versuchen</button>';
+    }else h+='<p style="font-size:13px;margin:10px 0 0">Maximal verbessert (+'+UPMAX+')</p>';
+  }
+  el.innerHTML=h+'</div>';el.style.display='flex';
+}
+function closePop(){ipopU=0;const e=$('#ipop');e.style.display='none';e.innerHTML='';}
+function closeSheet(){closePop();$('#sheet').style.display='none';curSheet=null;confirmReset=false;pickCls=null;pickPath=null;sellOk=0;}
 
 /* ---------- UI ---------- */
 let tt=null;
@@ -1915,6 +1949,8 @@ document.addEventListener('click',ev=>{
       }else{skipArmed=Date.now()+4000;skipT=Date.now();toast('Nochmal tippen: Erschöpfung beenden für '+fmtM(cost));}
       break;}
     case 'gearopen':gSlot=b.dataset.slot||'waffe';openSheet('gear');break;
+    case 'gitem':itemPop(+b.dataset.id);break;
+    case 'ipx':closePop();break;
     case 'gslot':gSlot=b.dataset.slot;openSheet('gear');break;
     case 'gequip':if(equip(+b.dataset.id)){save();hud();openSheet('gear');}break;
     case 'fxinfo':{const d=FX[b.dataset.id];if(d)toast(d.n+': '+d.d);break;}
