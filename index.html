@@ -61,6 +61,7 @@ body.cbt #fx{top:calc(182px + var(--st))}
 .hpbar{height:10px;border-radius:6px;background:#3a2f27;overflow:hidden;margin-top:6px}
 .hpbar i{display:block;height:100%;background:var(--hp)}
 /* Sheet */
+#chars{position:absolute;inset:0;z-index:1100;background:linear-gradient(#3a2415,#16120f);display:none;flex-direction:column;padding:18px 14px;overflow:auto;gap:10px}#chars h2{margin:0;text-align:center}#chars .rec.lock{opacity:.6}#chars input{width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--sur);color:inherit;font-size:16px;margin:6px 0}
 #ipop{position:absolute;inset:0;z-index:900;display:none;align-items:center;justify-content:center;padding:16px}#ipop .bd{position:absolute;inset:0;background:rgba(0,0,0,.6)}#ipop .bx{position:relative;width:100%;max-width:420px;max-height:86%;overflow:auto;background:var(--card);border:2px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.5)}#ipop .big{font-size:46px;text-align:center;line-height:1.1}#ipop .x{position:absolute;top:8px;right:10px}.rec.tap{cursor:pointer}
 #sheet{position:absolute;left:0;right:0;bottom:0;top:12%;z-index:800;background:var(--card);border-radius:22px 22px 0 0;box-shadow:0 -4px 20px rgba(0,0,0,.35);display:none;flex-direction:column}
 .sh-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 8px;background:linear-gradient(#4a2d1a,var(--card));border-radius:22px 22px 0 0}
@@ -211,6 +212,8 @@ body.cbt #react:not(.boss) [data-a=potion]{left:0;bottom:0}
 
 <div id="ipop"></div>
 
+<div id="chars"></div>
+
 <div id="faint"><div class="fbox" id="fbox"></div></div>
 
 <div id="start">
@@ -218,6 +221,7 @@ body.cbt #react:not(.boss) [data-a=potion]{left:0;bottom:0}
   <p>Erkunde deine echte Umgebung: sammle Ressourcen, stelle Werkzeug her und jage Monster. Geh dafür wirklich los, die Dinge liegen an echten Orten.</p>
   <button class="btn" data-a="start">📍 Standort aktivieren &amp; starten</button>
   <button class="btn sec" data-a="starttest">Erst ohne GPS testen (Augsburg)</button>
+  <button class="btn sec" data-a="chars">👥 Charaktere</button>
   <p class="warn" id="startWarn"></p>
 </div>
 
@@ -247,7 +251,12 @@ if(!window.isSecureContext){
 }
 
 /* ---------- Konstanten ---------- */
-const KEY='ruinwalk_v1';
+/* Charakterplätze: Platz 1 nutzt den bisherigen Schlüssel (bestehende Spielstände bleiben kompatibel), Platz 2/3 haben eigene Schlüssel.
+   Der aktive Platz steht in ruinwalk_slot. Wechsel = Speichern + Neuladen, damit sich zwei Charaktere nie vermischen. */
+const SLOT_KEY='ruinwalk_slot',MAX_SLOTS=3,FREE_SLOTS=2;
+const slotKey=n=>n===1?'ruinwalk_v1':'ruinwalk_v1_s'+n;
+const SLOT=(()=>{try{const v=+localStorage.getItem(SLOT_KEY);return v>=1&&v<=MAX_SLOTS&&v===Math.floor(v)?v:1;}catch(e){return 1;}})();
+const KEY=slotKey(SLOT);
 const DLAT=0.0015, DLON=0.00226;   // Zellgröße ca. 165 m x 165 m
 const RANGE=40, VIEW=2, SHOW_DIST=500, CLASS_LV=5;
 const START_POS=[48.3705,10.8978]; // Augsburg Rathausplatz (Testmodus)
@@ -790,8 +799,10 @@ const atkRange=()=>C0().range+(SB().range||0);
 
 /* ---------- Spielstand ---------- */
 const def=()=>({lv:1,xp:0,hp:100,en:100,inv:{},tools:[],skills:{holz:0,berg:0,sammeln:0},cd:{},mh:{},
-  stats:{col:{},nodes:{},kills:0,crafted:{},kt:{normal:0,rare:0,elite:0,boss:0,area:0},walk:0,night:0,faints:0},cu:0,path:'',tier:0,qb:null,gear:[],eq:{},gid:0,gv:0,qdone:[],qready:[],def:0,cls:'wanderer',scd:{},shield:0,stun:0,exh:0,last:Date.now(),test:false});
+  stats:{col:{},nodes:{},kills:0,crafted:{},kt:{normal:0,rare:0,elite:0,boss:0,area:0},walk:0,night:0,faints:0},cu:0,path:'',tier:0,qb:null,gear:[],eq:{},gid:0,gv:0,qdone:[],qready:[],def:0,cls:'wanderer',scd:{},shield:0,stun:0,exh:0,last:Date.now(),test:false,cid:'',name:'',created:0,played:0,lp:0});
 const LV_CAP=50;
+/* eindeutige, unveränderliche Charakter-ID (später die Server-character_id) */
+function newCid(){try{if(crypto.randomUUID)return crypto.randomUUID();}catch(e){}return 'c'+Date.now().toString(36)+Math.random().toString(36).slice(2,12);}
 const isObj=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const numIn=(v,d,lo,hi)=>{v=+v;return isFinite(v)?Math.min(hi,Math.max(lo,v)):d;};
 /* Macht aus beliebigem (auch beschädigtem oder altem) JSON einen gültigen Spielstand. Unbrauchbare Einträge fallen weg, der Rest bleibt erhalten. */
@@ -831,6 +842,9 @@ function sanitize(o){
   s.qb=isObj(s.qb)?s.qb:null;
   if(!CLASSES[s.cls])s.cls='wanderer';
   s.path=typeof s.path==='string'&&PATHS[s.path]?s.path:'';s.tier=s.path?Math.floor(numIn(s.tier,0,0,3)):0;
+  s.cid=typeof s.cid==='string'&&/^[A-Za-z0-9_-]{8,64}$/.test(s.cid)?s.cid:newCid();
+  s.name=typeof s.name==='string'?s.name.replace(/[<>&"'`\u0000-\u001f]/g,'').trim().slice(0,16):'';
+  s.created=numIn(s.created,0,0,4e12)||now;s.played=Math.floor(numIn(s.played,0,0,1e9));s.lp=numIn(s.lp,0,0,4e12);
   return s;
 }
 let S=def();const loadNote=[];
@@ -1825,6 +1839,7 @@ function openSheet(s){
       +(DEV()?'<button class="btn sec" style="margin-top:8px" data-a="opendev">🧪 Klasse wechseln (Vorschau)</button>'
       +'<button class="btn sec" style="margin-top:8px" data-a="cheatmat">🧪 Upgrade-Material ins Inventar</button>':'')
       +((S.test&&S.cls!=='wanderer'&&S.tier<3)?'<button class="btn sec" style="margin-top:8px" data-a="cheatup">🧪 Nächste Klassenentwicklung freischalten</button>':'')
+      +'<h3>Charakter</h3><p style="font-size:14px">Aktiv: <b>'+charLabel(S)+'</b> (Platz '+SLOT+'). Jeder Charakter hat einen eigenen Spielstand.</p><button class="btn sec" data-a="chars">👥 Charakter wechseln</button>'
       +'<h3>Spielstand</h3><p style="font-size:14px">Wird automatisch in diesem Browser gespeichert.</p>'
       +'<button class="btn sec" data-a="reset">'+(confirmReset?'Wirklich alles löschen? Nochmal tippen':'Spielstand löschen')+'</button>'
       +'<h3>Über</h3><p style="font-size:13px;line-height:1.5">Prototyp. Ressourcen und Monster entstehen deterministisch an festen Orten der echten Karte, für alle Spieler gleich. Respawn nach 8–15 Minuten. Kartendaten © OpenStreetMap-Mitwirkende.</p>';
@@ -1832,6 +1847,59 @@ function openSheet(s){
   $('#shB').innerHTML=h;
   $('#sheet').style.display='flex';
   if(ipopU)itemPop(ipopU);
+}
+/* ---------- Charakterplätze (lokal; später serverseitig pro Account) ---------- */
+/* Platz 3 ist Premium. Lokal nur Platzhalter: die echte Freischaltung prüft später der Server (third_character_slot). */
+const ENT={third_character_slot:false};
+const slotOpen=n=>n<=FREE_SLOTS||ENT.third_character_slot||/[?&]dev(=|&|$)/.test(location.search);   // nur per ?dev=1 zum Testen, der Testmodus schaltet nichts frei
+const charLabel=c=>(c.name||((CLASSES[c.cls]||{}).n)||'Wanderer');
+function slotInfo(n){
+  let raw=null;try{raw=localStorage.getItem(slotKey(n));}catch(e){}
+  if(!raw)return {n,state:'empty'};
+  const c=n===SLOT?S:tryLoad(raw);
+  return c?{n,state:'ok',c}:{n,state:'bad'};
+}
+const fmtPlay=sec=>{sec=Math.floor(sec);const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60);return h+' h '+String(m).padStart(2,'0')+' min';};
+let charDel=0,charDelT=0,charDet=0;
+function charsUI(){
+  const el=$('#chars');
+  let h='<h2>👥 Charaktere</h2><p style="text-align:center;font-size:13px;margin:0;opacity:.8">Jeder Charakter hat Inventar, Ausrüstung, Quests und Fortschritt ganz für sich.</p>';
+  for(let n=1;n<=MAX_SLOTS;n++){
+    const si=slotInfo(n),open=slotOpen(n),act=n===SLOT;
+    h+='<div class="rec'+(open?'':' lock')+'" style="'+(act?'border-color:var(--acc)':'')+'"><div class="t">Platz '+n+(n>FREE_SLOTS?' · Premium':' · Kostenlos')+(act?' <small>(aktiv)</small>':'')+'</div>';
+    if(!open){h+='<div class="c">🔒 Gesperrt. Der dritte Platz wird später einmalig freigeschaltet.</div>';}
+    else if(si.state==='empty'){
+      h+='<div class="c">Leer</div><input id="cnm'+n+'" maxlength="16" placeholder="Name des Charakters" autocomplete="off"><button class="btn" data-a="cnew" data-slot="'+n+'">Neuen Charakter erstellen</button>';
+    }else if(si.state==='bad'){
+      h+='<div class="c bad">⚠️ Spielstand beschädigt. Beim Spielen wird versucht, ihn aus der Sicherung wiederherzustellen.</div><button class="btn" data-a="cplay" data-slot="'+n+'">Spielen</button> <button class="btn sec" data-a="cdel" data-slot="'+n+'">'+(charDel===n?'Wirklich löschen?':'Löschen')+'</button>';
+    }else{
+      const c=si.c,cl=CLASSES[c.cls]||{i:'🧙',n:'Wanderer'};
+      h+='<div class="c"><b>'+cl.i+' '+charLabel(c).replace(/</g,'&lt;')+'</b><br>Level '+c.lv+' · '+cl.n+'<br><small>Spielzeit '+fmtPlay(c.played)+' · zuletzt '+(c.lp?new Date(c.lp).toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'}):'–')+'</small></div>'
+        +'<button class="btn" data-a="cplay" data-slot="'+n+'">'+(act?'Weiterspielen':'Spielen')+'</button> <button class="btn sec" data-a="cdet" data-slot="'+n+'">Details</button> <button class="btn sec" data-a="cdel" data-slot="'+n+'">'+(charDel===n?'Wirklich löschen?':'Löschen')+'</button>';
+      if(charDet===n)h+='<div class="c" style="margin-top:6px"><small>ID '+c.cid.slice(0,8)+'… · Besiegt '+c.stats.kills+' · Gelaufen '+Math.round(c.stats.walk)+' m · Gegenstände '+c.gear.length+' · Quests erledigt '+c.qdone.length+' · erstellt '+new Date(c.created).toLocaleDateString('de-DE')+'</small></div>';
+    }
+    h+='</div>';
+  }
+  h+='<button class="btn sec" data-a="cclose">Zurück</button>';
+  el.innerHTML=h;el.style.display='flex';
+}
+function switchSlot(n){ // aktuellen Charakter sichern, Platz merken, neu laden
+  save();
+  noSave=true;try{localStorage.setItem(SLOT_KEY,String(n));}catch(e){}
+  location.reload();
+}
+function createChar(n,name){
+  if(n<1||n>MAX_SLOTS||!slotOpen(n))return false;
+  try{if(localStorage.getItem(slotKey(n)))return false;}catch(e){return false;}   // nie einen belegten Platz überschreiben
+  const c=sanitize(Object.assign(def(),{name:name||'',created:Date.now(),last:Date.now()}));
+  try{localStorage.setItem(slotKey(n),JSON.stringify(c));}catch(e){toast('⚠️ Charakter konnte nicht gespeichert werden.');return false;}
+  switchSlot(n);return true;
+}
+function deleteChar(n){ // betrifft ausschließlich die Schlüssel dieses Platzes
+  const k=slotKey(n);try{localStorage.removeItem(k);localStorage.removeItem(k+'_bak');localStorage.removeItem(k+'_corrupt');}catch(e){}
+  if(n===SLOT){let next=1;for(let i=1;i<=MAX_SLOTS;i++)if(i!==n&&slotInfo(i).state!=='empty'){next=i;break;}
+    noSave=true;try{localStorage.setItem(SLOT_KEY,String(next));}catch(e){}location.reload();}
+  else charsUI();
 }
 let ipopU=0;
 function itemPop(uid){
@@ -1983,6 +2051,16 @@ document.addEventListener('click',ev=>{
       }else{skipArmed=Date.now()+4000;skipT=Date.now();toast('Nochmal tippen: Erschöpfung beenden für '+fmtM(cost));}
       break;}
     case 'gearopen':gSlot=b.dataset.slot||'waffe';openSheet('gear');break;
+    case 'chars':charDel=0;charDet=0;charsUI();break;
+    case 'cclose':$('#chars').style.display='none';break;
+    case 'cplay':{const n=+b.dataset.slot;if(n===SLOT)$('#chars').style.display='none';else switchSlot(n);break;}
+    case 'cnew':createChar(+b.dataset.slot,($('#cnm'+b.dataset.slot)||{}).value||'');break;
+    case 'cdet':{const n=+b.dataset.slot;charDet=charDet===n?0:n;charsUI();break;}
+    case 'cdel':{const n=+b.dataset.slot,t=Date.now();
+      if(charDel!==n){charDel=n;charDelT=t;charsUI();setTimeout(()=>{if(charDel===n&&Date.now()-charDelT>=7000){charDel=0;charsUI();}},7100);}
+      else if(t-charDelT<500)break;            // versehentliches Doppeltippen
+      else{charDel=0;deleteChar(n);}
+      break;}
     case 'gitem':itemPop(+b.dataset.id);break;
     case 'ipx':closePop();break;
     case 'gslot':gSlot=b.dataset.slot;openSheet('gear');break;
@@ -2052,7 +2130,7 @@ function gpsWatch(){
 }
 let tc=0;
 setInterval(()=>{
-  const now=Date.now(),dt=Math.max(0,(now-S.last)/1000);S.last=now;
+  const now=Date.now(),dt=Math.max(0,(now-S.last)/1000);S.last=now;if(!document.hidden){S.played+=Math.min(dt,5);S.lp=now;}
   regen(dt);hud();tc++;
   roamTick(Math.min(3,dt>0?dt:1));
   if(P)updateNear();
@@ -2073,7 +2151,7 @@ if(S.test){/* Testmodus war aktiv: Start-Dialog bleibt, damit man wählen kann *
 /* Test-Schnittstelle: nur aktiv, wenn vor dem Laden window.__RW_TEST=true gesetzt wird (siehe tests/). Im normalen Spiel ohne Wirkung. */
 if(window.__RW_TEST)window.__RW={get S(){return S;},set S(v){S=v;},get sel(){return sel;},set sel(v){sel=v;},get P(){return P;},get nextAtk(){return nextAtk;},set nextAtk(v){nextAtk=v;},
   get psn(){return psn;},set psn(v){psn=v;},get gpsLost(){return gpsLost;},set gpsLost(v){gpsLost=v;},
-  KEY,save,sanitize,def,regen,pruneCd,toast,getBase,gearOf,addGear,equip,canEquip,fixEq,fixGear,upgradeGear,craftGear,craft,addXP,maxHP,defense,atk,critCh,gVal,gSell,gStats,SB,
+  KEY,SLOT,createChar,save,sanitize,def,regen,pruneCd,toast,getBase,gearOf,addGear,equip,canEquip,fixEq,fixGear,upgradeGear,craftGear,craft,addXP,maxHP,defense,atk,critCh,gVal,gSell,gStats,SB,
   strike,shoot,monsterHit,faint,setPos,countWalk,select,refreshWorld,cellEnts,areaEnts,usePotion,useItem,rollGear,rollPathSet,rollSet,have,add,claimQuest,checkQuests,
   ents,roam,eng,SETS,SETD,PATHS,MOBS,GR,RECIPES,QUESTS,ITEMS,NODES,SELL,BUY,ABIL,CW,TIERS,COIN,HAB,CLASSES,SSLOTS,ARM,ATYPES,ARMT,SECRET,UPQ,effClass,UPCOST,UPFEE,UPMAX,UP_LV,LV_CAP,QM,QN,
   wK,oK,enc,gBuyPrice,rollQ,DROPQ,RDROPQ,DROPT,DROPCH,RDROPCH,pickMob,hash,mulberry,dist,DLAT,DLON,RANGE,gpsWatch,setLastFix:v=>{lastFix=v;},setWatch:v=>{watchId=v;},setWatchStart:v=>{watchStart=v;lastRestart=v;},get watchId(){return watchId;},get gpsDenied(){return gpsDenied;},get lastRestart(){return lastRestart;},onPos,onErr,startGPS,roamTick,
