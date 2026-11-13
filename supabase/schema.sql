@@ -39,6 +39,8 @@ create table public.payment_events (
   processed_at      timestamptz not null default now()
 );
 
+create index payment_events_account on public.payment_events (account_id);          -- Fremdschlüssel-Index (Advisor)
+
 create table public.characters (
   character_id    uuid primary key default gen_random_uuid(),
   account_id      uuid not null references public.profiles(account_id) on delete cascade,
@@ -66,6 +68,7 @@ create table public.character_backups (
   saved_at       timestamptz not null default now()
 );
 create index character_backups_char on public.character_backups (character_id, backup_id desc);
+create index character_backups_account on public.character_backups (account_id);   -- Fremdschlüssel-Index (Konto löschen, Advisor)
 
 create table public.audit_log (
   id bigserial primary key,
@@ -185,6 +188,14 @@ begin
   update public.profiles set last_login = now() where account_id = auth.uid();
 end $$;
 
+-- Klasse und Level werden aus den Daten abgeleitet (nie vom Client getrennt übergeben) und begrenzt.
+create or replace function public.safe_class(d jsonb) returns text language sql immutable set search_path = public, pg_temp as $$
+  select case when d->>'cls' ~ '^[a-z_]{1,30}$' then d->>'cls' else 'wanderer' end;
+$$;
+create or replace function public.safe_level(d jsonb) returns int language sql immutable set search_path = public, pg_temp as $$
+  select case when d->>'lv' ~ '^[0-9]{1,9}$' then least(greatest((d->>'lv')::int, 1), 50) else 1 end;
+$$;
+
 -- Charakter anlegen. Der Client kann weder ID, Version, Zeitstempel noch Platzregeln beeinflussen.
 create or replace function public.create_character(p_slot int, p_name text, p_data jsonb default '{}'::jsonb)
 returns table(character_id uuid, version int)
@@ -202,14 +213,6 @@ begin
   insert into public.audit_log(account_id, character_id, action) values (uid, cid, 'character_created');
   return query select cid, 1;
 end $$;
-
--- Klasse und Level werden aus den Daten abgeleitet (nie vom Client getrennt übergeben) und begrenzt.
-create or replace function public.safe_class(d jsonb) returns text language sql immutable set search_path = public, pg_temp as $$
-  select case when d->>'cls' ~ '^[a-z_]{1,30}$' then d->>'cls' else 'wanderer' end;
-$$;
-create or replace function public.safe_level(d jsonb) returns int language sql immutable set search_path = public, pg_temp as $$
-  select case when d->>'lv' ~ '^[0-9]{1,9}$' then least(greatest((d->>'lv')::int, 1), 50) else 1 end;
-$$;
 
 -- Speichern mit Versionsprüfung (verhindert Überschreiben durch ein zweites Gerät, fremde Charaktere und ungültige Daten).
 create or replace function public.save_character(p_id uuid, p_expected_version int, p_data jsonb)
@@ -307,14 +310,14 @@ grant all on all sequences in schema public to service_role;
 
 -- Lesen nur Eigenes. Keine INSERT/UPDATE/DELETE-Rechte für Clients.
 grant select on public.profiles, public.account_entitlements, public.characters to authenticated;
-create policy profiles_own_read on public.profiles             for select to authenticated using (account_id = auth.uid());
-create policy ent_own_read      on public.account_entitlements for select to authenticated using (account_id = auth.uid());
+create policy profiles_own_read on public.profiles             for select to authenticated using (account_id = (select auth.uid()));
+create policy ent_own_read      on public.account_entitlements for select to authenticated using (account_id = (select auth.uid()));
 -- Ein Charakter auf Platz 3 ist nur bei aktiver Berechtigung lesbar (sonst gesperrt). Seine Daten bleiben unverändert gespeichert;
 -- list_characters() zeigt ihn weiterhin als gesperrt an (ohne Spielstand), damit er verschoben oder später wieder freigeschaltet werden kann.
 create policy char_own_read     on public.characters           for select to authenticated using (
-  account_id = auth.uid()
+  account_id = (select auth.uid())
   and (slot_number <> 3 or exists (select 1 from public.account_entitlements e
-                                   where e.account_id = auth.uid() and e.entitlement_type = 'third_character_slot' and e.status = 'active')));
+                                   where e.account_id = (select auth.uid()) and e.entitlement_type = 'third_character_slot' and e.status = 'active')));
 -- payment_events, character_backups, audit_log: bewusst keine Policy und keine Rechte für Clients.
 
 grant execute on function public.create_character(int,text,jsonb) to authenticated;
