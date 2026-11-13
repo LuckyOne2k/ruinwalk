@@ -834,13 +834,14 @@ function sanitize(o){
   return s;
 }
 let S=def();const loadNote=[];
+/* liefert den bereinigten Spielstand oder null (kaputtes JSON, falsche Struktur) – schreibt nichts */
+function tryLoad(raw){
+  if(!raw)return null;let o=null;try{o=JSON.parse(raw);}catch(e){return null;}
+  if(!isObj(o))return null;try{return sanitize(o);}catch(e){return null;}
+}
 try{
   const rd=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
   const wr=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
-  const tryLoad=raw=>{ // liefert bereinigten Spielstand oder null – schreibt nichts
-    if(!raw)return null;let o=null;try{o=JSON.parse(raw);}catch(e){return null;}
-    if(!isObj(o))return null;try{return sanitize(o);}catch(e){return null;}
-  };
   const raw=rd(KEY);
   if(raw){
     const ok=tryLoad(raw);
@@ -863,11 +864,27 @@ if(!S.gv){ // alte Rüstungen in das neue System übernehmen
   for(const k in mp)if(S.stats.crafted[k])addGear(mp[k].replace(/\|(schwer|mittel|leicht)\|/,'|'+ARMT[S.cls][0]+'|'),0,true);
   S.def=0;fixGear();
 }
-let noSave=false,saveWarned=false;
+let noSave=false,saveWarned=false,lastValidRaw=null;
+/* Rollende Sicherung. Reihenfolge: (1) bisherigen Hauptstand lesen und prüfen, (2) nur wenn gültig als Backup ablegen,
+   (3) erst dann den neuen Stand schreiben. Scheitert (3), ist der alte Stand unverändert im Hauptschlüssel UND im Backup.
+   Ein beschädigter Hauptstand wird nie zum Backup, sondern separat als _corrupt aufbewahrt. */
 function save(){
   if(noSave)return false;
-  try{localStorage.setItem(KEY,JSON.stringify(S));saveWarned=false;return true;}
-  catch(e){if(!saveWarned){saveWarned=true;try{toast('⚠️ Speichern fehlgeschlagen (Speicher voll oder gesperrt). Fortschritt kann verloren gehen.');}catch(_){}}return false;}
+  let json;try{json=JSON.stringify(S);}catch(e){return false;}
+  try{
+    let old=null;try{old=localStorage.getItem(KEY);}catch(e){}
+    if(old&&old!==json){
+      const valid=old===lastValidRaw||!!tryLoad(old);
+      if(valid){
+        let bak=null;try{bak=localStorage.getItem(KEY+'_bak');}catch(e){}
+        if(bak!==old){try{localStorage.setItem(KEY+'_bak',old);}catch(e){}}   // Fehlschlag hier blockiert das Hauptspeichern nicht
+      }else{try{localStorage.setItem(KEY+'_corrupt',old);}catch(e){}}
+    }
+    localStorage.setItem(KEY,json);lastValidRaw=json;saveWarned=false;return true;
+  }catch(e){
+    if(!saveWarned){saveWarned=true;try{toast('⚠️ Speichern fehlgeschlagen (Speicher voll oder gesperrt). Fortschritt kann verloren gehen.');}catch(_){}}
+    return false;
+  }
 }
 
 if(S.lv>=LV_CAP)S.xp=0;

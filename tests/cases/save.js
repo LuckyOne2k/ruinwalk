@@ -86,5 +86,53 @@ module.exports={
   const p=await T.page({lv:3});
   await p.evaluate(()=>{localStorage.setItem('ruinwalk_v1_bak','{kaputt');localStorage.setItem('ruinwalk_v1','{auch kaputt');});
   const q=await restart(p);
-  eq(await q.evaluate(()=>__RW.S.lv),1);eq(q.errors,[]);await p.context().close();}
+  eq(await q.evaluate(()=>__RW.S.lv),1);eq(q.errors,[]);await p.context().close();},
+ 'Rollendes Backup: jedes Speichern sichert zuerst den bisherigen Hauptstand':async(T,eq)=>{
+  const p=await open(T,{lv:2});
+  const r=await p.evaluate(()=>{const R=__RW;R.S.lv=3;R.save();const a=JSON.parse(localStorage.getItem('ruinwalk_v1')).lv,b1=JSON.parse(localStorage.getItem('ruinwalk_v1_bak')).lv;
+    R.S.lv=4;const ok=R.save();return [ok,a,b1,JSON.parse(localStorage.getItem('ruinwalk_v1')).lv,JSON.parse(localStorage.getItem('ruinwalk_v1_bak')).lv];});
+  eq(r,[true,3,2,4,3]);await p.context().close();},
+ 'Rollendes Backup: scheitert das Hauptspeichern, bleibt alter Stand in Haupt und Backup':async(T,eq)=>{
+  const p=await open(T,{lv:2});
+  const r=await p.evaluate(()=>{const R=__RW;R.S.lv=3;R.save();const orig=Storage.prototype.setItem;
+    Storage.prototype.setItem=function(k,v){if(k==='ruinwalk_v1')throw new DOMException('voll','QuotaExceededError');return orig.call(this,k,v);};
+    R.S.lv=9;let ex=null,ok;try{ok=R.save();}catch(e){ex=e.message;}Storage.prototype.setItem=orig;
+    return {ok,ex,main:JSON.parse(localStorage.getItem('ruinwalk_v1')).lv,bak:JSON.parse(localStorage.getItem('ruinwalk_v1_bak')).lv};});
+  eq(r,{ok:false,ex:null,main:3,bak:3});await p.context().close();},
+ 'Rollendes Backup: scheitert das Backup-Schreiben, wird trotzdem gespeichert und altes Backup bleibt':async(T,eq)=>{
+  const p=await open(T,{lv:2});
+  const r=await p.evaluate(()=>{const R=__RW;R.S.lv=3;R.save();const orig=Storage.prototype.setItem;
+    Storage.prototype.setItem=function(k,v){if(k==='ruinwalk_v1_bak')throw new DOMException('voll','QuotaExceededError');return orig.call(this,k,v);};
+    R.S.lv=4;const ok=R.save();Storage.prototype.setItem=orig;
+    return {ok,main:JSON.parse(localStorage.getItem('ruinwalk_v1')).lv,bak:JSON.parse(localStorage.getItem('ruinwalk_v1_bak')).lv};});
+  eq(r,{ok:true,main:4,bak:2});await p.context().close();},
+ 'Rollendes Backup: gesperrter Speicher (alles wirft) -> kein Absturz, nichts verändert':async(T,eq)=>{
+  const p=await open(T,{lv:2});
+  const r=await p.evaluate(()=>{const R=__RW;R.S.lv=3;R.save();const before=[localStorage.getItem('ruinwalk_v1'),localStorage.getItem('ruinwalk_v1_bak')];
+    const so=Storage.prototype.setItem,go=Storage.prototype.getItem;
+    Storage.prototype.setItem=()=>{throw new DOMException('gesperrt','SecurityError');};Storage.prototype.getItem=()=>{throw new DOMException('gesperrt','SecurityError');};
+    R.S.lv=7;let ex=null,ok;try{ok=R.save();}catch(e){ex=e.message;}Storage.prototype.setItem=so;Storage.prototype.getItem=go;
+    return {ok,ex,same:before[0]===localStorage.getItem('ruinwalk_v1')&&before[1]===localStorage.getItem('ruinwalk_v1_bak')};});
+  eq(r,{ok:false,ex:null,same:true});await p.context().close();},
+ 'Rollendes Backup: beschädigter Hauptstand überschreibt nie das gültige Backup':async(T,eq)=>{
+  const p=await open(T,{lv:2});
+  const r=await p.evaluate(()=>{const R=__RW;R.S.lv=3;R.save();R.S.lv=4;R.save();            // main=4, bak=3
+    localStorage.setItem('ruinwalk_v1','{"lv":99,KAPUTT');R.S.lv=5;const ok=R.save();
+    return {ok,main:JSON.parse(localStorage.getItem('ruinwalk_v1')).lv,bak:JSON.parse(localStorage.getItem('ruinwalk_v1_bak')).lv,corrupt:localStorage.getItem('ruinwalk_v1_corrupt')};});
+  eq(r,{ok:true,main:5,bak:3,corrupt:'{"lv":99,KAPUTT'});
+  await p.context().close();},
+ 'Rollendes Backup: strukturell falscher Hauptstand ([] / Zahl) wird nicht zum Backup':async(T,eq)=>{
+  const p=await open(T,{lv:2});
+  const r=await p.evaluate(()=>{const R=__RW;R.S.lv=3;R.save();R.S.lv=4;R.save();const out=[];
+    for(const bad of ['[1,2]','7','null']){localStorage.setItem('ruinwalk_v1',bad);R.S.lv++;R.save();out.push(JSON.parse(localStorage.getItem('ruinwalk_v1_bak')).lv);}return out;});
+  eq(r,[3,3,3]);await p.context().close();},
+ 'Rollendes Backup: nach fehlgeschlagenem Speichern + Neustart ist der letzte gespeicherte Stand da':async(T,eq)=>{
+  const p=await open(T,{lv:2,cls:'krieger'});
+  await p.evaluate(()=>{const R=__RW;R.S.lv=6;R.save();const o=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k==='ruinwalk_v1')throw new Error('voll');return o.call(this,k,v);};R.S.lv=20;R.save();Storage.prototype.setItem=o;});
+  const q=await restart(p);eq(await q.evaluate(()=>__RW.S.lv),6);eq(q.errors,[]);await p.context().close();},
+ 'Rollendes Backup: beschädigter Hauptstand nach Spielbetrieb -> Neustart stellt aus rollendem Backup her':async(T,eq)=>{
+  const p=await open(T,{lv:2,cls:'krieger'});
+  await p.evaluate(()=>{const R=__RW;R.S.lv=5;R.save();R.S.lv=6;R.save();localStorage.setItem('ruinwalk_v1','{"zerstört');});
+  const q=await restart(p);const r=await q.evaluate(()=>({lv:__RW.S.lv,c:localStorage.getItem('ruinwalk_v1_corrupt')}));
+  eq(r,{lv:5,c:'{"zerstört'});eq(q.errors,[]);await p.context().close();}
 };
