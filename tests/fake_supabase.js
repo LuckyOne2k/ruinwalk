@@ -3,7 +3,7 @@
 const KEY='sb_publishable_jmyPWZWX99qemJRyGh7Beg_lVDaNj4t';
 const SYM='!@#$%^&*()_+-=[]{};\':"\\|<>?,./`~';
 module.exports=function fake(){
-  const st={users:[],tokens:{},refresh:{},chars:[],calls:[],mails:[],n:0,offline:false,failCreate:0,failList:false,failGet:false,tamper:null,afterList:null,keyOk:true};
+  const st={users:[],tokens:{},refresh:{},chars:[],calls:[],mails:[],n:0,offline:false,failCreate:0,failList:false,failGet:false,saveFail:null,dropResponse:false,saves:[],tamper:null,afterList:null,keyOk:true};
   const uid=()=>'00000000-0000-4000-8000-'+String(++st.n).padStart(12,'0');
   const J=(route,status,body)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
   const user=u=>({id:u.id,email:u.email,email_confirmed_at:u.confirmed?'2026-11-13T10:00:00Z':null,user_metadata:{username:u.username}});
@@ -53,6 +53,17 @@ module.exports=function fake(){
       const id=(/^eq\.(.+)$/.exec(url.searchParams.get('character_id')||'')||[])[1];
       let out=st.chars.filter(c=>c.id===id&&c.account===u.id&&!c.locked).map(c=>({character_id:c.id,account_id:c.account,slot_number:c.slot,character_name:c.name,version:c.version,character_data:c.data}));
       if(st.tamper)out=st.tamper(out);return J(route,200,out);}
+    if(path==='/rest/v1/rpc/save_character'){
+      st.saves.push({t:Date.now(),body});
+      if(st.saveFail){const sf=st.saveFail;if(sf==='net')return route.abort();return J(route,sf,{message:'boom'});}
+      const c=st.chars.find(x=>x.id===body.p_id&&x.account===u.id);
+      if(!c)return J(route,409,{code:'PT409',message:'version_conflict'});
+      if(c.slot===3&&c.locked)return J(route,403,{code:'PT403',message:'character_locked'});
+      if(!body.p_data||typeof body.p_data!=='object'||!Object.keys(body.p_data).length)return J(route,400,{code:'22023',message:'invalid_data'});
+      if(c.version!==body.p_expected_version)return J(route,409,{code:'PT409',message:'version_conflict'});
+      c.data=Object.assign({},body.p_data,{cid:c.id});c.version++;c.level=body.p_data.lv;
+      if(st.dropResponse){st.dropResponse=false;return route.abort();}
+      return J(route,200,c.version);}
     if(path==='/rest/v1/rpc/create_character'){
       if(st.failCreate)return J(route,st.failCreate,{message:'boom'});
       if(!u.confirmed)return J(route,403,{code:'PT403',message:'email_not_verified'});

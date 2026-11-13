@@ -170,7 +170,7 @@ module.exports={
   eq(st.chars[0].data.lv,12,'Server wird in 3b nicht beschrieben');await p.context().close();},
  'Konto-Bildschirm: Spielen-Knopf, „aktiv“-Markierung und Hinweis zum Geräte-Fortschritt':async(T,eq)=>{
   const {p}=await mk(T,{chars:(s,u)=>srvChar(s,u,1,12)});
-  let t=await txt(p);eq(t.includes('nur auf diesem Gerät gespeichert'),true);eq(t.includes('Spielen'),true);eq(t.includes('aktiv'),false);
+  let t=await txt(p);eq(t.includes('automatisch gespeichert'),true);eq(t.includes('Spielen'),true);eq(t.includes('aktiv'),false);
   eq(await p.evaluate(()=>!!document.querySelector('#acct [data-a="accnew"][data-slot="2"]')),true);
   await nav(p,tap('accplay',{id:SID}));await p.evaluate(tap('acct'));await waitTxt(p,'aktiv');t=await txt(p);eq(t.includes('Weiterspielen'),true);
   const n=await p.evaluate(id=>{const c=document.createElement('i');return 0;},SID);

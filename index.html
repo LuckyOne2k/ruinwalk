@@ -23,6 +23,7 @@ button{font-family:inherit;color:inherit}
 .bar.en i{background:linear-gradient(#6aa8ff,#3b82f6)}
 .bar span{position:absolute;inset:0;text-align:center;font-size:11px;line-height:15px;font-weight:bold;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5)}
 #gps{position:absolute;right:10px;top:calc(10px + var(--st));z-index:500;background:rgba(31,24,20,.94);border:1px solid var(--line);border-radius:20px;padding:6px 10px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+#syncst{position:absolute;left:10px;top:calc(64px + var(--st));z-index:500;background:rgba(31,24,20,.94);border:1px solid var(--line);border-radius:16px;padding:3px 10px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.2)}#syncst.ok{opacity:.8}#syncst.wait{border-color:var(--acc)}#syncst.bad{border-color:#d9534f}body.cbt #syncst{top:calc(182px + var(--st))}
 #cu{position:absolute;right:10px;top:calc(46px + var(--st));z-index:500;background:rgba(31,24,20,.94);border:1px solid var(--line);border-radius:16px;padding:3px 10px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 #gps.good{color:#7fd69a}#gps.ok{color:#f0c060}#gps.bad{color:#ff8a7a}
 #toast{position:absolute;left:50%;top:calc(66px + var(--st));transform:translateX(-50%) translateY(-10px);z-index:900;background:rgba(60,40,28,.92);color:#fff;padding:9px 16px;border-radius:20px;font-size:14px;opacity:0;pointer-events:none;transition:.25s;max-width:90%;text-align:center}
@@ -187,6 +188,7 @@ body.cbt #react:not(.boss) [data-a=potion]{left:0;bottom:0}
   </div>
 </div>
 <div id="gps" class="bad">GPS: aus</div>
+<div id="syncst" data-a="syncnow" role="status" style="display:none"></div>
 <div id="cu"></div>
 <div id="toast"></div>
 <button id="loc" data-a="loc" aria-label="Zentrieren">◎</button>
@@ -265,7 +267,8 @@ const slotKey=n=>n===1?'ruinwalk_v1':'ruinwalk_v1_s'+n;
 const CLOUD_ID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const cloudKey=id=>'ruinwalk_cc_'+id,cloudMetaKey=id=>'ruinwalk_cm_'+id;
 function metaOk(m,id){return !!m&&typeof m==='object'&&!Array.isArray(m)&&m.v===1&&m.cloudId===id&&CLOUD_ID_RE.test(id)&&typeof m.uid==='string'&&CLOUD_ID_RE.test(m.uid)
-  &&[1,2,3].includes(m.slot)&&Number.isInteger(m.baseVersion)&&m.baseVersion>=1&&typeof m.dirty==='boolean'&&Number.isFinite(m.syncedAt)&&m.syncedAt>=0&&(m.baseHash===undefined||(typeof m.baseHash==='string'&&m.baseHash.length<=40));}
+  &&[1,2,3].includes(m.slot)&&Number.isInteger(m.baseVersion)&&m.baseVersion>=1&&typeof m.dirty==='boolean'&&Number.isFinite(m.syncedAt)&&m.syncedAt>=0&&(m.baseHash===undefined||(typeof m.baseHash==='string'&&m.baseHash.length<=40))
+  &&(m.pend===undefined||(!!m.pend&&typeof m.pend==='object'&&typeof m.pend.h==='string'&&m.pend.h.length<=40&&Number.isInteger(m.pend.from)));}
 function readMeta(id){if(!CLOUD_ID_RE.test(id))return null;try{const m=JSON.parse(localStorage.getItem(cloudMetaKey(id))||'null');return metaOk(m,id)?m:null;}catch(e){return null;}}
 function writeMeta(m){if(!m||!metaOk(m,m.cloudId))return false;try{localStorage.setItem(cloudMetaKey(m.cloudId),JSON.stringify(m));return true;}catch(e){return false;}}
 const ACTIVE=(()=>{
@@ -2023,7 +2026,7 @@ async function sbFetch(path,o){o=o||{};
   try{
     const r=await fetch(SB_URL+path,{method:o.method||'GET',signal:ac.signal,
       headers:Object.assign({apikey:SB_KEY,'Content-Type':'application/json'},o.token?{Authorization:'Bearer '+o.token}:{}),
-      body:o.body===undefined?undefined:JSON.stringify(o.body)});
+      keepalive:!!o.keepalive,body:o.body===undefined?undefined:JSON.stringify(o.body)});
     let j=null;try{j=await r.json();}catch(e){}
     return {ok:r.ok,status:r.status,j};
   }catch(e){return {ok:false,status:0,j:null,net:true};}
@@ -2089,7 +2092,8 @@ function acEligible(){
 function acHome(){
   const dis=acBusy?' disabled':'',u=AUTH.s.user;
   let h='<div class="rec"><div class="t">Angemeldet</div><div class="c"><b>'+escH(acProf||'…')+'</b><br><small>'+escH(u.email)+'</small></div><button class="btn sec" data-a="aclogout"'+dis+'>Abmelden</button></div>'
-   +'<p class="acn">Dein Spielstand liegt zuerst auf diesem Gerät. „In die Cloud kopieren“ legt nur eine Kopie an; lokal wird nichts verändert oder gelöscht.</p><h3 style="margin:4px 0">Cloud-Charakterplätze</h3><p class="acn">Hinweis: Der Spielfortschritt von Cloud-Charakteren wird vorerst nur auf diesem Gerät gespeichert; das automatische Speichern in der Cloud folgt in einem späteren Update.</p>';
+   +'<p class="acn">Dein Spielstand liegt zuerst auf diesem Gerät. „In die Cloud kopieren“ legt nur eine Kopie an; lokal wird nichts verändert oder gelöscht.</p><h3 style="margin:4px 0">Cloud-Charakterplätze</h3><p class="acn">Aktive Cloud-Charaktere werden automatisch gespeichert: zuerst immer auf diesem Gerät, dann in der Cloud (Status oben links im Spiel). Ohne Verbindung bleibt der Fortschritt auf dem Gerät und wird später hochgeladen.</p>';
+  if(syOn()){const t=syncStatus();h+='<div class="rec"><div class="t">Speicherstatus</div><div class="c"><b>'+escH(t.text)+'</b><br><small>'+escH(t.help)+(t.okAt?' Zuletzt gespeichert: '+escH(new Date(t.okAt).toLocaleTimeString('de-DE',{timeStyle:'short'}))+'.':'')+'</small></div><button class="btn" data-a="syncnow"'+dis+'>Jetzt speichern</button></div>';}
   if(acCloud==='loading')return h+'<div class="rec"><div class="c">Lade Cloud-Charaktere …</div></div><button class="btn sec" data-a="acx">Zurück</button>';
   if(!Array.isArray(acCloud))return h+'<button class="btn" data-a="acref"'+dis+'>Erneut laden</button> <button class="btn sec" data-a="acx">Zurück</button>';
   const el=acEligible();
@@ -2259,6 +2263,7 @@ async function acPlay(id){
   const st0=cloudState(g.character_data);
   if(!st0)return fail('Die Serverdaten dieses Charakters sind ungültig. Es wird nichts gestartet.');
   const st=sanitize(Object.assign({},st0,{cid:id})),slot=g.slot_number,ver=g.version;
+  syncAdopt(id,uid,ver,g.character_data);   // eigenes Speichern, dessen Antwort verloren ging, nicht als Konflikt werten
   const plan=cloudStartPlan(id,uid,slot,ver);
   if(plan.a==='refuse')return fail(PLAY_WHY[plan.why]||'Der Zwischenspeicher dieses Charakters ist nicht prüfbar.');
   const meta={v:1,uid,cloudId:id,slot,baseVersion:ver,dirty:false,syncedAt:Date.now(),baseHash:syncHash(st)};
@@ -2291,6 +2296,124 @@ async function acCreateCloud(slot){
   acBusy=false;
   if(!switchCloud(id)){acM('ok','Charakter angelegt. Tippe auf „Spielen“, um zu starten.');await acLoad(false,true);}
 }
+/* ---------- Cloud-Speichern (3c) ----------
+   Der Cloud-Charakter wird wie ein lokaler gespielt und lokal sofort gesichert (save()). Dieses Modul lädt den Stand zusätzlich zum Server hoch:
+   nur bei echten Änderungen (flüchtige Felder zählen nicht), gedrosselt, mit Versionsprüfung (nie blind überschreiben), Wiederholung bei Fehlern,
+   sichtbarer Statusanzeige. Bei Konflikt/Sperre/Ablehnung wird nichts überschrieben und nichts gelöscht; die Änderungen bleiben auf dem Gerät. */
+const SY={st:'ok',err:'',busy:false,init:false,boot:0,n:0,key:null,chk:false,due:0,next:0,back:0,last:0,okAt:0,shown:'',
+  MIN:60000,FAST:3000,GAP:10000,BOOT:5000,BACK0:15000,BACKMAX:300000};
+if(window.__RW_TEST&&window.__RW_SYT)Object.assign(SY,window.__RW_SYT);   // nur Tests: kurze Zeiten
+const SY_STOP=['conflict','locked','rej','auth'];
+const SY_TXT={ok:'☁️ gespeichert',dirty:'⏳ nicht gespeichert',busy:'☁️ speichert …',off:'⚠️ offline – lokal gesichert',err:'⚠️ Serverfehler – lokal gesichert',auth:'🔑 Anmeldung nötig',conflict:'⛔ Konflikt',locked:'🔒 gesperrt',rej:'❗ abgelehnt'};
+const SY_HELP={ok:'Alles ist in der Cloud gespeichert.',dirty:'Es gibt Änderungen, die noch nicht in der Cloud sind. Sie sind auf diesem Gerät gesichert.',busy:'Der Stand wird gerade hochgeladen.',
+  off:'Keine Verbindung. Dein Fortschritt ist auf diesem Gerät gesichert und wird später automatisch hochgeladen.',err:'Der Server hat gerade ein Problem. Dein Fortschritt ist auf diesem Gerät gesichert; es wird automatisch erneut versucht.',
+  auth:'Bitte melde dich im Konto an. Dein Fortschritt bleibt auf diesem Gerät gesichert.',conflict:'In der Cloud liegt ein anderer Stand (z. B. von einem anderen Gerät). Es wird nichts überschrieben. Dein Fortschritt bleibt auf diesem Gerät gesichert; die Auflösung folgt in einem späteren Update.',
+  locked:'Dieser Platz ist gesperrt. Es wird nichts hochgeladen; dein Fortschritt bleibt auf diesem Gerät gesichert.',rej:'Der Server hat das Speichern abgelehnt. Dein Fortschritt bleibt auf diesem Gerät gesichert.'};
+const syOn=()=>ACTIVE.type==='cloud'&&!noSave&&!cloudBroken;
+/* Schlüsselereignisse (Level, Ausrüstung, Quests, Herstellen, Boss, Klasse) → zügig (3 s) statt erst nach 60 s */
+function syKey(){try{const st=S.stats||{};return [S.lv,(S.gear||[]).length,JSON.stringify(S.eq||{}),(S.qdone||[]).length,S.cls,S.tier,(st.kt||{}).boss,(st.kt||{}).area,Object.values(st.crafted||{}).reduce((a,b)=>a+(+b||0),0)].join('|');}catch(e){return '';}}
+function syUI(){
+  const el=$('#syncst');if(!el)return;
+  if(!syOn()){if(SY.shown!==''){SY.shown='';el.style.display='none';}return;}
+  const sig=SY.st;if(SY.shown===sig)return;SY.shown=sig;
+  el.textContent=SY_TXT[SY.st]||'';el.className='syncst '+(SY.st==='ok'?'ok':SY.st==='busy'||SY.st==='dirty'?'wait':'bad');el.style.display='block';}
+function syncSet(st,err){SY.st=st;SY.err=err||'';syUI();}
+function syncStatus(){return {st:SY.st,text:SY_TXT[SY.st]||'',help:(SY.err?SY.err+' ':'')+(SY_HELP[SY.st]||''),okAt:SY.okAt};}
+/* Antwort des Servers bestätigt eine Speicherung: Basis auf die neue Version setzen; Änderungen, die während der Anfrage entstanden, bleiben "dirty" */
+function syncConfirm(id,ver,h){
+  const m=readMeta(id);if(!m)return false;
+  const dirty=syncHash(S)!==h;
+  const n=Object.assign({},m,{baseVersion:ver,baseHash:h,dirty,syncedAt:Date.now()});delete n.pend;
+  if(!writeMeta(n))return false;
+  SY.back=0;SY.next=0;SY.okAt=Date.now();SY.chk=true;return true;}
+/* Wurde ein früheres Speichern (z. B. beim Schließen der Seite oder bei verlorener Antwort) vom Server angenommen, zeigt der Serverstand genau den damals
+   gesendeten Fingerabdruck (pend.h) bei Version pend.from+1. Dann ist es kein Konflikt, sondern unser eigener, bestätigter Stand. */
+function syncAdopt(id,uid,ver,data){
+  const m=readMeta(id);if(!m||!m.pend||m.uid!==uid||!Number.isInteger(ver)||ver!==m.pend.from+1||ver<=m.baseVersion||!isObj(data))return false;
+  if(syncHash(data)!==m.pend.h)return false;
+  let raw=null;try{raw=localStorage.getItem(cloudKey(id));}catch(e){return false;}
+  const c=raw&&tryLoad(raw);if(!c)return false;
+  const n=Object.assign({},m,{baseVersion:ver,baseHash:m.pend.h,dirty:syncHash(c)!==m.pend.h,syncedAt:Date.now()});delete n.pend;
+  return writeMeta(n);}
+async function syncVerify(id,meta){
+  const gr=await sbAuthed('/rest/v1/characters?select=character_id,account_id,version,character_data&character_id=eq.'+encodeURIComponent(id),{});
+  if(!gr.ok||!Array.isArray(gr.j)||gr.j.length!==1)return false;
+  const g=gr.j[0];if(!g||g.character_id!==id||g.account_id!==meta.uid)return false;
+  const m=readMeta(id);if(!m||!m.pend)return false;
+  if(!syncAdopt(id,meta.uid,g.version,g.character_data))return false;
+  SY.back=0;SY.next=0;SY.okAt=Date.now();SY.chk=true;return true;}
+async function syncPush(manual){
+  if(SY.busy||!syOn())return false;
+  const id=ACTIVE.id,meta=readMeta(id),now=Date.now();
+  if(!meta){syncSet('rej','Die Sync-Daten dieses Charakters fehlen.');return false;}
+  if(!AUTH.s){syncSet('auth','');return false;}
+  if(AUTH.s.user.id!==meta.uid){syncSet('auth','Es ist ein anderes Konto angemeldet.');return false;}
+  save();                                                      // lokalen Stand zuerst sichern
+  let snap;try{snap=JSON.parse(JSON.stringify(S));}catch(e){syncSet('rej','Der Stand ist nicht lesbar.');return false;}
+  snap.cid=id;const h=syncHash(snap),json=JSON.stringify(snap);
+  if(h===meta.baseHash){   // nichts zu senden (z. B. nur flüchtige Felder oder Änderung zurückgenommen)
+    if(meta.dirty||meta.pend){const n=Object.assign({},meta,{dirty:false});delete n.pend;writeMeta(n);}
+    if(!SY_STOP.includes(SY.st))syncSet('ok','');SY.due=0;return true;}
+  if(json.length>900000){syncSet('rej','Der Spielstand ist zu groß für die Cloud.');return false;}
+  if(!writeMeta(Object.assign({},meta,{dirty:true,pend:{h,from:meta.baseVersion}}))){syncSet('err','Gerätespeicher voll oder gesperrt.');SY.next=now+SY.BACKMAX;return false;}
+  SY.busy=true;SY.last=now;SY.due=0;syncSet('busy','');
+  const r=await sbAuthed('/rest/v1/rpc/save_character',{method:'POST',body:{p_id:id,p_expected_version:meta.baseVersion,p_data:snap},timeout:30000});
+  SY.busy=false;SY.last=Date.now();
+  const fin=ok=>{SY.chk=true;if(ok){syncSet(syncHash(S)!==h?'dirty':'ok','');if(SY.st==='ok')SY.due=0;}return ok;};
+  if(r.ok&&Number.isInteger(r.j)&&r.j>meta.baseVersion){
+    if(syncConfirm(id,r.j,h))return fin(true);
+    syncSet('err','Die Bestätigung konnte nicht auf dem Gerät gespeichert werden.');SY.next=Date.now()+SY.BACKMAX;return false;}
+  const msg=String((r.j&&(r.j.message||r.j.error))||''),code=String((r.j&&r.j.code)||'');
+  const backoff=st=>{SY.back=Math.min(SY.BACKMAX,SY.back?SY.back*2:SY.BACK0);SY.next=Date.now()+SY.back;SY.due=Date.now();syncSet(st,'');return false;};
+  if(r.noauth)return syncSet('auth',''),false;
+  if(r.ok)return backoff('err');                                // unerwartete Antwort: später prüfen (Version/Fingerabdruck)
+  if(r.net||r.status===0||r.status===408)return backoff('off');
+  if(r.status>=500||r.status===429)return backoff('err');
+  if(r.status===409||/version_conflict/.test(msg+code)){
+    if(await syncVerify(id,meta)){syncSet(syncHash(S)!==h?'dirty':'ok','');return true;}   // unser früheres Speichern war schon angekommen
+    syncSet('conflict','');SY.due=0;return false;}
+  if(/character_locked/.test(msg)){syncSet('locked','');SY.due=0;return false;}
+  if(/email_not_verified/.test(msg)){syncSet('auth','Bitte bestätige zuerst deine E-Mail-Adresse.');SY.due=0;return false;}
+  syncSet('rej',r.status===401?'':'Fehler '+r.status+'.');SY.due=0;return false;}
+/* Sekundentakt: billig (nur wenn nötig Fingerabdruck, alle 5 s oder bei Schlüsselereignis) */
+function syncTick(){
+  if(!syOn()){syUI();return;}
+  const now=Date.now();
+  if(!SY.init){SY.init=true;SY.boot=now;const m=readMeta(ACTIVE.id);SY.st=m&&m.dirty?'dirty':'ok';SY.key=syKey();SY.chk=true;syUI();}
+  SY.n++;
+  const k=syKey();let fast=false;if(k!==SY.key){SY.key=k;fast=true;}
+  if((fast||SY.chk||SY.n%5===0)&&!SY.busy){
+    SY.chk=false;const m=readMeta(ACTIVE.id);
+    if(m){
+      const dirty=m.dirty||syncHash(S)!==m.baseHash;
+      if(dirty){
+        if(!m.dirty)writeMeta(Object.assign({},m,{dirty:true}));   // offene Änderungen überleben Neuladen/Schließen
+        if(SY.st==='ok'){syncSet('dirty','');}
+        const want=Math.max(SY.boot+SY.BOOT,fast?Math.max(now+SY.FAST,SY.last+SY.GAP):Math.max(now,SY.last+SY.MIN));
+        SY.due=SY.due?Math.min(SY.due,want):want;
+      }else if(SY.st==='dirty'||SY.st==='ok'){SY.due=0;if(SY.st!=='ok')syncSet('ok','');}
+    }}
+  if(SY.st==='auth'&&AUTH.s){const m=readMeta(ACTIVE.id);if(m&&AUTH.s.user.id===m.uid){SY.next=0;syncSet('dirty','');SY.chk=true;}}
+  if(SY.due&&now>=SY.due&&now>=SY.next&&!SY.busy&&!SY_STOP.includes(SY.st)){
+    if(!AUTH.s)syncSet('auth','Nicht angemeldet.');else syncPush(false);}
+}
+/* Seite wird versteckt/verlassen: offene Änderungen als "dirty" festhalten und best effort per keepalive senden.
+   Das Ergebnis erfährt nur der nächste Start (pend); dort wird ein angekommenes Speichern erkannt und übernommen. */
+function syncFlush(){
+  if(!syOn())return;
+  const id=ACTIVE.id,meta=readMeta(id);if(!meta)return;
+  let snap;try{snap=JSON.parse(JSON.stringify(S));}catch(e){return;}snap.cid=id;
+  const h=syncHash(snap);if(h===meta.baseHash&&!meta.dirty)return;
+  if(h!==meta.baseHash&&!meta.dirty)writeMeta(Object.assign({},meta,{dirty:true}));
+  if(h===meta.baseHash||SY.busy||SY_STOP.includes(SY.st))return;
+  if(!AUTH.s||AUTH.s.user.id!==meta.uid||AUTH.s.exp-Date.now()<10000)return;
+  const body={p_id:id,p_expected_version:meta.baseVersion,p_data:snap};
+  if(JSON.stringify(body).length>60000)return;                     // keepalive-Grenze des Browsers
+  if(!writeMeta(Object.assign({},readMeta(id)||meta,{dirty:true,pend:{h,from:meta.baseVersion}})))return;
+  sbFetch('/rest/v1/rpc/save_character',{method:'POST',token:AUTH.s.access_token,body,keepalive:true,timeout:10000});}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)syncFlush();});
+window.addEventListener('pagehide',syncFlush);
+window.addEventListener('online',()=>{SY.next=0;SY.back=0;if(SY.st==='off'||SY.st==='err')SY.due=Date.now();});
 /* Links aus Bestätigungs-/Reset-Mails kommen als #access_token=… zurück */
 async function authBoot(){
   authLoad();
@@ -2472,6 +2595,7 @@ document.addEventListener('click',ev=>{
     case 'acres':acResend();break;
     case 'aclogout':acLogout();break;
     case 'acref':acLoad(false);break;
+    case 'syncnow':{if(!syOn())break;syncPush(true).then(()=>{const t=syncStatus();toast(t.text+(t.st==='ok'?'':' – '+t.help));});break;}
     case 'accplay':acPlay(b.dataset.id);break;
     case 'accnew':acCreateCloud(+b.dataset.slot);break;
     case 'acup':acUpload(+b.dataset.slot,+(($('#acsel'+b.dataset.slot)||{}).value));break;
@@ -2561,6 +2685,7 @@ setInterval(()=>{
   if(sel)renderCard();
   updateSkillUI();exhUI();
   if(tc%5===0)save();
+  syncTick();
   if(tc%300===0)pruneCd();
   gpsWatch();
 },1000);
@@ -2575,7 +2700,7 @@ authBoot();
 /* Test-Schnittstelle: nur aktiv, wenn vor dem Laden window.__RW_TEST=true gesetzt wird (siehe tests/). Im normalen Spiel ohne Wirkung. */
 if(window.__RW_TEST)window.__RW={get S(){return S;},set S(v){S=v;},get sel(){return sel;},set sel(v){sel=v;},get P(){return P;},get nextAtk(){return nextAtk;},set nextAtk(v){nextAtk=v;},
   get psn(){return psn;},set psn(v){psn=v;},get gpsLost(){return gpsLost;},set gpsLost(v){gpsLost=v;},
-  KEY,SLOT,ACTIVE,syncHash,cloudState,cloudStartPlan,cloudCacheReplace,acPlay,acCreateCloud,cloudKey,cloudMetaKey,readMeta,writeMeta,cloudCachePut,cloudCaches,switchCloud,CLOUD_ID_RE,createChar,save,sanitize,def,regen,pruneCd,toast,getBase,gearOf,addGear,equip,canEquip,fixEq,fixGear,upgradeGear,craftGear,craft,addXP,maxHP,defense,atk,critCh,gVal,gSell,gStats,SB,
+  KEY,SLOT,ACTIVE,SY,syncPush,syncTick,syncFlush,syncAdopt,syncStatus,syKey,syncHash,cloudState,cloudStartPlan,cloudCacheReplace,acPlay,acCreateCloud,cloudKey,cloudMetaKey,readMeta,writeMeta,cloudCachePut,cloudCaches,switchCloud,CLOUD_ID_RE,createChar,save,sanitize,def,regen,pruneCd,toast,getBase,gearOf,addGear,equip,canEquip,fixEq,fixGear,upgradeGear,craftGear,craft,addXP,maxHP,defense,atk,critCh,gVal,gSell,gStats,SB,
   strike,shoot,monsterHit,faint,setPos,countWalk,select,refreshWorld,cellEnts,areaEnts,usePotion,useItem,rollGear,rollPathSet,rollSet,have,add,claimQuest,checkQuests,
   ents,roam,eng,SETS,SETD,PATHS,MOBS,GR,RECIPES,QUESTS,ITEMS,NODES,SELL,BUY,ABIL,CW,TIERS,COIN,HAB,CLASSES,SSLOTS,ARM,ATYPES,ARMT,SECRET,UPQ,effClass,UPCOST,UPFEE,UPMAX,UP_LV,LV_CAP,QM,QN,
   wK,oK,enc,gBuyPrice,rollQ,DROPQ,RDROPQ,DROPT,DROPCH,RDROPCH,pickMob,hash,mulberry,dist,DLAT,DLON,RANGE,gpsWatch,setLastFix:v=>{lastFix=v;},setWatch:v=>{watchId=v;},setWatchStart:v=>{watchStart=v;lastRestart=v;},get watchId(){return watchId;},get gpsDenied(){return gpsDenied;},get lastRestart(){return lastRestart;},onPos,onErr,startGPS,roamTick,
