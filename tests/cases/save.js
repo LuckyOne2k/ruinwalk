@@ -1,5 +1,11 @@
 const base={lv:12,xp:5,hp:50,inv:{stock:5},cu:77};
 const gearOK=[{u:1,b:'w|schwert|1',q:0,p:0},{u:2,b:'a|kopf|schwer|1',q:1,p:2}];
+/* zweite Seite im selben Browser-Kontext = Neustart mit dem vorhandenen localStorage (ein Reload würde per pagehide neu speichern) */
+const restart=async(p)=>{const q=await p.context().newPage();q.errors=[];q.on('pageerror',e=>q.errors.push(e.message));
+  await q.addInitScript(()=>{window.__RW_TEST=true;});
+  await q.route('**/unpkg.com/**',r=>r.fulfill({body:'',contentType:'text/css'}));
+  await q.route('**/unpkg.com/leaflet@1.9.4/dist/leaflet.js',r=>r.fulfill({body:require('fs').readFileSync(__dirname+'/../leaflet-stub.js','utf8'),contentType:'application/javascript'}));
+  await q.route(/openstreetmap|overpass/,r=>r.abort());await q.goto(p.url());await q.waitForFunction(()=>window.__RW);return q;};
 const open=async(T,seed,q)=>{const p=await T.page(seed,q);await p.evaluate(()=>{});return p;};
 module.exports={
  'beschädigtes JSON: neues Spiel, Kopie gesichert, keine Exception':async(T,eq)=>{
@@ -53,5 +59,32 @@ module.exports={
   eq(r[0],false);eq(/Speichern fehlgeschlagen/.test(r[1]),true);await p.context().close();},
  'Abgebrochene Quests und doppelte Einträge werden bereinigt':async(T,eq)=>{
   const p=await open(T,{lv:3,qdone:['q1','q1','nix'],qready:['q1','q2','q2']});
-  eq(await p.evaluate(()=>[__RW.S.qdone,__RW.S.qready]),[['q1'],['q2']]);await p.context().close();}
+  eq(await p.evaluate(()=>[__RW.S.qdone,__RW.S.qready]),[['q1'],['q2']]);await p.context().close();},
+ 'Backup: gültiger Stand wird bereinigt gesichert, nicht roh':async(T,eq)=>{
+  const p=await open(T,{lv:12,hp:50,inv:{stock:5,gibtsnicht:9},cu:77});
+  const r=await p.evaluate(()=>JSON.parse(localStorage.getItem('ruinwalk_v1_bak')));
+  eq(r.lv,12);eq(r.inv,{stock:5});eq(await p.evaluate(()=>localStorage.getItem('ruinwalk_v1_corrupt')),null);await p.context().close();},
+ 'Backup: beschädigter Stand überschreibt das letzte gültige Backup nie':async(T,eq)=>{
+  const p=await T.page({lv:7,cls:'krieger'});
+  const good=await p.evaluate(()=>{__RW.save();return localStorage.getItem('ruinwalk_v1');});
+  await p.evaluate(g=>{localStorage.setItem('ruinwalk_v1_bak',g);localStorage.setItem('ruinwalk_v1','{"lv":99,"BROKEN');},good);
+  const q=await restart(p);
+  const r=await q.evaluate(()=>({lv:__RW.S.lv,cls:__RW.S.cls,bak:JSON.parse(localStorage.getItem('ruinwalk_v1_bak')).lv,corrupt:localStorage.getItem('ruinwalk_v1_corrupt')}));
+  eq(r,{lv:7,cls:'krieger',bak:7,corrupt:'{"lv":99,"BROKEN'});await p.context().close();},
+ 'Backup: strukturell falsches JSON (Array/Zahl) -> Wiederherstellung aus Backup, Rohdaten separat':async(T,eq)=>{
+  for(const bad of ['[1,2,3]','42','"text"','null']){
+    const p=await T.page({lv:4});
+    const good=await p.evaluate(()=>{__RW.save();return localStorage.getItem('ruinwalk_v1');});
+    await p.evaluate(([g,b])=>{localStorage.setItem('ruinwalk_v1_bak',g);localStorage.setItem('ruinwalk_v1',b);},[good,bad]);
+    const q=await restart(p);
+    const r=await q.evaluate(()=>({lv:__RW.S.lv,c:localStorage.getItem('ruinwalk_v1_corrupt')}));
+    eq(r.lv,4,'Wiederherstellung bei '+bad);if(bad!=='null')eq(r.c,bad,'Rohdaten '+bad);eq(q.errors,[]);await p.context().close();}},
+ 'Backup: beschädigt ohne Backup -> neues Spiel, Rohdaten gesichert':async(T,eq)=>{
+  const p=await open(T,'{"lv":12,');
+  eq(await p.evaluate(()=>[__RW.S.lv,localStorage.getItem('ruinwalk_v1_corrupt'),localStorage.getItem('ruinwalk_v1_bak')]),[1,'{"lv":12,',null]);await p.context().close();},
+ 'Backup: beschädigtes Backup wird nie als Wiederherstellung genutzt':async(T,eq)=>{
+  const p=await T.page({lv:3});
+  await p.evaluate(()=>{localStorage.setItem('ruinwalk_v1_bak','{kaputt');localStorage.setItem('ruinwalk_v1','{auch kaputt');});
+  const q=await restart(p);
+  eq(await q.evaluate(()=>__RW.S.lv),1);eq(q.errors,[]);await p.context().close();}
 };

@@ -835,15 +835,21 @@ function sanitize(o){
 }
 let S=def();const loadNote=[];
 try{
-  let raw=null;try{raw=localStorage.getItem(KEY);}catch(e){}
+  const rd=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
+  const wr=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
+  const tryLoad=raw=>{ // liefert bereinigten Spielstand oder null – schreibt nichts
+    if(!raw)return null;let o=null;try{o=JSON.parse(raw);}catch(e){return null;}
+    if(!isObj(o))return null;try{return sanitize(o);}catch(e){return null;}
+  };
+  const raw=rd(KEY);
   if(raw){
-    let o=null;try{o=JSON.parse(raw);}catch(e){}
-    if(!isObj(o)){
-      try{localStorage.setItem(KEY+'_corrupt',raw);}catch(e){}
-      loadNote.push('⚠️ Dein Spielstand war beschädigt. Eine Kopie wurde gesichert, das Spiel startet neu.');
-    }else{
-      try{localStorage.setItem(KEY+'_bak',raw);}catch(e){}   // Sicherung des letzten gültigen Stands
-      S=sanitize(o);
+    const ok=tryLoad(raw);
+    if(ok){S=ok;wr(KEY+'_bak',JSON.stringify(S));}   // nur geprüfter, bereinigter Stand wird zur Sicherung
+    else{
+      wr(KEY+'_corrupt',raw);                          // Rohdaten bleiben für Analyse erhalten
+      const bk=tryLoad(rd(KEY+'_bak'));
+      if(bk){S=bk;loadNote.push('⚠️ Dein Spielstand war beschädigt. Er wurde aus der letzten gültigen Sicherung wiederhergestellt (Rohdaten separat gesichert).');}
+      else loadNote.push('⚠️ Dein Spielstand war beschädigt. Eine Kopie wurde gesichert, das Spiel startet neu.');
     }
   }
 }catch(e){S=def();loadNote.push('⚠️ Spielstand konnte nicht gelesen werden, das Spiel startet neu.');}
@@ -1047,7 +1053,7 @@ const eqLook=()=>'';
 window.PX_EQ=()=>null;
 let meK='',meFlip=false;const figTok=()=>{if(S.path&&S.tier&&PATHS[S.path]){const st=PATHS[S.path].st[S.tier-1];const m=st&&/^:st_(\w+):$/.exec(st.i);if(m)return ':ch_'+m[1]+':';}return ':ch_'+S.cls+':';},meTok=()=>figTok()+eqLook(),meIcon=()=>L.divIcon({className:'',html:'<div class="mech'+(meFlip?' mflip':'')+'">'+figTok()+'</div>',iconSize:[52,52],iconAnchor:[26,38]});
 function updMe(){if(pm&&meK!==meTok()&&pm.setIcon){meK=meTok();pm.setIcon(meIcon());}}
-let lastFix=0,gpsLost=false,lastErrT=0,lastRestart=0;
+let lastFix=0,gpsLost=false,lastErrT=0,lastRestart=0,watchStart=0,gpsDenied=false;
 let P=null,acc=null,pm=null,pc=null,pr=null,follow=true,watchId=null,lastGps=null,lastCell='';
 const ents=new Map();
 const roam=new Map(), eng=new Map();   // laufende Monsterpositionen / Kampf-Zeitpunkte
@@ -1093,12 +1099,24 @@ function gpsChip(msg){
   g.className=acc<30?'good':acc<80?'ok':'bad';
 }
 function onPos(p){
-  lastFix=Date.now();
+  lastFix=Date.now();gpsDenied=false;
   lastGps={lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy};
   if(S.test)return;
   setPos(lastGps.lat,lastGps.lon,lastGps.acc);
 }
+function beginWatch(){
+  try{if(watchId!=null)navigator.geolocation.clearWatch(watchId);}catch(e){}
+  watchStart=lastRestart=Date.now();
+  watchId=navigator.geolocation.watchPosition(onPos,onErr,{enableHighAccuracy:true,maximumAge:2000,timeout:20000});
+}
 function onErr(err){
+  if(err&&err.code===1){ // Berechtigung verweigert: nicht endlos neu versuchen, klare Anzeige
+    gpsDenied=true;gpsLost=true;
+    try{if(watchId!=null)navigator.geolocation.clearWatch(watchId);}catch(e){}
+    watchId=null;gpsChip('Standort verweigert – bitte im Browser erlauben');
+    if(Date.now()-lastErrT>=15000){lastErrT=Date.now();toast('Standort verweigert – bitte im Browser erlauben, dann „Mein Standort“ antippen.');}
+    return;
+  }
   if(Date.now()-lastErrT<15000)return;lastErrT=Date.now();
   const m={1:'Standort verweigert – bitte im Browser erlauben',2:'Position nicht verfügbar',3:'GPS-Timeout – besser draußen probieren'};
   gpsChip(m[err.code]||'GPS-Fehler');
@@ -1107,9 +1125,8 @@ function onErr(err){
 async function startGPS(){
   $('#start').style.display='none';
   if(!navigator.geolocation){gpsChip('Kein GPS im Browser');return;}
-  gpsChip();
-  if(watchId!=null)navigator.geolocation.clearWatch(watchId);
-  watchId=navigator.geolocation.watchPosition(onPos,onErr,{enableHighAccuracy:true,maximumAge:2000,timeout:20000});
+  gpsDenied=false;gpsChip();
+  beginWatch();
   try{if(navigator.wakeLock)await navigator.wakeLock.request('screen');}catch(e){}
 }
 map.on('dragstart',()=>{follow=false;$('#loc').classList.add('off');});
@@ -2000,18 +2017,20 @@ document.addEventListener('click',ev=>{
       break;
     case 'qtab':qtab=b.dataset.t;openSheet('quests');break;
     case 'qclaim':claimQuest(b.dataset.id);break;
-    case 'loc':follow=true;$('#loc').classList.remove('off');if(P)map.setView([P.lat,P.lon],Math.max(map.getZoom(),17));break;
+    case 'loc':if(!S.test&&(gpsDenied||watchId==null))startGPS();follow=true;$('#loc').classList.remove('off');if(P)map.setView([P.lat,P.lon],Math.max(map.getZoom(),17));break;
   }
 });
 
 /* ---------- Takt ---------- */
 function gpsWatch(){
-  if(S.test||!watchId||!lastFix){if(gpsLost){gpsLost=false;gpsChip();}return;}
-  const age=Date.now()-lastFix,lost=age>45000;
+  if(S.test){if(gpsLost||gpsDenied){gpsLost=false;gpsDenied=false;gpsChip();}return;}
+  if(gpsDenied){gpsLost=true;gpsChip('Standort verweigert – bitte im Browser erlauben');return;}
+  if(watchId==null){if(gpsLost){gpsLost=false;gpsChip();}return;}   // Ortung nicht gestartet
+  const ref=lastFix||watchStart||Date.now(),age=Date.now()-ref,lost=age>45000;  // ohne ersten Fix zählt der Start der Ortung
   if(lost){
-    if(!gpsLost){gpsLost=true;toast('📡 GPS-Signal verloren. Monster greifen nicht an, bis es wieder da ist.');}
+    if(!gpsLost){gpsLost=true;toast(lastFix?'📡 GPS-Signal verloren. Monster greifen nicht an, bis es wieder da ist.':'📡 Noch kein GPS-Signal. Geh nach draußen oder prüfe die Standortfreigabe.');}
     gpsChip('📡 Kein GPS-Signal ('+Math.round(age/1000)+' s)');
-    if(Date.now()-lastRestart>60000){lastRestart=Date.now();try{navigator.geolocation.clearWatch(watchId);watchId=navigator.geolocation.watchPosition(onPos,onErr,{enableHighAccuracy:true,maximumAge:2000,timeout:20000});}catch(e){}}
+    if(Date.now()-lastRestart>60000){try{beginWatch();}catch(e){lastRestart=Date.now();}}
   }else if(gpsLost){gpsLost=false;gpsChip();}
 }
 let tc=0;
@@ -2040,7 +2059,7 @@ if(window.__RW_TEST)window.__RW={get S(){return S;},set S(v){S=v;},get sel(){ret
   KEY,save,sanitize,def,regen,pruneCd,toast,getBase,gearOf,addGear,equip,canEquip,fixEq,fixGear,upgradeGear,craftGear,craft,addXP,maxHP,defense,atk,critCh,gVal,gSell,gStats,SB,
   strike,shoot,monsterHit,faint,setPos,countWalk,select,refreshWorld,cellEnts,areaEnts,usePotion,useItem,rollGear,rollPathSet,rollSet,have,add,claimQuest,checkQuests,
   ents,roam,eng,SETS,SETD,PATHS,MOBS,GR,RECIPES,QUESTS,ITEMS,NODES,SELL,BUY,ABIL,CW,TIERS,COIN,HAB,CLASSES,SSLOTS,ARM,ATYPES,ARMT,SECRET,UPQ,effClass,UPCOST,UPFEE,UPMAX,UP_LV,LV_CAP,QM,QN,
-  wK,oK,enc,gBuyPrice,rollQ,DROPQ,RDROPQ,DROPT,DROPCH,RDROPCH,pickMob,hash,mulberry,dist,DLAT,DLON,RANGE,gpsWatch,setLastFix:v=>{lastFix=v;},setWatch:v=>{watchId=v;},roamTick,
+  wK,oK,enc,gBuyPrice,rollQ,DROPQ,RDROPQ,DROPT,DROPCH,RDROPCH,pickMob,hash,mulberry,dist,DLAT,DLON,RANGE,gpsWatch,setLastFix:v=>{lastFix=v;},setWatch:v=>{watchId=v;},setWatchStart:v=>{watchStart=v;lastRestart=v;},get watchId(){return watchId;},get gpsDenied(){return gpsDenied;},get lastRestart(){return lastRestart;},onPos,onErr,startGPS,roamTick,
   playerFx,mobFx,FX,fxUI,get stunId(){return stunId;},set stunId(v){stunId=v;},get myStun(){return myStun;},set myStun(v){myStun=v;},set myStunK(v){myStunK=v;},
   _:0};
 })();
