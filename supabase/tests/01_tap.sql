@@ -26,6 +26,12 @@ begin reset role; set role authenticated;
 create function tap.as_user_sess(p_uid uuid, p_sid uuid) returns text language plpgsql as $$
 begin reset role; set role authenticated;
   perform set_config('request.jwt.claims', json_build_object('sub',p_uid,'role','authenticated','session_id',p_sid)::text, false); return ''; end $$;
+-- Wie GoTrue: jede Anmeldung legt eine Sitzung und eine AMR-Zeile an (Methode password / otp / recovery ...). Alter wird zurückgerechnet.
+create function tap.mk_session(p_id uuid, p_user uuid, p_age interval, p_method text default 'password') returns text language plpgsql as $$
+begin
+  insert into auth.sessions(id,user_id,created_at) values (p_id,p_user,now()-p_age);
+  insert into auth.mfa_amr_claims(id,session_id,created_at,updated_at,authentication_method) values (gen_random_uuid(),p_id,now()-p_age,now()-p_age,p_method);
+  return ''; end $$;
 create function tap.as_anon() returns text language plpgsql as $$
 begin reset role; set role anon; perform set_config('request.jwt.claims', json_build_object('role','anon')::text, false); return ''; end $$;
 create function tap.as_service() returns text language plpgsql as $$

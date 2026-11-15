@@ -306,10 +306,20 @@ select tap.is((select count(*) from public.characters where account_id=:B)+(sele
 select tap.as_admin();
 insert into auth.users(id,email,raw_user_meta_data,email_confirmed_at) values
  (:D,'d@test.de','{"username":"Dora_4"}',now()),(:E,'e@test.de','{"username":"Emil_5"}',now()),(:F,'f@test.de','{"username":"Fritz_6"}',now());
--- Sitzungen: D frisch (neue Passwort-Anmeldung), D alt (10 Minuten), E frisch, F frisch
-insert into auth.sessions(id,user_id,created_at) values
- ('d0000000-0000-0000-0000-00000000d001',:D,now()),('d0000000-0000-0000-0000-00000000d002',:D,now()-interval '10 minutes'),
- ('e0000000-0000-0000-0000-00000000e001',:E,now()),('f0000000-0000-0000-0000-00000000f001',:F,now());
+-- Sitzungen: D frisch per Passwort (1 Min.), D alt (10 Min., Passwort), D frisch aber per E-Mail-Link/OTP (kein Passwort), D 3 Min. (Passwort), E frisch, F frisch
+select tap.mk_session('d0000000-0000-0000-0000-00000000d001',:D,interval '1 minute');
+select tap.mk_session('d0000000-0000-0000-0000-00000000d002',:D,interval '10 minutes');
+select tap.mk_session('d0000000-0000-0000-0000-00000000d003',:D,interval '10 seconds','otp');
+select tap.mk_session('d0000000-0000-0000-0000-00000000d004',:D,interval '3 minutes');
+select tap.mk_session('e0000000-0000-0000-0000-00000000e001',:E,interval '10 seconds');
+select tap.mk_session('f0000000-0000-0000-0000-00000000f001',:F,interval '10 seconds');
+-- Sitzung mit Passwort-Methode nur bei einer ANDEREN Sitzung (Zeile gehört nicht zu dieser Sitzung)
+insert into auth.sessions(id,user_id,created_at) values ('d0000000-0000-0000-0000-00000000d005',:D,now());
+-- Sitzung alt (3 Min.), AMR-Zeile frisch  /  Sitzung frisch, AMR-Zeile alt (3 Min.): beide Altersprüfungen müssen einzeln greifen
+insert into auth.sessions(id,user_id,created_at) values ('d0000000-0000-0000-0000-00000000d006',:D,now()-interval '3 minutes');
+insert into auth.mfa_amr_claims(session_id,authentication_method) values ('d0000000-0000-0000-0000-00000000d006','password');
+insert into auth.sessions(id,user_id,created_at) values ('d0000000-0000-0000-0000-00000000d007',:D,now()-interval '10 seconds');
+insert into auth.mfa_amr_claims(session_id,created_at,updated_at,authentication_method) values ('d0000000-0000-0000-0000-00000000d007',now()-interval '3 minutes',now()-interval '3 minutes','password');
 insert into public.account_entitlements(account_id,entitlement_type,status,payment_reference) values (:D,'third_character_slot','active','ref_d');
 select tap.as_user(:D);
 select * from public.create_character(1,'D_eins','{"lv":2}');
@@ -359,7 +369,17 @@ select tap.throws($$select public.delete_account('Dora_4')$$,'not_authenticated'
 select tap.as_user(:D);
 select tap.throws($$select public.delete_account('Dora_4')$$,'reauth_required','Token ohne session_id: reauth_required');
 select tap.as_user_sess(:D,'d0000000-0000-0000-0000-00000000d002');
-select tap.throws($$select public.delete_account('Dora_4')$$,'reauth_required','Alte Sitzung (10 Minuten): reauth_required');
+select tap.throws($$select public.delete_account('Dora_4')$$,'reauth_required','Alte Passwort-Sitzung (10 Minuten): reauth_required');
+select tap.as_user_sess(:D,'d0000000-0000-0000-0000-00000000d003');
+select tap.throws($$select public.delete_account('Dora_4')$$,'reauth_required','Frische Sitzung, aber per E-Mail-Link/OTP statt Passwort angelegt: reauth_required');
+select tap.as_user_sess(:D,'d0000000-0000-0000-0000-00000000d004');
+select tap.throws($$select public.delete_account('Dora_4')$$,'reauth_required','Passwort-Sitzung ist 3 Minuten alt (Fenster 2 Minuten): reauth_required');
+select tap.as_user_sess(:D,'d0000000-0000-0000-0000-00000000d005');
+select tap.throws($$select public.delete_account('Dora_4')$$,'reauth_required','Frische Sitzung ganz ohne Anmeldemethode (keine AMR-Zeile): reauth_required');
+select tap.as_user_sess(:D,'d0000000-0000-0000-0000-00000000d006');
+select tap.throws($$select public.delete_account('Dora_4')$$,'reauth_required','Sitzung 3 Minuten alt, AMR-Zeile frisch: reauth_required');
+select tap.as_user_sess(:D,'d0000000-0000-0000-0000-00000000d007');
+select tap.throws($$select public.delete_account('Dora_4')$$,'reauth_required','Sitzung frisch, Passwort-AMR-Zeile 3 Minuten alt: reauth_required');
 select tap.as_user_sess(:D,'e0000000-0000-0000-0000-00000000e001');
 select tap.throws($$select public.delete_account('Dora_4')$$,'reauth_required','Sitzung eines anderen Kontos: reauth_required');
 select tap.as_user_sess(:D,gen_random_uuid());

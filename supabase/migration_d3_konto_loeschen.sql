@@ -31,7 +31,7 @@ begin
 end $$;
 
 -- Konto endgültig löschen (durch den Nutzer selbst). Alles in EINER Transaktion: ein Fehler macht alles rückgängig.
--- Voraussetzungen, alle serverseitig geprüft: angemeldet, Sitzung höchstens 5 Minuten alt (frische Passwort-Anmeldung, Sitzung aus auth.sessions
+-- Voraussetzungen, alle serverseitig geprüft: angemeldet, Sitzung höchstens 2 Minuten alt und per Passwort angelegt (auth.sessions + auth.mfa_amr_claims
 -- über die session_id im JWT, gehört dem Konto), Benutzername als Bestätigung. Es wird immer nur das eigene Konto (auth.uid()) gelöscht.
 create or replace function public.delete_account(p_confirm text) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -41,8 +41,12 @@ begin
   select username into uname from public.profiles where account_id = uid for update;   -- sperrt das Profil: parallele Speichervorgänge warten und scheitern danach
   if not found then raise exception 'not_found' using errcode = 'PT404'; end if;
   begin sid := (auth.jwt() ->> 'session_id')::uuid; exception when others then sid := null; end;
-  select created_at into sess_at from auth.sessions where id = sid and user_id = uid;
-  if sess_at is null or sess_at < now() - interval '5 minutes' then raise exception 'reauth_required' using errcode = 'PT403'; end if;
+  -- Echte erneute Passwortanmeldung: die Sitzung ist höchstens 2 Minuten alt UND wurde per Passwort angelegt (nicht per E-Mail-Link/OTP/Wiederherstellung).
+  -- Die Passwortprüfung selbst übernimmt Supabase Auth (mit eigener Ratenbegrenzung); der Client meldet sich direkt vor dem Aufruf neu an.
+  select s.created_at into sess_at from auth.sessions s
+   where s.id = sid and s.user_id = uid
+     and exists (select 1 from auth.mfa_amr_claims m where m.session_id = s.id and m.authentication_method = 'password' and m.created_at >= now() - interval '2 minutes');
+  if sess_at is null or sess_at < now() - interval '2 minutes' then raise exception 'reauth_required' using errcode = 'PT403'; end if;
   if p_confirm is null or lower(btrim(p_confirm)) <> lower(uname) then raise exception 'confirm_mismatch' using errcode = '22023'; end if;
   -- Zahlungsereignisse bleiben ohne Kontobezug und ohne persönliche Felder erhalten (Aufbewahrung wird später rechtlich festgelegt)
   update public.payment_events
