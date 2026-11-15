@@ -113,3 +113,15 @@ A. Cloud-Zwischenspeicher nach Löschung: nur als Gerätekopien behalten (Vorsch
 B. Export verpflichtend vor dem Löschknopf oder nur angeboten?
 C. Zusätzliche Wartezeit/Schutzfrist beim Knopf (z. B. 3 Sekunden gedrückt halten) – Vorschlag: nein, bleibt bei den drei Pflichtschritten.
 D. Veröffentlichung des Löschknopfs erst zusammen mit den Rechtstexten (D6) oder sofort nach D4?
+
+---
+
+## 13. Stand der Umsetzung (15.11.2026)
+
+Entscheidungen: A) Cloud-Zwischenspeicher bleiben als Gerätekopien, im Bildschirm „Charaktere“ gekennzeichnet als „Lokale Kopie ohne aktive Cloud-Verbindung“ (nur Ansehen und JSON-Export, kein Löschen, keine Übernahme). B) Export optional. C) Keine Schutzfrist. D) Funktion implementiert, aber im normalen Spiel **ausgeblendet** (`DEL_ON` hängt nur am Test-Schalter `window.__RW_TEST`); Freischalten gemeinsam mit D6.
+
+Umgesetzt in `index.html`: Bereich „Konto löschen“ (nur Tests sichtbar), Dialog mit Warnung, Pflichtbestätigung, Benutzername, Passwort, optionaler Löschung der Erkundungsdaten; frische Passwort-Anmeldung direkt bei Supabase Auth, Gegenprobe (Konto-ID, `amr=password`), `delete_account` mit genau diesem Token; JSON-Export; Erfolgsweg ohne Berührung lokaler Spielstände; Hinweis auf dem Startbildschirm.
+
+Abweichungen zum Plan: (1) `PT404 not_found` gilt als **Fehler** (nichts gelöscht), nicht als Erfolg – ein gültiges Token mit fehlendem Profil heißt, dass das Konto noch existiert. (2) Bei unklarem Ausgang gilt das Konto nur als gelöscht, wenn `GET /auth/v1/user` mit dem frischen Token mit 401/403/404 **und** `user_not_found`/`session_not_found` antwortet; andernfalls Meldung „nicht sicher“ und die Sitzung bleibt. Die echten Fehlercodes von GoTrue für ein gelöschtes Konto sind noch nicht live bestätigt; im Zweifel wird konservativ „unklar“ gemeldet, nie „gelöscht“.
+
+Tests: 7 neue (`tests/cases/kontoloeschen.js`), gesamt 219 grün. Kein Server-/Schemaänderung, nichts live.

@@ -7,7 +7,8 @@ module.exports=function fake(){
   const uid=()=>'00000000-0000-4000-8000-'+String(++st.n).padStart(12,'0');
   const J=(route,status,body)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
   const user=u=>({id:u.id,email:u.email,email_confirmed_at:u.confirmed?'2026-11-13T10:00:00Z':null,user_metadata:{username:u.username}});
-  const issue=u=>{const at='at-'+(++st.n),rt='rt-'+st.n;st.tokens[at]=u.id;st.refresh[rt]=u.id;return {access_token:at,refresh_token:rt,expires_in:3600,token_type:'bearer',user:user(u)};};
+  const b64=o=>Buffer.from(JSON.stringify(o)).toString('base64url');
+  const issue=u=>{const n=++st.n,at='at-'+b64({alg:'HS256',typ:'JWT'})+'.'+b64({sub:u.id,role:'authenticated',session_id:'s'+n,amr:[{method:st.amrMethod||'password',timestamp:Math.floor(Date.now()/1000)}]})+'.sig'+n,rt='rt-'+n;st.tokens[at]=u.id;st.refresh[rt]=u.id;return {access_token:at,refresh_token:rt,expires_in:3600,token_type:'bearer',user:user(u)};};
   const who=h=>{const m=/^Bearer (.+)$/.exec(h.authorization||'');return m&&st.tokens[m[1]]?st.users.find(u=>u.id===st.tokens[m[1]]):null;};
   const strong=p=>p.length>=8&&/[a-z]/.test(p)&&/[A-Z]/.test(p)&&/[0-9]/.test(p)&&[...p].some(c=>SYM.includes(c));
   const rows=u=>st.chars.filter(c=>c.account===u.id).sort((a,b)=>a.slot-b.slot).map(c=>({character_id:c.id,slot_number:c.slot,character_name:c.name,character_class:c.cls||'wanderer',level:c.level||1,version:c.version,last_played:null,locked:!!c.locked}));
@@ -36,22 +37,33 @@ module.exports=function fake(){
       const id=st.refresh[body.refresh_token];if(!id)return J(route,400,{error_code:'refresh_token_not_found',msg:'Invalid Refresh Token'});
       delete st.refresh[body.refresh_token];return J(route,200,issue(st.users.find(u=>u.id===id)));}
     if(path==='/auth/v1/logout'){const m2=/^Bearer (.+)$/.exec(h.authorization||'');if(m2)delete st.tokens[m2[1]];return route.fulfill({status:204});}
-    if(path==='/auth/v1/user'&&m==='GET'){const u=who(h);return u?J(route,200,user(u)):J(route,401,{error_code:'bad_jwt',msg:'invalid JWT'});}
+    if(path==='/auth/v1/user'&&m==='GET'){const u=who(h);if(u)return J(route,200,user(u));const tk=/^Bearer (.+)$/.exec(h.authorization||'');return tk&&st.tokens[tk[1]]?J(route,403,{error_code:'user_not_found',msg:'User from sub claim in JWT does not exist'}):J(route,401,{error_code:'bad_jwt',msg:'invalid JWT'});}
     if(path==='/auth/v1/user'&&m==='PUT'){const u=who(h);if(!u)return J(route,401,{error_code:'bad_jwt',msg:'invalid JWT'});
       if(!strong(body.password||''))return J(route,422,{error_code:'weak_password',msg:'weak'});
       if(body.password===u.password)return J(route,422,{error_code:'same_password',msg:'same'});
       u.password=body.password;return J(route,200,user(u));}
     if(path==='/rest/v1/rpc/username_available')return J(route,200,/^[A-Za-z0-9_]{3,20}$/.test(body.p_name)&&!st.users.some(u=>u.username.toLowerCase()===String(body.p_name).toLowerCase()));
     const u=who(h);
+    if(path==='/rest/v1/rpc/delete_account'){st.delCalls=(st.delCalls||0)+1;
+      if(!u)return J(route,401,{code:'PGRST301',message:'JWT expired'});
+      const o=st.del||{};if(o.mode==='net_before')return route.abort();
+      if(o.mode==='reauth')return J(route,403,{code:'PT403',message:'reauth_required'});
+      if(o.mode==='500')return J(route,500,{message:'boom'});
+      if(String(body.p_confirm).toLowerCase()!==u.username.toLowerCase())return J(route,400,{code:'22023',message:'confirm_mismatch'});
+      st.users=st.users.filter(x=>x.id!==u.id);st.chars=st.chars.filter(c=>c.account!==u.id);
+      if(o.mode==='net_after')return route.abort();
+      return route.fulfill({status:204});}
     if(path.startsWith('/rest/v1/')&&!u)return J(route,401,{code:'PGRST301',message:'JWT expired'});
     if(path==='/rest/v1/rpc/touch_login')return route.fulfill({status:204});
-    if(path==='/rest/v1/profiles')return J(route,200,[{username:u.username}]);
+    if(path==='/rest/v1/profiles')return J(route,200,[{account_id:u.id,username:u.username,created_at:'2026-11-13T10:00:00Z'}]);
+    if(path==='/rest/v1/account_entitlements')return J(route,200,[]);
     if(path==='/rest/v1/rpc/list_characters'){
       if(st.failList)return J(route,500,{message:'boom'});
       const out=rows(u);if(st.afterList){const f=st.afterList;st.afterList=null;f(u);}return J(route,200,out);}
     if(path==='/rest/v1/characters'&&m==='GET'){
       if(st.failGet)return J(route,500,{message:'boom'});
       const id=(/^eq\.(.+)$/.exec(url.searchParams.get('character_id')||'')||[])[1];
+      if(!id&&!url.searchParams.get('character_id'))return J(route,200,st.chars.filter(c=>c.account===u.id&&!c.locked).map(c=>({character_id:c.id,slot_number:c.slot,character_name:c.name,level:c.level,character_data:c.data,version:c.version})));
       let out=st.chars.filter(c=>c.id===id&&c.account===u.id&&!c.locked).map(c=>({character_id:c.id,account_id:c.account,slot_number:c.slot,character_name:c.name,version:c.version,character_data:c.data}));
       if(st.tamper)out=st.tamper(out);return J(route,200,out);}
     if(path==='/rest/v1/rpc/save_character'){

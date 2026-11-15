@@ -69,7 +69,7 @@ module.exports={
   eq(r.errors,[]);},
  'Browser-Speicher: keine Cookies; nur erwartete localStorage-Schlüssel':async(T,eq)=>{
   const R=REPORT.konto_cloud;if(!R)throw new Error('Szenario fehlt');eq(R.cookies,0);
-  const ok=/^(ruinwalk_v1(_s\d)?(_bak|_corrupt)?|ruinwalk_slot|ruinwalk_auth|ruinwalk_cloudmap|ruinwalk_hab|ruinwalk_cc_<id>(_bak|_corrupt|_replaced_<ts>|_srvcopy_<ts>)?|ruinwalk_cm_<id>|ruinwalk_tl_<id>)$/;
+  const ok=/^(ruinwalk_v1(_s\d)?(_bak|_corrupt)?|ruinwalk_slot|ruinwalk_auth|ruinwalk_cloudmap|ruinwalk_deleted_accts|ruinwalk_hab|ruinwalk_cc_<id>(_bak|_corrupt|_replaced_<ts>|_srvcopy_<ts>)?|ruinwalk_cm_<id>|ruinwalk_tl_<id>)$/;
   eq(R.storage.ls.filter(k=>!ok.test(k)),[],'unerwartete localStorage-Schlüssel');},
  'Quelltext: alle festen Adressen im Code sind bekannt (neue Hosts fallen sofort auf)':async(T,eq)=>{
   const files=['index.html','pxdom.js','sprites.js','sprites_skills.js','sprites_gear.js','sprites_items.js','sprites_mobs.js','sprites_chars.js','sprites_figs.js','figs/manifest.js','items/manifest.js'].filter(f=>fs.existsSync(path.join(ROOT,f)));

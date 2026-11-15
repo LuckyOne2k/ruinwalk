@@ -64,7 +64,7 @@ body.cbt #fx{top:calc(182px + var(--st))}
 /* Sheet */
 #chars{position:absolute;inset:0;z-index:1100;background:linear-gradient(rgba(8,12,16,.35),rgba(8,12,16,.62)),url(assets/bg_chars.jpg) center/cover #16120f;transition:background .3s;display:none;flex-direction:column;padding:18px 14px;overflow:auto;gap:10px}#chars h2{margin:0;text-align:center}#chars .rec.lock{opacity:.6}#chars input{width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--sur);color:inherit;font-size:16px;margin:6px 0}
 #lockov{position:absolute;inset:0;z-index:1050;background:rgba(22,18,15,.97);display:none;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:24px;gap:12px}#lockov h2{margin:0}#lockov p{max-width:420px;margin:0}
-#acct{position:absolute;inset:0;z-index:1300;background:linear-gradient(rgba(8,12,16,.35),rgba(8,12,16,.62)),url(assets/bg_login.jpg) center/cover #16120f;display:none;flex-direction:column;padding:18px 14px;overflow:auto;gap:8px}#acct h2{margin:0;text-align:center}#acct .rec.lock{opacity:.6}#acct input,#acct select{width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--sur);color:inherit;font-size:16px;margin:4px 0 6px}#acct .acl{font-size:12px;opacity:.8;margin-top:4px}#acct .acn{font-size:12px;opacity:.75;margin:2px 0}#acct .msg{padding:8px 10px;border-radius:10px;background:var(--sur);border:1px solid var(--line);font-size:14px}#acct h3{font-size:15px}
+#acct{position:absolute;inset:0;z-index:1300;background:linear-gradient(rgba(8,12,16,.35),rgba(8,12,16,.62)),url(assets/bg_login.jpg) center/cover #16120f;display:none;flex-direction:column;padding:18px 14px;overflow:auto;gap:8px}#acct h2{margin:0;text-align:center}#acct .rec.lock{opacity:.6}#acct input,#acct select{width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--sur);color:inherit;font-size:16px;margin:4px 0 6px}#acct .acl{font-size:12px;opacity:.8;margin-top:4px}#acct .acn{font-size:12px;opacity:.75;margin:2px 0}#acct .msg{padding:8px 10px;border-radius:10px;background:var(--sur);border:1px solid var(--line);font-size:14px}#acct h3{font-size:15px}#acct .acchk{display:flex;gap:12px;align-items:flex-start;font-size:14px;margin:8px 0;padding:6px 0}#acct .acchk input{width:28px;height:28px;flex:none;margin:0}#acct .btn.dang{background:#8a2b24;color:#fff}#acct .btn.dang:disabled{background:#4a3d33;color:#a8998a}#acct .btn.big{padding:14px 16px;font-size:16px}#acct .acdelbox{margin-top:14px;padding-top:10px;border-top:1px solid var(--line)}
 #ipop{position:absolute;inset:0;z-index:900;display:none;align-items:center;justify-content:center;padding:16px}#ipop .bd{position:absolute;inset:0;background:rgba(0,0,0,.6)}#ipop .bx{position:relative;width:100%;max-width:420px;max-height:86%;overflow:auto;background:var(--card);border:2px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.5)}#ipop .big{font-size:46px;text-align:center;line-height:1.1}#ipop .x{position:absolute;top:8px;right:10px}.rec.tap{cursor:pointer}
 #sheet{position:absolute;left:0;right:0;bottom:0;top:12%;z-index:800;background:var(--card);border-radius:22px 22px 0 0;box-shadow:0 -4px 20px rgba(0,0,0,.35);display:none;flex-direction:column}
 .sh-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 8px;background:linear-gradient(#4a2d1a,var(--card));border-radius:22px 22px 0 0}
@@ -230,6 +230,7 @@ body.cbt #react:not(.boss) [data-a=potion]{left:0;bottom:0}
   <button class="btn sec" data-a="chars">👥 Charaktere</button>
   <button class="btn sec" data-a="acct">☁️ Konto</button>
   <p class="warn" id="startWarn"></p>
+  <p id="startNote" style="display:none;font-size:14px;text-align:center;margin:6px 14px;padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.45)"></p>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -1925,6 +1926,7 @@ function charsUI(){
     }
     h+='</div>';
   }
+  {const or=acOrphans();if(or.length)h+='<div class="rec"><div class="t">Lokale Kopien ehemaliger Cloud-Charaktere</div><div class="c"><small>Diese Kopien haben <b>keine aktive Cloud-Verbindung</b> mehr (das zugehörige Konto wurde gelöscht). Sie werden nicht synchronisiert und nie automatisch gelöscht. Du kannst sie als Datei sichern.</small></div>'+or.map(o=>'<div class="c" style="margin-top:6px"><b>'+escH(o.label)+'</b> · Level '+o.lv+'<br><small>Lokale Kopie ohne aktive Cloud-Verbindung</small><br><button class="btn sec" data-a="acorexp" data-id="'+escH(o.id)+'">Als Datei speichern (JSON)</button></div>').join('')+'</div>';}
   h+='<button class="btn sec" data-a="cclose">Zurück</button>';
   el.innerHTML=h;el.style.display='flex';
 }
@@ -2090,7 +2092,7 @@ function rpcErr(r){
   if(r.status===429)return 'Zu viele Anfragen. Bitte warte kurz.';
   return 'Der Server hat die Anfrage abgelehnt (Fehler '+r.status+'). Dein lokaler Spielstand ist unverändert.';}
 
-let acV='login',acMsg=null,acBusy=false,acCloud=null,acProf=null,acF={email:'',user:'',needConfirm:false};
+let acV='login',acMsg=null,acBusy=false,acDelRun=false,acCloud=null,acProf=null,acF={email:'',user:'',needConfirm:false};
 const acM=(t,m)=>{acMsg={t,m};};
 function cloudMap(){try{const m=JSON.parse(localStorage.getItem(CLOUDMAP_KEY)||'{}');return m&&typeof m==='object'&&!Array.isArray(m)?m:{};}catch(e){return {};}}
 function cloudMapSet(uid,cid,cloudId,slot){const m=cloudMap();m[uid+':'+cid]={cloudId,slot,t:Date.now()};try{localStorage.setItem(CLOUDMAP_KEY,JSON.stringify(m));}catch(e){}}
@@ -2131,7 +2133,8 @@ function acctUI(){
   if(acMsg)h+='<div class="msg '+(acMsg.t==='bad'?'bad':'good')+'" role="alert">'+escH(acMsg.m)+'</div>';
   const fld=(id,type,label,auto,val,extra)=>'<label class="acl" for="'+id+'">'+label+'</label><input id="'+id+'" type="'+type+'" autocomplete="'+auto+'"'+(val?' value="'+escH(val)+'"':'')+(extra||'')+'>';
   const mailF=()=>fld('ac_email','email','E-Mail-Adresse','email',acF.email,' inputmode="email" autocapitalize="off" spellcheck="false"');
-  if(acV==='home'&&AUTH.s)h+=acHome();
+  if(acV==='home'&&AUTH.s)h+=acHome()+(DEL_ON?acDelEntry():'');
+  else if(acV==='delete'&&AUTH.s)h+=acDelHTML();
   else if(acV==='register'){
     h+=fld('ac_user','text','Benutzername (3–20 Zeichen: Buchstaben, Ziffern, _)','username',acF.user,' maxlength="20" autocapitalize="off" spellcheck="false"')+mailF()
       +fld('ac_pw','password','Passwort','new-password','')+'<p class="acn">'+PW_HINT+'</p>'+fld('ac_pw2','password','Passwort wiederholen','new-password','')
@@ -2153,7 +2156,7 @@ function acctUI(){
       +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button class="btn sec" data-a="acv" data-v="register">Neu hier? Registrieren</button><button class="btn sec" data-a="acv" data-v="forgot">Passwort vergessen?</button></div>'
       +'<p class="acn">Ohne Konto kannst du ganz normal weiterspielen. Dein Spielstand bleibt auf diesem Gerät.</p>';
   }
-  if(acV!=='home')h+='<button class="btn sec" data-a="acx" style="margin-top:6px">'+(acV==='conflict'?'Später entscheiden':'Schließen')+'</button>';
+  if(acV!=='home'&&acV!=='delete')h+='<button class="btn sec" data-a="acx" style="margin-top:6px">'+(acV==='conflict'?'Später entscheiden':'Schließen')+'</button>';
   el.innerHTML=h;el.style.display='flex';
 }
 function acOpen(){acMsg=null;acF.needConfirm=false;
@@ -2234,6 +2237,95 @@ function acLogout(){
   acGen++;const s=AUTH.s;try{acF.email=(s&&s.user.email)||acF.email;}catch(e){}authStore(null);acCloud=null;acProf=null;acV='login';
   acM('ok','Du bist abgemeldet. Dein Spielstand auf diesem Gerät bleibt erhalten.');acctUI();
   if(s)sbFetch('/auth/v1/logout?scope=local',{method:'POST',token:s.access_token});}
+/* ---------- Konto löschen (D4) ----------
+   Endgültig. Ablauf: frische Passwort-Anmeldung direkt bei Supabase Auth (Sitzung nur im Arbeitsspeicher), dann delete_account mit genau diesem
+   Token; der Server prüft Sitzungsalter, Methode „password“ und Benutzernamen. Das Passwort wird nirgends gespeichert. Lokal werden nur
+   Anmeldedaten und Zuordnungen dieses Kontos entfernt – nie Charaktere, Sicherungen oder Zwischenspeicher. Bei unklarem Ausgang wird NIE „gelöscht“ gemeldet.
+   Bis die Rechtstexte (D6) veröffentlicht sind, ist die Funktion im normalen Spiel ausgeblendet (nur Tests). */
+const DEL_ON=!!window.__RW_TEST,DELACC_KEY='ruinwalk_deleted_accts';
+function jwtClaims(t){try{const b=String(t).split('.')[1].replace(/-/g,'+').replace(/_/g,'/');return JSON.parse(decodeURIComponent(escape(atob(b+'==='.slice((b.length+3)%4)))));}catch(e){return null;}}
+function dlJson(name,obj){const url=URL.createObjectURL(new Blob([JSON.stringify(obj,null,2)],{type:'application/json'}));
+  const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);}
+function acDelEntry(){return '<div class="acdelbox"><h3 style="margin:4px 0">Konto löschen</h3><p class="acn">Löscht dein Konto und alle Cloud-Daten endgültig. Lokale Spielstände auf diesem Gerät bleiben erhalten. Mit „Abmelden“ oder dem Löschen eines Charakters hat das nichts zu tun.</p><button class="btn sec" data-a="acdel"'+(acBusy?' disabled':'')+'>Konto löschen …</button></div>';}
+function acDelHTML(){
+  const d=acF.del||{},dis=acDelRun?' disabled':'',nm=acProf||'';
+  const open=acOpenChanges();
+  return '<h3 style="margin:4px 0">Konto endgültig löschen</h3><div class="msg bad">Das kann nicht rückgängig gemacht werden. Auch wir können nichts wiederherstellen.</div>'
+   +'<p class="acn"><b>Wird gelöscht:</b> dein Konto (E-Mail, Benutzername), alle Cloud-Charaktere (auch Platz 3), die Server-Sicherungen und Berechtigungen. Zahlungsdaten bleiben, falls es welche gibt, nur ohne Personenbezug (Betrag, Währung) erhalten, weil Aufbewahrungsfristen gelten.</p>'
+   +'<p class="acn"><b>Bleibt unverändert:</b> alle lokalen Charaktere und Sicherungen auf diesem Gerät. Cloud-Charaktere, die hier zwischengespeichert sind, bleiben als <b>lokale Kopien ohne aktive Cloud-Verbindung</b> erhalten (unter „Charaktere“) und werden nie automatisch gelöscht.</p>'
+   +(open.length?'<div class="msg bad">Änderungen, die noch nicht in der Cloud sind, gehen für die Cloud verloren (auf diesem Gerät bleiben sie).</div>':'')
+   +'<button class="btn sec big" data-a="acexport"'+dis+'>Meine Daten als JSON herunterladen (optional)</button>'
+   +'<label class="acchk"><input type="checkbox" id="ac_dck"'+(d.ck?' checked':'')+dis+'><span>Mir ist klar, dass mein Konto und alle Cloud-Charaktere endgültig gelöscht werden.</span></label>'
+   +'<label class="acl" for="ac_dn">Zur Bestätigung deinen Benutzernamen eintippen: <b>'+escH(nm)+'</b></label><input id="ac_dn" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="20" value="'+escH(d.name||'')+'"'+dis+'>'
+   +'<label class="acl" for="ac_dpw">Passwort (zur Sicherheit erneut eingeben)</label><input id="ac_dpw" type="password" autocomplete="current-password"'+dis+'>'
+   +'<label class="acchk"><input type="checkbox" id="ac_dhab"'+(d.hab?' checked':'')+dis+'><span>Zusätzlich meine lokalen Erkundungsdaten (besuchte Kartenbereiche) auf diesem Gerät löschen. Das betrifft nur die Karte, keine Charaktere. Ohne Häkchen bleiben sie erhalten.</span></label>'
+   +'<button class="btn dang big" id="ac_dgo" data-a="acdelgo" disabled>Konto endgültig löschen</button> <button class="btn sec big" data-a="acv" data-v="home"'+dis+'>Abbrechen</button>';}
+function acDelSync(){const b=$('#ac_dgo');if(!b)return;const g=i=>$(i);
+  b.disabled=!!(acDelRun||acBusy||!g('#ac_dck')||!g('#ac_dck').checked||!(g('#ac_dn').value||'').trim()||!(g('#ac_dpw').value||''));}
+document.addEventListener('input',e=>{if(e.target&&/^ac_d/.test(e.target.id||''))acDelSync();});
+document.addEventListener('change',e=>{if(e.target&&/^ac_d/.test(e.target.id||''))acDelSync();});
+function acDelFail(msg,d){acDelRun=false;acBusy=false;acF.del=d;acM('bad',msg);acctUI();}
+async function acDelGo(){
+  if(acDelRun||acBusy||acV!=='delete'||!AUTH.s)return;
+  const nE=$('#ac_dn'),pE=$('#ac_dpw'),cE=$('#ac_dck'),hE=$('#ac_dhab');if(!nE||!pE||!cE)return;
+  const typed=(nE.value||'').trim();let pw=pE.value||'';pE.value='';
+  const d={ck:cE.checked,name:typed,hab:!!(hE&&hE.checked)};
+  if(!d.ck||!typed||!pw){pw=null;return acDelFail('Bitte bestätige alles: Häkchen setzen, Benutzernamen und Passwort eingeben. Es wurde nichts gelöscht.',d);}
+  if(acProf&&typed.toLowerCase()!==acProf.toLowerCase()){pw=null;return acDelFail('Der Benutzername stimmt nicht. Es wurde nichts gelöscht.',d);}
+  acDelRun=true;acBusy=true;acM('ok','Konto wird gelöscht … bitte warten und die Seite nicht schließen.');acctUI();
+  const uid=AUTH.s.user.id,email=AUTH.s.user.email;
+  const lr=await sbFetch('/auth/v1/token?grant_type=password',{method:'POST',body:{email,password:pw},timeout:20000});pw=null;
+  if(!(lr.ok&&lr.j&&lr.j.access_token&&lr.j.user)){
+    const j=lr.j||{},c=j.error_code||j.code||'',m=String(j.msg||j.message||'');
+    return acDelFail(lr.net||lr.status>=500?'Keine Verbindung zum Server. Es wurde nichts gelöscht. Bitte versuche es erneut.':
+      (c==='invalid_credentials'||/invalid login/i.test(m))?'Das Passwort ist falsch. Es wurde nichts gelöscht.':lr.status===429||c==='over_request_rate_limit'?'Zu viele Versuche. Bitte warte einen Moment. Es wurde nichts gelöscht.':'Die Anmeldung ist fehlgeschlagen. Es wurde nichts gelöscht.',d);}
+  const fresh=lr.j.access_token,end=()=>{sbFetch('/auth/v1/logout?scope=local',{method:'POST',token:fresh});},cl=jwtClaims(fresh);
+  if(lr.j.user.id!==uid||!cl||cl.sub!==uid||!Array.isArray(cl.amr)||!cl.amr.some(a=>a&&a.method==='password')){end();
+    return acDelFail('Die Sicherheitsprüfung ist fehlgeschlagen (keine frische Passwort-Anmeldung). Es wurde nichts gelöscht.',d);}
+  const dr=await sbFetch('/rest/v1/rpc/delete_account',{method:'POST',token:fresh,body:{p_confirm:typed},timeout:30000});
+  if(dr.ok)return acDelDone(uid,d.hab);
+  const j=dr.j||{},c=String(j.code||''),m=String(j.message||'');
+  if(dr.net||dr.status===0||dr.status>=500){   // Ausgang unklar: nie „gelöscht“ melden, wenn es nicht sicher ist
+    const u=await sbFetch('/auth/v1/user',{token:fresh}),uc=(u.j&&(u.j.error_code||u.j.code))||'';
+    if(u.ok){end();return acDelFail('Die Löschung wurde wegen eines Verbindungsproblems nicht durchgeführt. Dein Konto besteht weiter. Bitte versuche es erneut.',d);}
+    if(!u.net&&[401,403,404].includes(u.status)&&(uc==='user_not_found'||uc==='session_not_found'))return acDelDone(uid,d.hab);
+    return acDelFail('Die Verbindung wurde unterbrochen. Ob dein Konto gelöscht wurde, ist nicht sicher – es wird NICHT als gelöscht behandelt. Melde dich später neu an: Erscheint „E-Mail oder Passwort ist falsch“, ist das Konto gelöscht.',d);}
+  end();
+  if(c==='PT403'||/reauth_required/.test(m))return acDelFail('Die Sicherheitsfrist ist abgelaufen. Bitte gib dein Passwort erneut ein. Es wurde nichts gelöscht.',d);
+  if(c==='22023'||/confirm_mismatch/.test(m))return acDelFail('Der Benutzername stimmt nicht. Es wurde nichts gelöscht.',d);
+  if(c==='PT404'||/not_found/.test(m))return acDelFail('Dein Konto-Profil wurde nicht gefunden. Es wurde nichts gelöscht.',d);
+  if(dr.status===401||dr.status===403)return acDelFail('Die Anmeldung wurde vom Server abgelehnt. Es wurde nichts gelöscht.',d);
+  return acDelFail('Die Löschung ist fehlgeschlagen. Es wurde nichts gelöscht. Bitte versuche es später erneut.',d);}
+/* Erfolg: nur Anmeldedaten/Zuordnungen dieses Kontos entfernen; Charaktere, Sicherungen, Zwischenspeicher bleiben unberührt */
+function acDelDone(uid,hab){
+  try{const a=JSON.parse(localStorage.getItem(DELACC_KEY)||'[]');const l=Array.isArray(a)?a:[];if(!l.includes(uid))l.push(uid);localStorage.setItem(DELACC_KEY,JSON.stringify(l.slice(-20)));}catch(e){}
+  let ownCloud=false;try{const mt=ACTIVE.type==='cloud'&&readMeta(ACTIVE.id);ownCloud=!!mt&&mt.uid===uid;}catch(e){}
+  if(ownCloud){try{save();}catch(e){}}
+  authStore(null);
+  try{const m=cloudMap();Object.keys(m).forEach(k=>{if(k.startsWith(uid+':'))delete m[k];});localStorage.setItem(CLOUDMAP_KEY,JSON.stringify(m));}catch(e){}
+  try{cloudCaches().forEach(mt=>{if(mt.uid===uid)localStorage.removeItem(tlKey(mt.cloudId));});}catch(e){}
+  if(hab){try{localStorage.removeItem(HK);}catch(e){}}
+  try{sessionStorage.setItem('ruinwalk_del_note',hab?'2':'1');}catch(e){}
+  if(ownCloud){noSave=true;try{localStorage.setItem(SLOT_KEY,'1');}catch(e){}}   // nur der Zeiger; keine Daten
+  location.reload();}
+/* Kopien von Cloud-Charakteren gelöschter Konten (nur lesend) */
+function acOrphans(){
+  let del=[];try{const a=JSON.parse(localStorage.getItem(DELACC_KEY)||'[]');if(Array.isArray(a))del=a;}catch(e){}
+  if(!del.length)return [];
+  const out=[];cloudCaches().forEach(mt=>{if(!del.includes(mt.uid))return;
+    try{const st=tryLoad(localStorage.getItem(cloudKey(mt.cloudId)));if(st)out.push({id:mt.cloudId,label:charLabel(st),lv:st.lv,st});}catch(e){}});
+  return out;}
+function acOrphanExport(id){const o=acOrphans().find(x=>x.id===id);if(!o)return;
+  dlJson('ruinwalk_lokale_kopie_'+o.id.slice(0,8)+'.json',{hinweis:'Lokale Kopie eines Cloud-Charakters; das Konto wurde gelöscht.',exportiert:new Date().toISOString(),charakter:o.st});}
+/* Datenexport (eigene Daten, nur lesend); keine Tokens, keine Passwörter */
+async function acExport(){
+  if(acBusy||acDelRun||!AUTH.s)return;
+  acBusy=true;acM('ok','Daten werden geladen …');acctUI();
+  const [pr,cr,er]=await Promise.all([sbAuthed('/rest/v1/profiles?select=*',{}),sbAuthed('/rest/v1/characters?select=character_id,slot_number,character_name,character_class,level,character_data,version,created_at,updated_at,last_played',{}),sbAuthed('/rest/v1/account_entitlements?select=*',{})]);
+  acBusy=false;
+  if(!(pr.ok&&cr.ok&&er.ok&&Array.isArray(pr.j)&&Array.isArray(cr.j)&&Array.isArray(er.j))){acM('bad','Der Export ist fehlgeschlagen. Bitte prüfe deine Verbindung und versuche es erneut.');return acctUI();}
+  dlJson('ruinwalk_konto_export_'+new Date().toISOString().slice(0,10)+'.json',{hinweis:'Export deiner Ruin-Walk-Kontodaten. Diese Datei enthält persönliche Daten – bewahre sie sicher auf. Server-Sicherungen sind nicht enthalten.',exportiert:new Date().toISOString(),konto:{id:AUTH.s.user.id,email:AUTH.s.user.email},profil:pr.j,charaktere:cr.j,berechtigungen:er.j});
+  acM('ok','Export heruntergeladen.');acctUI();}
 /* Kopie eines lokalen Charakters in einen freien Cloud-Platz. Lokal wird nur gelesen; als hochgeladen gilt er erst,
    wenn der Server den Charakter in der Liste bestätigt. Jeder Fehler lässt alles lokal unverändert. */
 async function acUpload(cslot,lslot){
@@ -2328,7 +2420,7 @@ const SY_HELP={ok:'Alles ist in der Cloud gespeichert.',dirty:'Es gibt Änderung
   off:'Keine Verbindung. Dein Fortschritt ist auf diesem Gerät gesichert und wird später automatisch hochgeladen.',err:'Der Server hat gerade ein Problem. Dein Fortschritt ist auf diesem Gerät gesichert; es wird automatisch erneut versucht.',
   auth:'Bitte melde dich im Konto an. Dein Fortschritt bleibt auf diesem Gerät gesichert.',conflict:'In der Cloud liegt ein anderer Stand (z. B. von einem anderen Gerät). Es wird nichts überschrieben. Dein Fortschritt bleibt auf diesem Gerät gesichert; die Auflösung folgt in einem späteren Update.',
   locked:'Dieser Platz ist gesperrt. Es wird nichts hochgeladen; dein Fortschritt bleibt auf diesem Gerät gesichert.',rej:'Der Server hat das Speichern abgelehnt. Dein Fortschritt bleibt auf diesem Gerät gesichert.'};
-const syOn=()=>ACTIVE.type==='cloud'&&!noSave&&!cloudBroken;
+const syOn=()=>ACTIVE.type==='cloud'&&!noSave&&!cloudBroken&&!acDelRun;   // während der Kontolöschung wird nichts mehr in die Cloud geschrieben
 /* Schlüsselereignisse (Level, Ausrüstung, Quests, Herstellen, Boss, Klasse) → zügig (3 s) statt erst nach 60 s */
 function syKey(){try{const st=S.stats||{};return [S.lv,(S.gear||[]).length,JSON.stringify(S.eq||{}),(S.qdone||[]).length,S.cls,S.tier,(st.kt||{}).boss,(st.kt||{}).area,Object.values(st.crafted||{}).reduce((a,b)=>a+(+b||0),0)].join('|');}catch(e){return '';}}
 function syUI(){
@@ -2795,6 +2887,10 @@ document.addEventListener('click',ev=>{
     case 'acres':acResend();break;
     case 'aclogout':acLogoutAsk();break;
     case 'aclogoutok':acLogout();break;
+    case 'acdel':if(DEL_ON&&AUTH.s&&!acBusy){acF.del={};acV='delete';acMsg=null;acctUI();}break;
+    case 'acdelgo':acDelGo();break;
+    case 'acexport':acExport();break;
+    case 'acorexp':acOrphanExport(b.dataset.id);break;
     case 'cfopen':acConflictOpen(b.dataset.id);break;
     case 'cfkeep':if(acF.cf){acF.cf.cfm=true;acctUI();}break;
     case 'cfback':if(acF.cf){acF.cf.cfm=false;acctUI();}break;
@@ -2912,6 +3008,7 @@ if(S.test){/* Testmodus war aktiv: Start-Dialog bleibt, damit man wählen kann *
 authBoot();
 tlCheck();
 lockGate();
+try{const n=sessionStorage.getItem('ruinwalk_del_note');if(n){sessionStorage.removeItem('ruinwalk_del_note');const e=$('#startNote');if(e){e.textContent='Dein Konto wurde gelöscht. Deine lokalen Spielstände und Sicherungen auf diesem Gerät sind unverändert.'+(n==='2'?' Deine lokalen Erkundungsdaten wurden auf deinen Wunsch gelöscht.':'');e.style.display='block';}}}catch(e){}
 /* Test-Schnittstelle: nur aktiv, wenn vor dem Laden window.__RW_TEST=true gesetzt wird (siehe tests/). Im normalen Spiel ohne Wirkung. */
 if(window.__RW_TEST)window.__RW={get S(){return S;},set S(v){S=v;},get sel(){return sel;},set sel(v){sel=v;},get P(){return P;},get nextAtk(){return nextAtk;},set nextAtk(v){nextAtk=v;},
   get psn(){return psn;},set psn(v){psn=v;},get gpsLost(){return gpsLost;},set gpsLost(v){gpsLost=v;},
