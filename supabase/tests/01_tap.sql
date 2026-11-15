@@ -23,6 +23,9 @@ begin begin execute p_sql; exception when others then return tap.rec(false,p_nam
 create function tap.as_user(p_uid uuid) returns text language plpgsql as $$
 begin reset role; set role authenticated;
   perform set_config('request.jwt.claims', json_build_object('sub',p_uid,'role','authenticated')::text, false); return ''; end $$;
+create function tap.as_user_sess(p_uid uuid, p_sid uuid) returns text language plpgsql as $$
+begin reset role; set role authenticated;
+  perform set_config('request.jwt.claims', json_build_object('sub',p_uid,'role','authenticated','session_id',p_sid)::text, false); return ''; end $$;
 create function tap.as_anon() returns text language plpgsql as $$
 begin reset role; set role anon; perform set_config('request.jwt.claims', json_build_object('role','anon')::text, false); return ''; end $$;
 create function tap.as_service() returns text language plpgsql as $$

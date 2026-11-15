@@ -33,7 +33,7 @@ create table public.account_entitlements (
 
 create table public.payment_events (
   provider_event_id text primary key,                 -- idempotent: doppelte Webhooks werden abgewiesen
-  account_id        uuid references public.profiles(account_id),
+  account_id        uuid references public.profiles(account_id) on delete set null,   -- Konto löschen löst die Zahlung vom Konto (Aufbewahrung ohne Personenbezug), blockiert nie
   kind              text not null check (kind in ('paid','refunded','failed')),
   payload           jsonb not null,
   processed_at      timestamptz not null default now()
@@ -72,7 +72,7 @@ create index character_backups_account on public.character_backups (account_id);
 
 create table public.audit_log (
   id bigserial primary key,
-  account_id   uuid,
+  account_id   uuid references public.profiles(account_id) on delete cascade,   -- Konto löschen entfernt auch das Protokoll des Kontos
   character_id uuid,
   action       text not null,
   detail       jsonb,
@@ -190,6 +190,57 @@ language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   if auth.uid() is null then raise exception 'not_authenticated' using errcode = 'PT401'; end if;
   update public.profiles set last_login = now() where account_id = auth.uid();
+  perform public.purge_account_backups(auth.uid());   -- abgelaufene Sicherungen gelöschter Charaktere (30 Tage)
+end $$;
+
+-- Aufbewahrung gelöschter Charaktere: 30 Tage. Danach werden ALLE Sicherungen eines nicht mehr vorhandenen Charakters entfernt
+-- (Maßstab: die jüngste Sicherung des Charakters, also der Zeitpunkt des Löschens). Sicherungen vorhandener Charaktere bleiben (max. 10).
+create or replace function public.purge_account_backups(p_account uuid) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  delete from public.character_backups b
+   where b.account_id = p_account
+     and not exists (select 1 from public.characters c where c.character_id = b.character_id)
+     and (select max(b2.saved_at) from public.character_backups b2 where b2.character_id = b.character_id) < now() - interval '30 days';
+end $$;
+-- Für alle Konten (nur service_role, z. B. geplanter Job); gibt die Zahl entfernter Sicherungen zurück.
+create or replace function public.purge_expired_backups() returns bigint
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare n bigint;
+begin
+  delete from public.character_backups b
+   where not exists (select 1 from public.characters c where c.character_id = b.character_id)
+     and (select max(b2.saved_at) from public.character_backups b2 where b2.character_id = b.character_id) < now() - interval '30 days';
+  get diagnostics n = row_count;
+  return n;
+end $$;
+
+-- Konto endgültig löschen (durch den Nutzer selbst). Alles in EINER Transaktion: ein Fehler macht alles rückgängig.
+-- Voraussetzungen, alle serverseitig geprüft: angemeldet, Sitzung höchstens 5 Minuten alt (frische Passwort-Anmeldung, Sitzung aus auth.sessions
+-- über die session_id im JWT, gehört dem Konto), Benutzername als Bestätigung. Es wird immer nur das eigene Konto (auth.uid()) gelöscht.
+create or replace function public.delete_account(p_confirm text) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare uid uuid := auth.uid(); sid uuid; sess_at timestamptz; uname text;
+begin
+  if uid is null or coalesce(auth.jwt() ->> 'role','') <> 'authenticated' then raise exception 'not_authenticated' using errcode = 'PT401'; end if;
+  select username into uname from public.profiles where account_id = uid for update;   -- sperrt das Profil: parallele Speichervorgänge warten und scheitern danach
+  if not found then raise exception 'not_found' using errcode = 'PT404'; end if;
+  begin sid := (auth.jwt() ->> 'session_id')::uuid; exception when others then sid := null; end;
+  select created_at into sess_at from auth.sessions where id = sid and user_id = uid;
+  if sess_at is null or sess_at < now() - interval '5 minutes' then raise exception 'reauth_required' using errcode = 'PT403'; end if;
+  if p_confirm is null or lower(btrim(p_confirm)) <> lower(uname) then raise exception 'confirm_mismatch' using errcode = '22023'; end if;
+  -- Zahlungsereignisse bleiben ohne Kontobezug und ohne persönliche Felder erhalten (Aufbewahrung wird später rechtlich festgelegt)
+  update public.payment_events
+     set account_id = null,
+         payload = jsonb_strip_nulls(jsonb_build_object('redacted', true, 'amount', payload -> 'amount', 'currency', payload -> 'currency'))
+   where account_id = uid;
+  -- Protokoll: nach Konto und nach allen Charakteren des Kontos (auch bereits gelöschten, bekannt aus den Sicherungen)
+  delete from public.audit_log
+   where account_id = uid
+      or character_id in (select character_id from public.characters where account_id = uid
+                          union select character_id from public.character_backups where account_id = uid);
+  -- Konto löschen: Kaskade über Profil, Charaktere, Sicherungen, Berechtigungen, Sitzungen, Token. Die Kaskade legt keine neuen Sicherungen an.
+  delete from auth.users where id = uid;
 end $$;
 
 -- Klasse und Level werden aus den Daten abgeleitet (nie vom Client getrennt übergeben) und begrenzt.
@@ -290,6 +341,7 @@ begin
   delete from public.characters where character_id = p_id and account_id = uid;
   if not found then raise exception 'not_found' using errcode = 'PT404'; end if;
   insert into public.audit_log(account_id, character_id, action) values (uid, p_id, 'character_deleted');
+  perform public.purge_account_backups(uid);
 end $$;
 
 ------------------------------------------------------------------------------------------------
@@ -330,7 +382,11 @@ grant execute on function public.delete_character(uuid)            to authentica
 grant execute on function public.list_characters()                 to authenticated;
 grant execute on function public.move_character(uuid,int)          to authenticated;
 grant execute on function public.touch_login()                     to authenticated;
+grant execute on function public.delete_account(text)              to authenticated;
 grant execute on function public.username_available(text)         to anon, authenticated;
+-- purge_expired_backups() ist nur für service_role (grant all on all tables/sequences gilt nicht für Funktionen -> ausdrücklich):
+grant execute on function public.purge_expired_backups()           to service_role;
+revoke all on function public.purge_account_backups(uuid) from service_role;   -- nur intern (von den Funktionen oben), auch in Projekten mit Standardrechten
 -- Alle übrigen Funktionen (has_entitlement, Trigger, safe_*) sind nur intern und für Clients nicht aufrufbar.
 -- Hinweis: Die SECURITY-DEFINER-Funktionen laufen als Tabellenbesitzer (in Supabase `postgres` mit BYPASSRLS)
 -- und umgehen RLS deshalb. Sie prüfen auth.uid() ausdrücklich in jeder Anweisung (account_id = uid).

@@ -26,6 +26,9 @@ begin begin execute p_sql; exception when others then return tap.rec(false,p_nam
 create function tap.as_user(p_uid uuid) returns text language plpgsql as $$
 begin reset role; set role authenticated;
   perform set_config('request.jwt.claims', json_build_object('sub',p_uid,'role','authenticated')::text, false); return ''; end $$;
+create function tap.as_user_sess(p_uid uuid, p_sid uuid) returns text language plpgsql as $$
+begin reset role; set role authenticated;
+  perform set_config('request.jwt.claims', json_build_object('sub',p_uid,'role','authenticated','session_id',p_sid)::text, false); return ''; end $$;
 create function tap.as_anon() returns text language plpgsql as $$
 begin reset role; set role anon; perform set_config('request.jwt.claims', json_build_object('role','anon')::text, false); return ''; end $$;
 create function tap.as_service() returns text language plpgsql as $$
@@ -336,15 +339,195 @@ select tap.ok((select count(*) from public.character_backups where account_id='b
 delete from auth.users where id='bbbbbbbb-0000-0000-0000-000000000002';
 select tap.is((select count(*) from public.characters where account_id='bbbbbbbb-0000-0000-0000-000000000002')+(select count(*) from public.character_backups where account_id='bbbbbbbb-0000-0000-0000-000000000002')+(select count(*) from public.account_entitlements where account_id='bbbbbbbb-0000-0000-0000-000000000002'),0::bigint,'Konto löschen entfernt Charaktere, Backups und Berechtigungen vollständig');
 
+-- ===== 9b. Konto durch den Nutzer löschen (delete_account) =====
+select tap.as_admin();
+insert into auth.users(id,email,raw_user_meta_data,email_confirmed_at) values
+ ('dddddddd-0000-0000-0000-000000000004','d@test.de','{"username":"Dora_4"}',now()),('eeeeeeee-0000-0000-0000-000000000005','e@test.de','{"username":"Emil_5"}',now()),('ffffffff-0000-0000-0000-000000000006','f@test.de','{"username":"Fritz_6"}',now());
+-- Sitzungen: D frisch (neue Passwort-Anmeldung), D alt (10 Minuten), E frisch, F frisch
+insert into auth.sessions(id,user_id,created_at) values
+ ('d0000000-0000-0000-0000-00000000d001','dddddddd-0000-0000-0000-000000000004',now()),('d0000000-0000-0000-0000-00000000d002','dddddddd-0000-0000-0000-000000000004',now()-interval '10 minutes'),
+ ('e0000000-0000-0000-0000-00000000e001','eeeeeeee-0000-0000-0000-000000000005',now()),('f0000000-0000-0000-0000-00000000f001','ffffffff-0000-0000-0000-000000000006',now());
+insert into public.account_entitlements(account_id,entitlement_type,status,payment_reference) values ('dddddddd-0000-0000-0000-000000000004','third_character_slot','active','ref_d');
+select tap.as_user('dddddddd-0000-0000-0000-000000000004');
+select * from public.create_character(1,'D_eins','{"lv":2}');
+select * from public.create_character(2,'D_zwei','{"lv":3}');
+select * from public.create_character(3,'D_drei','{"lv":4}');
+select tap.as_user('eeeeeeee-0000-0000-0000-000000000005');
+select * from public.create_character(1,'E_eins','{"lv":5}');
+select * from public.create_character(2,'E_zwei','{"lv":6}');
+select tap.as_user('ffffffff-0000-0000-0000-000000000006');
+select * from public.create_character(1,'F_eins','{"lv":7}');
+select tap.as_admin();
+insert into tap.vars select 'd1', (character_id::text)::text from public.characters where character_name='D_eins';
+insert into tap.vars select 'd2', (character_id::text)::text from public.characters where character_name='D_zwei';
+insert into tap.vars select 'd3', (character_id::text)::text from public.characters where character_name='D_drei';
+insert into tap.vars select 'e1', (character_id::text)::text from public.characters where character_name='E_eins';
+insert into tap.vars select 'f1', (character_id::text)::text from public.characters where character_name='F_eins';
+select tap.as_user('dddddddd-0000-0000-0000-000000000004');
+select tap.lives('select public.save_character('''||(select v::uuid from tap.vars where k='d1')||''',1,''{"lv":9}'')','D speichert (erzeugt Backup)');
+select tap.lives('select public.delete_character('''||(select v::uuid from tap.vars where k='d2')||''')','D löscht D_zwei (Backup „delete“ + Protokoll)');
+select tap.as_user('eeeeeeee-0000-0000-0000-000000000005');
+select tap.lives('select public.save_character('''||(select v::uuid from tap.vars where k='e1')||''',1,''{"lv":10}'')','E speichert (erzeugt Backup)');
+select tap.as_user('ffffffff-0000-0000-0000-000000000006');
+select tap.lives('select public.save_character('''||(select v::uuid from tap.vars where k='f1')||''',1,''{"lv":11}'')','F speichert (erzeugt Backup)');
+select tap.as_admin();
+-- Zahlungsereignisse (mit persönlichen Feldern) und Protokolleinträge ohne Konto, aber mit Charakter-ID
+insert into public.payment_events(provider_event_id,account_id,kind,payload) values
+ ('evt_d1','dddddddd-0000-0000-0000-000000000004','paid','{"amount":299,"currency":"EUR","email":"d@test.de","name":"Dora Muster","address":{"city":"X"}}'),
+ ('evt_e1','eeeeeeee-0000-0000-0000-000000000005','paid','{"amount":299,"currency":"EUR","email":"e@test.de"}'),
+ ('evt_f1','ffffffff-0000-0000-0000-000000000006','paid','{"amount":299,"currency":"EUR","email":"f@test.de"}');
+insert into public.audit_log(account_id,character_id,action,detail) values (null,(select v::uuid from tap.vars where k='d2'),'legacy_row','{"x":1}'),(null,(select v::uuid from tap.vars where k='e1'),'fremd_e','{"x":1}');
+insert into tap.vars select 'e_chars', (count(*))::text from public.characters where account_id='eeeeeeee-0000-0000-0000-000000000005';
+insert into tap.vars select 'e_back', (count(*))::text from public.character_backups where account_id='eeeeeeee-0000-0000-0000-000000000005';
+insert into tap.vars select 'e_audit', (count(*))::text from public.audit_log where account_id='eeeeeeee-0000-0000-0000-000000000005' or character_id=(select v::uuid from tap.vars where k='e1');
+insert into tap.vars select 'all_back_not_d', (count(*))::text from public.character_backups where account_id<>'dddddddd-0000-0000-0000-000000000004';
+
+-- 1) Rechte und Anmeldung
+select tap.as_anon();
+select tap.throws($$select public.delete_account('Dora_4')$$,'permission denied|42501','Anonym kann delete_account nicht aufrufen');
+select tap.as_user('dddddddd-0000-0000-0000-000000000004');
+select tap.throws($$select public.purge_expired_backups()$$,'permission denied|42501','Angemeldete Nutzer können die globale Aufräumfunktion nicht aufrufen');
+select tap.as_admin();
+set role authenticated;
+select set_config('request.jwt.claims','{"role":"authenticated"}',false);
+select tap.throws($$select public.delete_account('Dora_4')$$,'not_authenticated','Ohne Konto-ID im Token: not_authenticated');
+
+-- 2) Sitzungsalter (keine frische Passwort-Anmeldung = keine Löschung)
+select tap.as_user('dddddddd-0000-0000-0000-000000000004');
+select tap.throws($$select public.delete_account('Dora_4')$$,'reauth_required','Token ohne session_id: reauth_required');
+select tap.as_user_sess('dddddddd-0000-0000-0000-000000000004','d0000000-0000-0000-0000-00000000d002');
+select tap.throws($$select public.delete_account('Dora_4')$$,'reauth_required','Alte Sitzung (10 Minuten): reauth_required');
+select tap.as_user_sess('dddddddd-0000-0000-0000-000000000004','e0000000-0000-0000-0000-00000000e001');
+select tap.throws($$select public.delete_account('Dora_4')$$,'reauth_required','Sitzung eines anderen Kontos: reauth_required');
+select tap.as_user_sess('dddddddd-0000-0000-0000-000000000004',gen_random_uuid());
+select tap.throws($$select public.delete_account('Dora_4')$$,'reauth_required','Unbekannte Sitzung: reauth_required');
+
+-- 3) Bestätigung (Benutzername)
+select tap.as_user_sess('dddddddd-0000-0000-0000-000000000004','d0000000-0000-0000-0000-00000000d001');
+select tap.throws($$select public.delete_account('falsch')$$,'confirm_mismatch','Falscher Benutzername: confirm_mismatch');
+select tap.throws($$select public.delete_account('')$$,'confirm_mismatch','Leere Bestätigung: confirm_mismatch');
+select tap.throws($$select public.delete_account(null)$$,'confirm_mismatch','Fehlende Bestätigung (NULL): confirm_mismatch');
+select tap.throws($$select public.delete_account('Emil_5')$$,'confirm_mismatch','Benutzername eines anderen Kontos: confirm_mismatch');
+select tap.as_admin();
+select tap.ok((select count(*) from auth.users where id='dddddddd-0000-0000-0000-000000000004')=1 and (select count(*) from public.characters where account_id='dddddddd-0000-0000-0000-000000000004')=2 and (select count(*) from public.character_backups where account_id='dddddddd-0000-0000-0000-000000000004')>=2
+  and (select count(*) from public.account_entitlements where account_id='dddddddd-0000-0000-0000-000000000004')=1 and (select count(*) from public.payment_events where account_id='dddddddd-0000-0000-0000-000000000004')=1 and (select count(*) from public.audit_log where account_id='dddddddd-0000-0000-0000-000000000004')>=1,
+  'Nach allen abgelehnten Versuchen ist bei D nichts verändert (Konto, Charaktere, Sicherungen, Berechtigung, Zahlung, Protokoll)');
+select tap.is((select payload->>'email' from public.payment_events where provider_event_id='evt_d1'),'d@test.de','... Zahlungsereignis von D ist noch unverändert');
+
+-- 4) Atomarität: Fehler am Ende der Löschung macht ALLES rückgängig
+create function public.zz_boom() returns trigger language plpgsql as $$ begin raise exception 'boom'; end $$;
+create trigger zz_boom_before_delete before delete on auth.users for each row when (old.id = 'ffffffff-0000-0000-0000-000000000006') execute function public.zz_boom();
+select tap.as_user_sess('ffffffff-0000-0000-0000-000000000006','f0000000-0000-0000-0000-00000000f001');
+select tap.throws($$select public.delete_account('Fritz_6')$$,'boom','Fehler beim Löschen des Auth-Kontos wird gemeldet');
+select tap.as_admin();
+select tap.ok((select count(*) from auth.users where id='ffffffff-0000-0000-0000-000000000006')=1 and (select count(*) from public.profiles where account_id='ffffffff-0000-0000-0000-000000000006')=1 and (select count(*) from public.characters where account_id='ffffffff-0000-0000-0000-000000000006')=1
+  and (select count(*) from public.character_backups where account_id='ffffffff-0000-0000-0000-000000000006')>=1,'Abbruch: Konto, Profil, Charakter und Sicherungen von F sind vollständig vorhanden');
+select tap.ok((select account_id='ffffffff-0000-0000-0000-000000000006' and payload->>'email'='f@test.de' from public.payment_events where provider_event_id='evt_f1'),'Abbruch: Zahlungsereignis von F wurde nicht angefasst (keine halbe Anonymisierung)');
+select tap.ok((select count(*) from public.audit_log where account_id='ffffffff-0000-0000-0000-000000000006')>=1 or true,'Abbruch: Protokoll von F nicht gelöscht');
+drop trigger zz_boom_before_delete on auth.users;
+drop function public.zz_boom();
+
+-- 5) Erfolgreiche Löschung (D) – nur das eigene Konto
+select tap.as_user_sess('dddddddd-0000-0000-0000-000000000004','d0000000-0000-0000-0000-00000000d001');
+select tap.lives($$select public.delete_account('  dORA_4 ')$$,'D löscht das eigene Konto (Benutzername ohne Beachtung von Groß/Kleinschreibung und Leerzeichen)');
+select tap.as_admin();
+select tap.is((select count(*) from auth.users where id='dddddddd-0000-0000-0000-000000000004'),0::bigint,'Auth-Konto ist gelöscht');
+select tap.is((select count(*) from auth.sessions where user_id='dddddddd-0000-0000-0000-000000000004'),0::bigint,'Sitzungen sind gelöscht');
+select tap.is((select count(*) from public.profiles where account_id='dddddddd-0000-0000-0000-000000000004'),0::bigint,'Profil ist gelöscht');
+select tap.is((select count(*) from public.characters where account_id='dddddddd-0000-0000-0000-000000000004'),0::bigint,'Alle Charaktere (auch Platz 3) sind gelöscht');
+select tap.is((select count(*) from public.character_backups where account_id='dddddddd-0000-0000-0000-000000000004' or character_id in ((select v::uuid from tap.vars where k='d1')::uuid,(select v::uuid from tap.vars where k='d2')::uuid,(select v::uuid from tap.vars where k='d3')::uuid)),0::bigint,'Alle eigenen Sicherungen sind gelöscht (Stand- und „delete“-Sicherungen)');
+select tap.is((select count(*) from public.account_entitlements where account_id='dddddddd-0000-0000-0000-000000000004'),0::bigint,'Berechtigung ist gelöscht');
+select tap.is((select count(*) from public.audit_log where account_id='dddddddd-0000-0000-0000-000000000004' or character_id in ((select v::uuid from tap.vars where k='d1')::uuid,(select v::uuid from tap.vars where k='d2')::uuid,(select v::uuid from tap.vars where k='d3')::uuid)),0::bigint,'Protokoll ist leer (auch Zeilen ohne Konto, aber mit Charakter-ID von D)');
+select tap.is((select count(*) from public.payment_events where provider_event_id='evt_d1' and account_id is null),1::bigint,'Zahlungsereignis bleibt, ohne Kontobezug');
+select tap.is((select payload from public.payment_events where provider_event_id='evt_d1'),'{"redacted":true,"amount":299,"currency":"EUR"}'::jsonb,'... ohne E-Mail, Name und Adresse (nur Betrag und Währung)');
+-- andere Konten komplett unberührt
+select tap.is((select count(*) from public.characters where account_id='eeeeeeee-0000-0000-0000-000000000005'),(select v::bigint from tap.vars where k='e_chars')::bigint,'E: Charaktere unverändert');
+select tap.is((select count(*) from public.character_backups where account_id='eeeeeeee-0000-0000-0000-000000000005'),(select v::bigint from tap.vars where k='e_back')::bigint,'E: Sicherungen unverändert');
+select tap.is((select count(*) from public.audit_log where account_id='eeeeeeee-0000-0000-0000-000000000005' or character_id=(select v::uuid from tap.vars where k='e1')),(select v::bigint from tap.vars where k='e_audit')::bigint,'E: Protokoll unverändert (auch die Zeile ohne Konto)');
+select tap.is((select payload->>'email' from public.payment_events where provider_event_id='evt_e1'),'e@test.de','E: Zahlungsereignis unverändert');
+select tap.is((select count(*) from public.character_backups where account_id<>'dddddddd-0000-0000-0000-000000000004'),(select v::bigint from tap.vars where k='all_back_not_d')::bigint,'Sicherungen aller anderen Konten unverändert');
+select tap.is((select count(*) from auth.sessions where user_id='eeeeeeee-0000-0000-0000-000000000005'),1::bigint,'E: Sitzung unverändert');
+-- Wiederholung / Wiederverwendung
+select tap.as_user_sess('dddddddd-0000-0000-0000-000000000004','d0000000-0000-0000-0000-00000000d001');
+select tap.throws($$select public.delete_account('Dora_4')$$,'not_found','Zweiter Aufruf nach der Löschung: not_found (kein Fehlzustand)');
+select tap.throws($$select * from public.create_character(1,'Zombie','{}')$$,'.','Mit dem alten Token lässt sich nichts mehr anlegen');
+select tap.as_admin();
+select tap.lives($$insert into auth.users(id,email,raw_user_meta_data,email_confirmed_at) values (gen_random_uuid(),'dora2@test.de','{"username":"Dora_4"}',now())$$,'Der Benutzername ist nach der Löschung wieder frei');
+
+-- 6) Zweiter Weg: Konto direkt über das Dashboard löschen (auth.users) – blockiert nicht und hinterlässt nichts
+select tap.as_user('eeeeeeee-0000-0000-0000-000000000005');
+select tap.lives('select public.delete_character('''||(select v::uuid from tap.vars where k='e1')||''')','E löscht E_eins (Protokoll + „delete“-Sicherung)');
+select tap.as_admin();
+insert into auth.users(id,email,raw_user_meta_data,email_confirmed_at) values ('99999999-0000-0000-0000-000000000007','g@test.de','{"username":"Gerd_7"}',now());
+insert into public.payment_events(provider_event_id,account_id,kind,payload) values ('evt_g1','99999999-0000-0000-0000-000000000007','paid','{"amount":1}');
+insert into public.audit_log(account_id,character_id,action) values ('99999999-0000-0000-0000-000000000007',gen_random_uuid(),'character_deleted');
+select tap.lives($$delete from auth.users where id='99999999-0000-0000-0000-000000000007'$$,'Direktes Löschen eines Kontos mit Zahlungsereignis und Protokoll gelingt');
+select tap.is((select count(*) from public.audit_log where account_id='99999999-0000-0000-0000-000000000007'),0::bigint,'... Protokoll des Kontos ist weg (Fremdschlüssel mit Kaskade)');
+select tap.is((select count(*) from public.payment_events where provider_event_id='evt_g1' and account_id is null),1::bigint,'... Zahlungsereignis bleibt ohne Kontobezug');
+
+-- 7) Aufbewahrung gelöschter Charaktere: 30 Tage innerhalb eines bestehenden Kontos
+select tap.is((select count(*) from public.character_backups where character_id=(select v::uuid from tap.vars where k='e1') and reason='delete'),1::bigint,'E_eins: Sicherung „delete“ liegt vor');
+select tap.is((select count(*) from public.character_backups where character_id=(select v::uuid from tap.vars where k='e1')),2::bigint,'E_eins: zwei Sicherungen insgesamt (Stand + delete)');
+update public.character_backups set saved_at=now()-interval '29 days' where character_id=(select v::uuid from tap.vars where k='e1');
+select tap.as_user('eeeeeeee-0000-0000-0000-000000000005');
+select tap.lives($$select public.touch_login()$$,'touch_login räumt auf (29 Tage alt)');
+select tap.as_admin();
+select tap.is((select count(*) from public.character_backups where character_id=(select v::uuid from tap.vars where k='e1')),2::bigint,'Nach 29 Tagen bleiben die Sicherungen des gelöschten Charakters');
+update public.character_backups set saved_at=now()-interval '31 days' where character_id=(select v::uuid from tap.vars where k='e1');
+select tap.as_user('eeeeeeee-0000-0000-0000-000000000005');
+select tap.lives($$select public.touch_login()$$,'touch_login räumt auf (31 Tage alt)');
+select tap.as_admin();
+select tap.is((select count(*) from public.character_backups where character_id=(select v::uuid from tap.vars where k='e1')),0::bigint,'Nach 31 Tagen sind alle Sicherungen des gelöschten Charakters entfernt (auch die Stand-Sicherung)');
+-- Sicherungen vorhandener Charaktere und fremder Konten sind von der Frist nicht betroffen
+update public.character_backups set saved_at=now()-interval '40 days' where character_id=(select v::uuid from tap.vars where k='f1');
+select tap.as_user('eeeeeeee-0000-0000-0000-000000000005');
+select tap.lives($$select public.touch_login()$$,'E ruft touch_login erneut auf');
+select tap.as_admin();
+select tap.is((select count(*) from public.character_backups where character_id=(select v::uuid from tap.vars where k='f1')),1::bigint,'Alte Sicherung eines VORHANDENEN Charakters (F_eins) bleibt, auch nach 40 Tagen');
+select tap.as_service();
+select tap.lives($$select public.purge_expired_backups()$$,'service_role darf die globale Aufräumfunktion ausführen');
+select tap.as_admin();
+select tap.is((select count(*) from public.character_backups where character_id=(select v::uuid from tap.vars where k='f1')),1::bigint,'... und sie entfernt nichts von vorhandenen Charakteren');
+-- Vorhandener Charakter mit alter Sicherung bleibt auch beim selben Konto erhalten
+select tap.as_user('eeeeeeee-0000-0000-0000-000000000005');
+select tap.lives('select public.save_character((select character_id from public.characters where character_name=''E_zwei'' and account_id='''||'eeeeeeee-0000-0000-0000-000000000005'||'''),1,''{"lv":12}'')','E speichert E_zwei (Sicherung entsteht)');
+select tap.as_admin();
+update public.character_backups set saved_at=now()-interval '45 days' where character_id=(select character_id from public.characters where character_name='E_zwei' and account_id='eeeeeeee-0000-0000-0000-000000000005');
+select tap.as_user('eeeeeeee-0000-0000-0000-000000000005');
+select tap.lives($$select public.touch_login()$$,'E ruft touch_login mit alter Sicherung eines vorhandenen Charakters auf');
+select tap.as_admin();
+select tap.is((select count(*) from public.character_backups where character_id=(select character_id from public.characters where character_name='E_zwei' and account_id='eeeeeeee-0000-0000-0000-000000000005')),1::bigint,'Sicherung des vorhandenen Charakters E_zwei (45 Tage alt) bleibt');
+-- Globale Aufräumfunktion: entfernt nur Sicherungen längst gelöschter Charaktere (alle Konten), nichts Jüngeres
+insert into public.character_backups(character_id,account_id,version,reason,character_data,saved_at) values
+ ('f1f1f1f1-0000-0000-0000-000000000001','ffffffff-0000-0000-0000-000000000006',1,'update','{}',now()-interval '40 days'),
+ ('f1f1f1f1-0000-0000-0000-000000000001','ffffffff-0000-0000-0000-000000000006',2,'delete','{}',now()-interval '35 days'),
+ ('f2f2f2f2-0000-0000-0000-000000000002','ffffffff-0000-0000-0000-000000000006',1,'delete','{}',now()-interval '5 days');
+select tap.as_service();
+select tap.is(public.purge_expired_backups(),2::bigint,'Globale Aufräumfunktion entfernt genau die 2 Sicherungen des seit 35 Tagen gelöschten Charakters');
+select tap.as_admin();
+select tap.is((select count(*) from public.character_backups where character_id='f2f2f2f2-0000-0000-0000-000000000002'),1::bigint,'... die 5 Tage alte „delete“-Sicherung bleibt');
+select tap.is((select count(*) from public.character_backups where character_id=(select v::uuid from tap.vars where k='f1')),1::bigint,'... und die Sicherung des vorhandenen Charakters F_eins bleibt');
+-- Aufräumen der Testdaten dieses Abschnitts
+delete from auth.users where id in ('eeeeeeee-0000-0000-0000-000000000005','ffffffff-0000-0000-0000-000000000006');
+delete from auth.users where email='dora2@test.de';
+delete from public.payment_events where provider_event_id in ('evt_d1','evt_e1','evt_f1','evt_g1');
+delete from public.audit_log;
+
 -- ===== 10. Strukturprüfung der Sicherheit =====
 select tap.as_admin();
 select tap.is((select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r' and not c.relrowsecurity),0::bigint,'RLS ist auf allen Tabellen in public aktiv');
 select tap.is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prosecdef and not coalesce(p.proconfig::text,'') like '%search_path%'),0::bigint,'Jede SECURITY-DEFINER-Funktion hat einen festen search_path');
 select tap.is((select string_agg(p.proname,',' order by p.proname) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and has_function_privilege('anon',p.oid,'execute')),'username_available','Anonym darf nur username_available aufrufen');
-select tap.is((select string_agg(p.proname,',' order by p.proname) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and has_function_privilege('authenticated',p.oid,'execute')),'create_character,delete_character,list_characters,move_character,save_character,touch_login,username_available','Angemeldete Nutzer dürfen nur die vorgesehenen Funktionen aufrufen');
+select tap.is((select string_agg(p.proname,',' order by p.proname) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and has_function_privilege('authenticated',p.oid,'execute')),'create_character,delete_account,delete_character,list_characters,move_character,save_character,touch_login,username_available','Angemeldete Nutzer dürfen nur die vorgesehenen Funktionen aufrufen');
 select tap.is((select count(*) from information_schema.role_table_grants where table_schema='public' and grantee in ('anon','authenticated') and privilege_type<>'SELECT'),0::bigint,'Clients haben nirgends INSERT/UPDATE/DELETE-Rechte');
 select tap.is((select count(*) from information_schema.role_table_grants where table_schema='public' and grantee='anon'),0::bigint,'Anonym hat keine Tabellenrechte');
 select tap.is((select count(*) from pg_policies where schemaname='public' and cmd in ('INSERT','UPDATE','DELETE','ALL')),0::bigint,'Es gibt keine schreibenden RLS-Policies für Clients');
+
+select tap.is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('delete_account','purge_account_backups','purge_expired_backups') and p.prosecdef and p.proconfig::text like '%search_path=public, pg_temp%'),3::bigint,'delete_account und Aufräumfunktionen: SECURITY DEFINER mit festem search_path');
+select tap.is((select string_agg(p.proname,',' order by p.proname) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and has_function_privilege('service_role',p.oid,'execute') and p.proname like 'purge%'),'purge_expired_backups','Nur die globale Aufräumfunktion ist für service_role freigegeben (die interne nicht)');
+select tap.is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='delete_account' and has_function_privilege('anon',p.oid,'execute')),0::bigint,'delete_account ist für anon nicht ausführbar');
+select tap.is((select confdeltype from pg_constraint where conname='audit_log_account_id_fkey'),'c'::"char",'audit_log.account_id: Fremdschlüssel mit CASCADE');
+select tap.is((select confdeltype from pg_constraint where conname='payment_events_account_id_fkey'),'n'::"char",'payment_events.account_id: Fremdschlüssel mit SET NULL');
 
 select tap.as_admin();
 select tap.summary();

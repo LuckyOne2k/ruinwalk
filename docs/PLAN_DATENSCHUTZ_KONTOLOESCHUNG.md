@@ -209,3 +209,12 @@ Wichtig und bereits geprüft: Eine Kaskadenlöschung über das Konto erzeugt **k
 8. **Leaflet lokal einbinden** (empfohlen, ersetzt unpkg) – gleich mit D5 durchführen?
 
 Nach deiner Freigabe beginne ich mit D0/D1 und gehe der Reihenfolge nach; live ändere ich nichts ohne deine ausdrückliche Bestätigung je Schritt (Schema-Migration D3).
+
+---
+
+## 8. Stand D2 (15.11.2026, lokal, nicht live)
+
+- `supabase/schema.sql`: `audit_log.account_id` → FK mit CASCADE; `payment_events.account_id` → FK mit SET NULL; neue Funktionen `delete_account(text)` (nur `authenticated`), `purge_account_backups(uuid)` (intern), `purge_expired_backups()` (nur `service_role`); `touch_login()` und `delete_character()` räumen Sicherungen gelöschter Charaktere nach 30 Tagen auf.
+- `supabase/migration_d3_konto_loeschen.sql`: dieselben Änderungen als Migration für das Live-Projekt (**nicht angewendet**), getestet als Upgrade-Pfad (altes Schema + Migration).
+- Tests: 240 SQL-Tests (neue Modi, ältere Projekte, SQL-Editor-Varianten, Upgrade-Pfad).
+- Ungeprüft bis D3 (nur im echten Projekt prüfbar): (1) JWT enthält `session_id`; (2) `auth.sessions` ist für die Funktion lesbar; (3) Löschen aus `auth.users` per Funktion funktioniert; (4) `auth.audit_log_entries` (IP/E-Mail) bleibt bestehen oder nicht.

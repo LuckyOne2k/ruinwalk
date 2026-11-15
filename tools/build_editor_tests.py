@@ -5,7 +5,7 @@ import re,os
 R=os.path.join(os.path.dirname(__file__),'..','supabase','tests')
 tap=open(os.path.join(R,'01_tap.sql'),encoding='utf-8').read()
 t=open(os.path.join(R,'10_tests.sql'),encoding='utf-8').read()
-ids={'A':'aaaaaaaa-0000-0000-0000-000000000001','B':'bbbbbbbb-0000-0000-0000-000000000002','C':'cccccccc-0000-0000-0000-000000000003'}
+ids={'A':'aaaaaaaa-0000-0000-0000-000000000001','B':'bbbbbbbb-0000-0000-0000-000000000002','C':'cccccccc-0000-0000-0000-000000000003','D':'dddddddd-0000-0000-0000-000000000004','E':'eeeeeeee-0000-0000-0000-000000000005','F':'ffffffff-0000-0000-0000-000000000006','G':'99999999-0000-0000-0000-000000000007'}
 out=[]
 for line in t.splitlines():
     if line.startswith('\\set') or line.startswith('\\pset'): continue
@@ -19,6 +19,7 @@ t=re.sub(r"(->>'cid'=):'(\w+)'",lambda m:"%s(select v from tap.vars where k='%s'
 t=re.sub(r":'(\w+)'",lambda m:"(select v::uuid from tap.vars where k='%s')"%m.group(1),t)
 t=re.sub(r":c3bak\b","(select v::bigint from tap.vars where k='c3bak')",t)
 t=re.sub(r":b1mx\b","(select v::bigint from tap.vars where k='b1mx')",t)
+for nm in ('e_chars','e_back','e_audit','all_back_not_d'): t=re.sub(r":%s\b"%nm,"(select v::bigint from tap.vars where k='%s')"%nm,t)
 for k,v in ids.items(): t=re.sub(r":%s\b"%k,"'%s'"%v,t)
 assert not re.search(r"(?<![:\w]):[A-Za-z_']",re.sub(r"'[^']*'","",t)) or True
 t=t.replace("select tap.finish();","select tap.as_admin();\nselect tap.summary();")
