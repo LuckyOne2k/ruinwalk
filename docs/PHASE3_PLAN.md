@@ -125,3 +125,6 @@ Stand: Analyse von Commit e2eb942 (13.11.2026). Es ist **nichts implementiert**;
 - Tab-Sperre pro Cloud-Charakter (localStorage-Lebenszeichen, 15 s): zweiter Tab startet gesperrt, „Hier übernehmen“ hält den anderen an. Lokale Charaktere nicht betroffen.
 - Gerätekopien (`_srvcopy_`/`_replaced_`) werden im Konto angezeigt, nur auf ausdrückliche, zweistufige Bestätigung gelöscht.
 - S1: Server-Sicherungen werden ausgedünnt (max. 1 „update“-Backup/10 min, letzte 10); sie sind eine zusätzliche, nicht garantierte Absicherung. Live-Einspielung siehe Abschlussbericht.
+
+- S1 live eingespielt (Migration `ruinwalk_s1_backup_thinning`, Funktion `backup_character()` enthält die 10-Minuten-Ausdünnung; geprüft).
+- UI: Logo + Hintergründe in `assets/`; eigener Erstellungsbildschirm für lokale Charaktere (Cloud-Plätze im Konto wechseln beim Tippen ins Namensfeld den Hintergrund).

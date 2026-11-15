@@ -171,7 +171,7 @@ body.cbt #react:not(.boss) [data-a=potion]{left:0;bottom:0}
 .mech{width:52px;height:52px;font-size:50px;line-height:52px;text-align:center;position:relative}.mech::before{content:'';position:absolute;left:10px;right:10px;bottom:2px;height:8px;border-radius:50%;background:rgba(0,0,0,.28)}.mech .px{position:relative}.mech.mflip .px{transform:scaleX(-1)}
 /* Start */
 #start{position:absolute;inset:0;z-index:1000;background:linear-gradient(rgba(8,12,16,.35),rgba(8,12,16,.62)),url(assets/bg_login.jpg) center/cover #16120f;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center;gap:12px}
-#start h1{margin:0;line-height:0}#start .logo{display:block;width:min(86vw,380px);height:auto;filter:drop-shadow(0 4px 14px rgba(0,0,0,.6))}#chars.mk{background:linear-gradient(rgba(8,12,16,.35),rgba(8,12,16,.62)),url(assets/bg_create.jpg) center/cover #16120f}
+#start h1{margin:0;line-height:0}#start .logo{display:block;width:min(86vw,380px);height:auto;filter:drop-shadow(0 4px 14px rgba(0,0,0,.6))}#acct.mk{background:linear-gradient(rgba(8,12,16,.35),rgba(8,12,16,.62)),url(assets/bg_create.jpg) center/cover #16120f}#chars.mk{background:linear-gradient(rgba(8,12,16,.35),rgba(8,12,16,.62)),url(assets/bg_create.jpg) center/cover #16120f}
 #start p{margin:0;max-width:340px;line-height:1.45}
 #start .btn{font-size:17px;padding:14px 22px;width:100%;max-width:340px}
 #start .warn{color:#b3322b;font-size:13px}
@@ -1895,19 +1895,26 @@ function slotInfo(n){
   return c?{n,state:'ok',c}:{n,state:'bad'};
 }
 const fmtPlay=sec=>{sec=Math.floor(sec);const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60);return h+' h '+String(m).padStart(2,'0')+' min';};
-let charDel=0,charDelT=0,charDet=0;
+let charDel=0,charDelT=0,charDet=0,mkSlot=0;
 function cloudMarked(c){try{const u=AUTH&&AUTH.s&&AUTH.s.user.id;return !!u&&!!(cloudMap()[u+':'+c.cid]);}catch(e){return false;}}
-document.addEventListener('focusin',e=>{const c=$('#chars');if(c&&e.target&&/^cnm\d$/.test(e.target.id||''))c.classList.add('mk');});
-document.addEventListener('focusout',e=>{const c=$('#chars');if(c&&e.target&&/^cnm\d$/.test(e.target.id||''))c.classList.remove('mk');});
+document.addEventListener('focusin',e=>{const c=$('#acct');if(c&&/^accn\d$/.test((e.target&&e.target.id)||''))c.classList.add('mk');});
+document.addEventListener('focusout',e=>{const c=$('#acct');if(c&&/^accn\d$/.test((e.target&&e.target.id)||''))c.classList.remove('mk');});
 function charsUI(){
   const el=$('#chars');
+  if(mkSlot&&(slotInfo(mkSlot).state!=='empty'||!slotOpen(mkSlot)))mkSlot=0;
+  el.classList.toggle('mk',!!mkSlot);
+  if(mkSlot){   // eigener Erstellungsbildschirm
+    el.innerHTML='<h2>✨ Neuer Charakter</h2><p style="text-align:center;font-size:13px;margin:0;opacity:.85">Platz '+mkSlot+'. Jeder Charakter hat Inventar, Ausrüstung, Quests und Fortschritt ganz für sich. Eine Klasse wählst du später im Spiel.</p>'
+      +'<div class="rec"><div class="t">Name deines Charakters</div><input id="cnm'+mkSlot+'" maxlength="16" placeholder="Name des Charakters" autocomplete="off"><button class="btn" data-a="cnew" data-slot="'+mkSlot+'">Charakter erstellen</button></div>'
+      +'<button class="btn sec" data-a="cmkx">Abbrechen</button>';
+    el.style.display='flex';return;}
   let h='<h2>👥 Charaktere</h2><p style="text-align:center;font-size:13px;margin:0;opacity:.8">Jeder Charakter hat Inventar, Ausrüstung, Quests und Fortschritt ganz für sich.</p>';
   for(let n=1;n<=MAX_SLOTS;n++){
     const si=slotInfo(n),open=slotOpen(n),act=n===SLOT;
     h+='<div class="rec'+(open?'':' lock')+'" style="'+(act?'border-color:var(--acc)':'')+'"><div class="t">Platz '+n+(n>FREE_SLOTS?' · Premium':' · Kostenlos')+(act?' <small>(aktiv)</small>':'')+'</div>';
     if(!open){h+='<div class="c">🔒 Gesperrt. Der dritte Platz wird später einmalig freigeschaltet.</div>';}
     else if(si.state==='empty'){
-      h+='<div class="c">Leer</div><input id="cnm'+n+'" maxlength="16" placeholder="Name des Charakters" autocomplete="off"><button class="btn" data-a="cnew" data-slot="'+n+'">Neuen Charakter erstellen</button>';
+      h+='<div class="c">Leer</div><button class="btn" data-a="cmk" data-slot="'+n+'">Neuen Charakter erstellen</button>';
     }else if(si.state==='bad'){
       h+='<div class="c bad">⚠️ Spielstand beschädigt. Beim Spielen wird versucht, ihn aus der Sicherung wiederherzustellen.</div><button class="btn" data-a="cplay" data-slot="'+n+'">Spielen</button> <button class="btn sec" data-a="cdel" data-slot="'+n+'">'+(charDel===n?'Wirklich löschen?':'Löschen')+'</button>';
     }else{
@@ -2775,7 +2782,9 @@ document.addEventListener('click',ev=>{
       }else{skipArmed=Date.now()+4000;skipT=Date.now();toast('Nochmal tippen: Erschöpfung beenden für '+fmtM(cost));}
       break;}
     case 'gearopen':gSlot=b.dataset.slot||'waffe';openSheet('gear');break;
-    case 'chars':charDel=0;charDet=0;charsUI();break;
+    case 'chars':charDel=0;charDet=0;mkSlot=0;charsUI();break;
+    case 'cmk':mkSlot=+b.dataset.slot;charsUI();{const i=$('#cnm'+mkSlot);if(i)i.focus();}break;
+    case 'cmkx':mkSlot=0;charsUI();break;
     case 'acct':acOpen();break;
     case 'acx':$('#acct').style.display='none';break;
     case 'acv':acV=b.dataset.v;acMsg=null;acctUI();break;
@@ -2803,7 +2812,7 @@ document.addEventListener('click',ev=>{
     case 'accplay':acPlay(b.dataset.id);break;
     case 'accnew':acCreateCloud(+b.dataset.slot);break;
     case 'acup':acUpload(+b.dataset.slot,+(($('#acsel'+b.dataset.slot)||{}).value));break;
-    case 'cclose':$('#chars').style.display='none';break;
+    case 'cclose':mkSlot=0;$('#chars').style.display='none';break;
     case 'cplay':{const n=+b.dataset.slot;if(n===SLOT)$('#chars').style.display='none';else switchSlot(n);break;}
     case 'cnew':createChar(+b.dataset.slot,($('#cnm'+b.dataset.slot)||{}).value||'');break;
     case 'cdet':{const n=+b.dataset.slot;charDet=charDet===n?0:n;charsUI();break;}
