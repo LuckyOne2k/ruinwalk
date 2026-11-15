@@ -1,6 +1,6 @@
 -- Live-RLS-Prüfung für ein echtes Supabase-Projekt (SQL Editor / MCP execute_sql). Legt zwei Testkonten an,
 -- prüft Lesen/Schreiben/Löschen/Verschieben/Rückerstattung über die echten Rollen, räumt am Ende auf.
--- Ergebnis: eine Zeile "✅ LIVE-RLS: ALLE n PRÜFUNGEN BESTANDEN" (31 Prüfungen am 13.11.2026).
+-- Ergebnis: eine Zeile "✅ LIVE-RLS: ALLE n PRÜFUNGEN BESTANDEN" (31 Prüfungen am 13.11.2026, 36 mit Versionsfolge/S1 am 15.11.2026).
 reset role;
 create temp table r(n serial, ok boolean, name text, detail text);
 grant all on r to public; grant all on sequence r_n_seq to public;
@@ -81,9 +81,18 @@ select pg_temp.asadmin();
 select pg_temp.t((select count(*) from public.audit_log where action='character_moved' and account_id='aaaaaaaa-0000-0000-0000-0000000000a1')=1, 'Verschieben im Audit-Log');
 select pg_temp.t((select count(*) from public.character_backups where character_id=(select v::uuid from ids where k='a1') and reason='delete')=1, 'Gelöschter Charakter wurde gesichert');
 
+select pg_temp.t(public.save_character((select v::uuid from ids where k='a3'),3,'{"lv":7,"inv":{"holz":9}}')=4, 'Versionsfolge: nächster Speichervorgang ergibt Version 4');
+select pg_temp.t(public.save_character((select v::uuid from ids where k='a3'),4,'{"lv":7,"inv":{"holz":10}}')=5, 'Versionsfolge: danach Version 5');
+select pg_temp.thr('select public.save_character('''||(select v from ids where k='a3')||'''::uuid,4,''{"lv":99}'')','version_conflict','Veraltete Version wird abgelehnt (kein stilles Überschreiben)');
+select pg_temp.asadmin();
+select pg_temp.t((select character_data->'inv'->>'holz' from public.characters where character_id=(select v::uuid from ids where k='a3'))='10', 'Abgelehnter Speichervorgang hat nichts verändert');
+select pg_temp.t((select count(*) from public.character_backups where character_id=(select v::uuid from ids where k='a3') and reason='update')<=1, 'S1: schnelle Speichervorgänge erzeugen höchstens 1 Update-Backup in 10 Minuten');
+
 create temp table res as select * from r;
+-- Aufräumen NUR für die zwei Testkonten (echte Konten, Sicherungen und Protokolle bleiben unberührt; Sicherungen fallen per Kaskade mit dem Konto weg)
+delete from public.payment_events where account_id in ('aaaaaaaa-0000-0000-0000-0000000000a1','bbbbbbbb-0000-0000-0000-0000000000b2');
+delete from public.audit_log where account_id in ('aaaaaaaa-0000-0000-0000-0000000000a1','bbbbbbbb-0000-0000-0000-0000000000b2');
 delete from auth.users where email in ('rls_a@test.de','rls_b@test.de');
-delete from public.payment_events; delete from public.character_backups; delete from public.audit_log;
 select case when count(*) filter (where not ok)=0 then '✅ LIVE-RLS: ALLE '||count(*)||' PRÜFUNGEN BESTANDEN'
   else '❌ '||count(*) filter (where not ok)||' von '||count(*)||': '||string_agg(name||coalesce(' ['||detail||']',''),' | ') filter (where not ok) end as summary,
   (select count(*) from auth.users) as konten_danach, (select count(*) from public.characters) as chars_danach
