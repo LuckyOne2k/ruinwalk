@@ -218,3 +218,10 @@ Nach deiner Freigabe beginne ich mit D0/D1 und gehe der Reihenfolge nach; live �
 - `supabase/migration_d3_konto_loeschen.sql`: dieselben Änderungen als Migration für das Live-Projekt (**nicht angewendet**), getestet als Upgrade-Pfad (altes Schema + Migration).
 - Tests: 240 SQL-Tests (neue Modi, ältere Projekte, SQL-Editor-Varianten, Upgrade-Pfad).
 - Ungeprüft bis D3 (nur im echten Projekt prüfbar): (1) JWT enthält `session_id`; (2) `auth.sessions` ist für die Funktion lesbar; (3) Löschen aus `auth.users` per Funktion funktioniert; (4) `auth.audit_log_entries` (IP/E-Mail) bleibt bestehen oder nicht.
+
+
+---
+
+## 9. Stand D3 (15.11.2026, live)
+
+Migration `d3_konto_loeschen` ist live; Passwortnachweis, Löschkaskade und negative Tests siehe `docs/D3_PRUEFBERICHT.md`. Offen: echter OTP-Login-Test (D4), Aufräumen von Wegwerfkonto 2, D4–D7.

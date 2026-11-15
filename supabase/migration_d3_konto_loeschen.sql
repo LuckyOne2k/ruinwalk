@@ -1,4 +1,4 @@
--- MIGRATION D3 (NICHT ANGEWENDET): Konto löschen, Zahlungsereignisse/Protokoll, Aufbewahrung gelöschter Charaktere.
+-- MIGRATION D3 (am 15.11.2026 live angewendet als d3_konto_loeschen; Prüfbericht: docs/D3_PRUEFBERICHT.md): Konto löschen, Zahlungsereignisse/Protokoll, Aufbewahrung gelöschter Charaktere.
 -- Nur nach ausdrücklicher Freigabe auf dem Live-Projekt einspielen. Vorher wird sie lokal gegen das ALTE Schema getestet (Upgrade-Pfad).
 begin;
 -- 1. Protokollzeilen ohne Konto (Waisen) entfernen, damit der Fremdschlüssel gesetzt werden kann
