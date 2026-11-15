@@ -32,6 +32,7 @@ module.exports=function fake(){
       if(!u.confirmed)return J(route,400,{error_code:'email_not_confirmed',msg:'Email not confirmed'});
       return J(route,200,issue(u));}
     if(path==='/auth/v1/token'&&url.searchParams.get('grant_type')==='refresh_token'){
+      if(st.failRefresh==='net')return route.abort();if(st.failRefresh)return J(route,st.failRefresh,{});
       const id=st.refresh[body.refresh_token];if(!id)return J(route,400,{error_code:'refresh_token_not_found',msg:'Invalid Refresh Token'});
       delete st.refresh[body.refresh_token];return J(route,200,issue(st.users.find(u=>u.id===id)));}
     if(path==='/auth/v1/logout'){const m2=/^Bearer (.+)$/.exec(h.authorization||'');if(m2)delete st.tokens[m2[1]];return route.fulfill({status:204});}

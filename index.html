@@ -2041,6 +2041,7 @@ function authRefresh(){
     const r=await sbFetch('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:{refresh_token:rt}});
     if(r.ok&&r.j&&r.j.access_token&&r.j.user){authStore(mkSession(r.j));return 'ok';}
     if(r.net||r.status>=500||r.status===429)return 'net';      // Verbindungsproblem: Sitzung behalten
+    try{acF.email=acF.email||(AUTH.s&&AUTH.s.user.email)||'';}catch(e){}
     authStore(null);return 'expired';                          // Token wirklich ungültig
   })().finally(()=>{refreshP=null;});
   return refreshP;}
@@ -2093,7 +2094,7 @@ function acHome(){
   const dis=acBusy?' disabled':'',u=AUTH.s.user;
   let h='<div class="rec"><div class="t">Angemeldet</div><div class="c"><b>'+escH(acProf||'…')+'</b><br><small>'+escH(u.email)+'</small></div><button class="btn sec" data-a="aclogout"'+dis+'>Abmelden</button></div>'
    +'<p class="acn">Dein Spielstand liegt zuerst auf diesem Gerät. „In die Cloud kopieren“ legt nur eine Kopie an; lokal wird nichts verändert oder gelöscht.</p><h3 style="margin:4px 0">Cloud-Charakterplätze</h3><p class="acn">Aktive Cloud-Charaktere werden automatisch gespeichert: zuerst immer auf diesem Gerät, dann in der Cloud (Status oben links im Spiel). Ohne Verbindung bleibt der Fortschritt auf dem Gerät und wird später hochgeladen.</p>';
-  if(syOn()){const t=syncStatus();h+='<div class="rec"><div class="t">Speicherstatus</div><div class="c"><b>'+escH(t.text)+'</b><br><small>'+escH(t.help)+(t.okAt?' Zuletzt gespeichert: '+escH(new Date(t.okAt).toLocaleTimeString('de-DE',{timeStyle:'short'}))+'.':'')+'</small></div><button class="btn" data-a="syncnow"'+dis+'>Jetzt speichern</button></div>';}
+  if(syOn()){const t=syncStatus();h+='<div class="rec"><div class="t">Speicherstatus</div><div class="c"><b>'+escH(t.text)+'</b><br><small>'+escH(t.help)+(t.okAt?' Zuletzt gespeichert: '+escH(new Date(t.okAt).toLocaleTimeString('de-DE',{timeStyle:'short'}))+'.':'')+'</small></div><button class="btn" data-a="syncnow"'+dis+'>Jetzt speichern</button>'+(SY.st==='conflict'?' <button class="btn" data-a="cfopen" data-id="'+escH(ACTIVE.id)+'"'+dis+'>Konflikt lösen</button>':'')+'</div>';}
   if(acCloud==='loading')return h+'<div class="rec"><div class="c">Lade Cloud-Charaktere …</div></div><button class="btn sec" data-a="acx">Zurück</button>';
   if(!Array.isArray(acCloud))return h+'<button class="btn" data-a="acref"'+dis+'>Erneut laden</button> <button class="btn sec" data-a="acx">Zurück</button>';
   const el=acEligible();
@@ -2128,6 +2129,8 @@ function acctUI(){
   }else if(acV==='reset'){
     h+='<p class="acn">Wähle ein neues Passwort.</p>'+fld('ac_pw','password','Neues Passwort','new-password','')+'<p class="acn">'+PW_HINT+'</p>'+fld('ac_pw2','password','Neues Passwort wiederholen','new-password','')
       +'<button class="btn" data-a="acrst" data-p="1"'+dis+'>Passwort speichern</button>';
+  }else if(acV==='conflict'&&AUTH.s){h+=acConflictHTML();
+  }else if(acV==='logoutwarn'&&AUTH.s){h+=acLogoutHTML();
   }else if(acV==='done'){
     h+='<button class="btn" data-a="acv" data-v="login">Zur Anmeldung</button>';
   }else{
@@ -2137,15 +2140,17 @@ function acctUI(){
       +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button class="btn sec" data-a="acv" data-v="register">Neu hier? Registrieren</button><button class="btn sec" data-a="acv" data-v="forgot">Passwort vergessen?</button></div>'
       +'<p class="acn">Ohne Konto kannst du ganz normal weiterspielen. Dein Spielstand bleibt auf diesem Gerät.</p>';
   }
-  if(acV!=='home')h+='<button class="btn sec" data-a="acx" style="margin-top:6px">Schließen</button>';
+  if(acV!=='home')h+='<button class="btn sec" data-a="acx" style="margin-top:6px">'+(acV==='conflict'?'Später entscheiden':'Schließen')+'</button>';
   el.innerHTML=h;el.style.display='flex';
 }
 function acOpen(){acMsg=null;acF.needConfirm=false;
   if(AUTH.s){acV='home';acctUI();acLoad(false);}else{acV=acV==='register'||acV==='forgot'?acV:'login';acctUI();}}
+let acGen=0;   // zählt Abmeldungen: eine noch laufende Ladeanfrage darf die Abmelde-Meldung nicht überschreiben
 async function acLoad(touch,keep){   // keep: vorhandene Meldung (z. B. Upload-Ergebnis) nicht überschreiben
-  const msg0=acMsg;acCloud='loading';acctUI();
+  const msg0=acMsg,g0=acGen;acCloud='loading';acctUI();
   if(touch)await sbAuthed('/rest/v1/rpc/touch_login',{method:'POST',body:{}});
   const [lr,pr]=await Promise.all([sbAuthed('/rest/v1/rpc/list_characters',{method:'POST',body:{}}),sbAuthed('/rest/v1/profiles?select=username',{})]);
+  if(g0!==acGen)return;
   if(lr.noauth||pr.noauth||!AUTH.s){acV='login';acCloud=null;acM('bad','Deine Sitzung ist abgelaufen. Bitte melde dich neu an. Dein lokaler Spielstand ist unverändert.');return acctUI();}
   if(pr.ok&&Array.isArray(pr.j)&&pr.j[0]&&typeof pr.j[0].username==='string')acProf=pr.j[0].username;
   const okRow=x=>x&&typeof x.character_id==='string'&&[1,2,3].includes(x.slot_number)&&typeof x.character_name==='string'&&Number.isFinite(x.level)&&typeof x.locked==='boolean';
@@ -2213,7 +2218,7 @@ async function acReset(){
   if(r.status===401){AUTH.rec=null;acV='forgot';}
   acM('bad',authErr(r,'reset'));acctUI();}
 function acLogout(){
-  const s=AUTH.s;authStore(null);acCloud=null;acProf=null;acV='login';
+  acGen++;const s=AUTH.s;try{acF.email=(s&&s.user.email)||acF.email;}catch(e){}authStore(null);acCloud=null;acProf=null;acV='login';
   acM('ok','Du bist abgemeldet. Dein Spielstand auf diesem Gerät bleibt erhalten.');acctUI();
   if(s)sbFetch('/auth/v1/logout?scope=local',{method:'POST',token:s.access_token});}
 /* Kopie eines lokalen Charakters in einen freien Cloud-Platz. Lokal wird nur gelesen; als hochgeladen gilt er erst,
@@ -2241,7 +2246,7 @@ async function acUpload(cslot,lslot){
    Bei fehlender Verbindung, ungültigen Daten oder Fehlschlag passiert nichts: kein leerer oder ungeprüfter Stand, lokale Daten unverändert. */
 const PLAY_WHY={storage:'Der Gerätespeicher ist nicht verfügbar.',incomplete:'Der Zwischenspeicher dieses Charakters auf dem Gerät ist unvollständig. Aus Sicherheitsgründen wird er nicht überschrieben.',
   foreign:'Der Zwischenspeicher auf diesem Gerät gehört nicht zu diesem Konto bzw. Platz.',corrupt:'Der Zwischenspeicher auf diesem Gerät ist beschädigt. Er bleibt unverändert erhalten.',
-  older:'Der Server hat einen älteren Stand als dieses Gerät. Zur Sicherheit wird nichts gestartet.',conflict:'Auf diesem Gerät gibt es nicht synchronisierte Änderungen und der Server hat einen neueren Stand. Zur Sicherheit wird nichts überschrieben; die Auflösung folgt in einem späteren Update.'};
+  older:'Der Server hat einen älteren Stand als dieses Gerät. Zur Sicherheit wird nichts gestartet.',conflict:'Auf diesem Gerät gibt es nicht synchronisierte Änderungen und der Server hat einen neueren Stand. Zur Sicherheit wurde nichts überschrieben.'};
 const acNoAuth=()=>{acBusy=false;acV='login';acCloud=null;acM('bad','Deine Sitzung ist abgelaufen. Bitte melde dich neu an. Dein lokaler Spielstand ist unverändert.');acctUI();};
 async function acPlay(id){
   if(acBusy||!AUTH.s||typeof id!=='string'||!CLOUD_ID_RE.test(id))return;
@@ -2265,6 +2270,7 @@ async function acPlay(id){
   const st=sanitize(Object.assign({},st0,{cid:id})),slot=g.slot_number,ver=g.version;
   syncAdopt(id,uid,ver,g.character_data);   // eigenes Speichern, dessen Antwort verloren ging, nicht als Konflikt werten
   const plan=cloudStartPlan(id,uid,slot,ver);
+  if(plan.a==='refuse'&&(plan.why==='conflict'||plan.why==='older')){acBusy=false;return acConflictOpen(id,PLAY_WHY[plan.why]);}
   if(plan.a==='refuse')return fail(PLAY_WHY[plan.why]||'Der Zwischenspeicher dieses Charakters ist nicht prüfbar.');
   const meta={v:1,uid,cloudId:id,slot,baseVersion:ver,dirty:false,syncedAt:Date.now(),baseHash:syncHash(st)};
   let ok=false;
@@ -2320,9 +2326,9 @@ function syUI(){
 function syncSet(st,err){SY.st=st;SY.err=err||'';syUI();}
 function syncStatus(){return {st:SY.st,text:SY_TXT[SY.st]||'',help:(SY.err?SY.err+' ':'')+(SY_HELP[SY.st]||''),okAt:SY.okAt};}
 /* Antwort des Servers bestätigt eine Speicherung: Basis auf die neue Version setzen; Änderungen, die während der Anfrage entstanden, bleiben "dirty" */
-function syncConfirm(id,ver,h){
+function syncConfirm(id,ver,h,cur){
   const m=readMeta(id);if(!m)return false;
-  const dirty=syncHash(S)!==h;
+  const dirty=syncHash(cur===undefined?S:cur)!==h;
   const n=Object.assign({},m,{baseVersion:ver,baseHash:h,dirty,syncedAt:Date.now()});delete n.pend;
   if(!writeMeta(n))return false;
   SY.back=0;SY.next=0;SY.okAt=Date.now();SY.chk=true;return true;}
@@ -2367,14 +2373,14 @@ async function syncPush(manual){
   const backoff=st=>{SY.back=Math.min(SY.BACKMAX,SY.back?SY.back*2:SY.BACK0);SY.next=Date.now()+SY.back;SY.due=Date.now();syncSet(st,'');return false;};
   if(r.noauth)return syncSet('auth',''),false;
   if(r.ok)return backoff('err');                                // unerwartete Antwort: später prüfen (Version/Fingerabdruck)
-  if(r.net||r.status===0||r.status===408)return backoff('off');
+  if(r.net||r.status===0||r.status===408||r.status===401)return backoff('off');   // 401 ohne noauth: Token konnte nur wegen Netzproblem nicht erneuert werden
   if(r.status>=500||r.status===429)return backoff('err');
   if(r.status===409||/version_conflict/.test(msg+code)){
     if(await syncVerify(id,meta)){syncSet(syncHash(S)!==h?'dirty':'ok','');return true;}   // unser früheres Speichern war schon angekommen
-    syncSet('conflict','');SY.due=0;return false;}
+    syncSet('conflict','');SY.due=0;if(!SY.told){SY.told=1;toast('Konflikt mit dem Cloud-Stand – tippe oben links, um ihn zu lösen.');}return false;}
   if(/character_locked/.test(msg)){syncSet('locked','');SY.due=0;return false;}
   if(/email_not_verified/.test(msg)){syncSet('auth','Bitte bestätige zuerst deine E-Mail-Adresse.');SY.due=0;return false;}
-  syncSet('rej',r.status===401?'':'Fehler '+r.status+'.');SY.due=0;return false;}
+  syncSet('rej','Fehler '+r.status+'.');SY.due=0;return false;}
 /* Sekundentakt: billig (nur wenn nötig Fingerabdruck, alle 5 s oder bei Schlüsselereignis) */
 function syncTick(){
   if(!syOn()){syUI();return;}
@@ -2393,6 +2399,7 @@ function syncTick(){
         SY.due=SY.due?Math.min(SY.due,want):want;
       }else if(SY.st==='dirty'||SY.st==='ok'){SY.due=0;if(SY.st!=='ok')syncSet('ok','');}
     }}
+  if(AUTH.s&&AUTH.s.exp-now<120000&&SY.n%10===0&&navigator.onLine!==false)authRefresh();   // Sitzung unauffällig erneuern, bevor sie abläuft
   if(SY.st==='auth'&&AUTH.s){const m=readMeta(ACTIVE.id);if(m&&AUTH.s.user.id===m.uid){SY.next=0;syncSet('dirty','');SY.chk=true;}}
   if(SY.due&&now>=SY.due&&now>=SY.next&&!SY.busy&&!SY_STOP.includes(SY.st)){
     if(!AUTH.s)syncSet('auth','Nicht angemeldet.');else syncPush(false);}
@@ -2411,8 +2418,116 @@ function syncFlush(){
   if(JSON.stringify(body).length>60000)return;                     // keepalive-Grenze des Browsers
   if(!writeMeta(Object.assign({},readMeta(id)||meta,{dirty:true,pend:{h,from:meta.baseVersion}})))return;
   sbFetch('/rest/v1/rpc/save_character',{method:'POST',token:AUTH.s.access_token,body,keepalive:true,timeout:10000});}
-document.addEventListener('visibilitychange',()=>{if(document.hidden)syncFlush();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)syncFlush();else if(syOn()&&AUTH.s&&AUTH.s.exp-Date.now()<120000)authRefresh();});
 window.addEventListener('pagehide',syncFlush);
+/* ---------- Konflikte lösen und Abmelden (3d) ---------- */
+const clone=o=>JSON.parse(JSON.stringify(o));
+async function acGetRow(id,uid){   // Zeile frisch vom Server lesen und prüfen
+  const gr=await sbAuthed('/rest/v1/characters?select=character_id,account_id,slot_number,version,character_data&character_id=eq.'+encodeURIComponent(id),{});
+  if(gr.noauth)return {noauth:true};
+  const g=gr.ok&&Array.isArray(gr.j)&&gr.j.length===1?gr.j[0]:null;
+  if(!g||g.character_id!==id||g.account_id!==uid||!Number.isInteger(g.version)||g.version<1)return {err:gr.net?'Keine Verbindung zum Server.':'Der Cloud-Stand konnte nicht geprüft werden.'};
+  return {g};}
+async function acConflictOpen(id,why,keepMsg){
+  if(acBusy||typeof id!=='string'||!CLOUD_ID_RE.test(id))return;
+  if(!AUTH.s){acV='login';acM('bad','Bitte melde dich an, um den Konflikt zu lösen. Dein Fortschritt bleibt auf diesem Gerät gesichert.');return acctUI();}
+  const uid=AUTH.s.user.id,meta=readMeta(id);
+  if(!meta||meta.uid!==uid){acV='home';acM('bad','Dieser Charakter gehört nicht zum angemeldeten Konto.');acctUI();return;}
+  acF.cf={id,loading:true,cfm:false,why:why||''};acV='conflict';if(!keepMsg)acMsg=null;acBusy=true;acctUI();
+  if(ACTIVE.type==='cloud'&&ACTIVE.id===id&&!noSave)save();
+  let raw=null;try{raw=localStorage.getItem(cloudKey(id));}catch(e){}
+  const loc=raw?tryLoad(raw):null;
+  const r=await acGetRow(id,uid);acBusy=false;
+  if(r.noauth)return acNoAuth();
+  if(r.err){acF.cf=null;acV='home';acM('bad',r.err+' Es wurde nichts verändert.');acctUI();return;}
+  acF.cf={id,why:why||'',cfm:false,loc,srv:{ver:r.g.version,state:cloudState(r.g.character_data)}};
+  acctUI();}
+function acSumm(c){return c?'Level '+c.lv+' · Spielzeit '+fmtPlay(c.played||0)+(c.lp?' · zuletzt '+new Date(c.lp).toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'}):''):'nicht lesbar';}
+function acConflictHTML(){
+  const cf=acF.cf,dis=acBusy?' disabled':'';
+  if(!cf)return '<p class="acn">Kein Konflikt ausgewählt.</p>';
+  if(cf.loading)return '<div class="c">Prüfe den Cloud-Stand …</div>';
+  const name=escH(cf.loc?charLabel(cf.loc):cf.srv&&cf.srv.state?charLabel(cf.srv.state):'Charakter');
+  let h='<h3 style="margin:4px 0">⛔ Konflikt: '+name+'</h3><p class="acn">'+(cf.why?escH(cf.why)+' ':'')+'Auf diesem Gerät und in der Cloud liegen unterschiedliche Stände (z. B. weil auf einem anderen Gerät weitergespielt wurde). Es wurde nichts überschrieben. Der Stand, den du nicht wählst, bleibt als Kopie erhalten.</p>'
+   +'<div class="rec"><div class="t">📱 Dieses Gerät</div><div class="c">'+escH(acSumm(cf.loc))+'</div></div>'
+   +'<div class="rec"><div class="t">☁️ Cloud</div><div class="c">'+escH(cf.srv.state?acSumm(cf.srv.state):'Cloud-Stand ist nicht lesbar')+'</div></div>';
+  if(cf.cfm)h+='<div class="msg bad">Der Cloud-Stand wird durch den Stand dieses Geräts ersetzt. Eine Kopie des Cloud-Stands bleibt auf diesem Gerät, außerdem liegen Sicherungen auf dem Server. Wirklich überschreiben?</div><button class="btn" data-a="cfkeep2"'+dis+'>Ja, Cloud-Stand überschreiben</button> <button class="btn sec" data-a="cfback"'+dis+'>Zurück</button>';
+  else h+=(cf.loc?'<button class="btn" data-a="cfkeep"'+dis+'>📱 Dieses Gerät behalten (Cloud überschreiben)</button>':'')
+   +(cf.srv.state?' <button class="btn" data-a="cfload"'+dis+'>☁️ Cloud-Stand laden (Gerätestand wird gesichert)</button>':'')
+   +'<p class="acn">„Später entscheiden“ lässt alles unverändert; der Fortschritt bleibt auf diesem Gerät gesichert.</p>';
+  return h;}
+/* Gerätestand behalten: Cloud-Stand wird erst als lokale Kopie gesichert, dann mit der aktuellen Cloud-Version ersetzt (nie blind) */
+async function acConflictKeep(){
+  const cf=acF.cf;if(acBusy||!cf||!cf.loc||!cf.srv||!AUTH.s)return;
+  const id=cf.id,uid=AUTH.s.user.id,act=ACTIVE.type==='cloud'&&ACTIVE.id===id&&!noSave,m0=readMeta(id);
+  if(!m0||m0.uid!==uid)return;
+  if(act&&SY.busy){acM('bad','Es läuft gerade ein Speichervorgang. Bitte gleich nochmal versuchen.');return acctUI();}
+  acBusy=true;acMsg=null;if(act)SY.busy=true;acctUI();
+  const done=(t,m,again)=>{acBusy=false;if(act)SY.busy=false;if(again){acM(t,m);return acConflictOpen(id,'',true);}acM(t,m);acctUI();};
+  const r=await acGetRow(id,uid);
+  if(r.noauth){acBusy=false;if(act)SY.busy=false;return acNoAuth();}
+  if(r.err)return done('bad',r.err+' Es wurde nichts verändert.');
+  if(r.g.version!==cf.srv.ver)return done('bad','Der Cloud-Stand hat sich inzwischen geändert. Bitte entscheide neu. Es wurde nichts überschrieben.',true);
+  const ver=r.g.version;
+  try{localStorage.setItem(cloudKey(id)+'_srvcopy_'+Date.now(),JSON.stringify(r.g.character_data));}catch(e){return done('bad','Die Kopie des Cloud-Stands konnte nicht auf dem Gerät gesichert werden (Speicher voll?). Es wurde nichts überschrieben.');}
+  let snap;
+  if(act){save();snap=clone(S);}else{let raw=null;try{raw=localStorage.getItem(cloudKey(id));}catch(e){}const c=raw&&tryLoad(raw);if(!c)return done('bad','Der Gerätestand ist nicht lesbar. Es wurde nichts überschrieben.');snap=clone(c);}
+  snap.cid=id;const h=syncHash(snap);
+  if(JSON.stringify(snap).length>900000)return done('bad','Der Spielstand ist zu groß für die Cloud. Es wurde nichts überschrieben.');
+  if(!writeMeta(Object.assign({},m0,{dirty:true,pend:{h,from:ver}})))return done('bad','Der Gerätespeicher ist voll oder gesperrt. Es wurde nichts überschrieben.');
+  const w=await sbAuthed('/rest/v1/rpc/save_character',{method:'POST',body:{p_id:id,p_expected_version:ver,p_data:snap},timeout:30000});
+  if(w.noauth){acBusy=false;if(act)SY.busy=false;return acNoAuth();}
+  const okKeep=()=>{
+    if(act){SY.busy=false;SY.told=0;SY.next=0;SY.back=0;SY.okAt=Date.now();syncSet(syncHash(S)!==h?'dirty':'ok','');SY.chk=true;}
+    acF.cf=null;acV='home';acBusy=false;if(act)SY.busy=false;acM('ok','Fertig: Der Stand dieses Geräts ist jetzt in der Cloud. Der frühere Cloud-Stand bleibt als Kopie auf diesem Gerät und in den Server-Sicherungen erhalten.');acctUI();acLoad(false,true);};
+  if(w.ok&&Number.isInteger(w.j)&&w.j>ver){syncConfirm(id,w.j,h,act?S:snap);return okKeep();}
+  if(w.status===409||/version_conflict/.test(String((w.j&&(w.j.message||w.j.code))||'')))return done('bad','Der Cloud-Stand hat sich währenddessen erneut geändert. Bitte entscheide neu. Es wurde nichts überschrieben.',true);
+  if((w.net||w.status===0||w.status>=500||w.ok)&&await syncVerify(id,readMeta(id)||m0))return okKeep();   // Antwort verloren, Speichern aber angekommen
+  done('bad',w.net||w.status===0?'Keine Verbindung – es wurde nichts überschrieben. Ob das Speichern angekommen ist, wird beim nächsten Versuch automatisch geprüft. Nichts geht verloren.':'Der Server hat das Speichern nicht angenommen ('+w.status+'). Es wurde nichts überschrieben.');}
+/* Cloud-Stand laden: Gerätestand bleibt als Kopie (_replaced_ und, wenn ein lokaler Platz 1/2 frei ist, als eigener lokaler Charakter) */
+async function acConflictLoad(){
+  const cf=acF.cf;if(acBusy||!cf||!cf.srv||!cf.srv.state||!AUTH.s)return;
+  const id=cf.id,uid=AUTH.s.user.id,act=ACTIVE.type==='cloud'&&ACTIVE.id===id&&!noSave,m0=readMeta(id);
+  if(!m0||m0.uid!==uid)return;
+  if(act&&SY.busy){acM('bad','Es läuft gerade ein Speichervorgang. Bitte gleich nochmal versuchen.');return acctUI();}
+  acBusy=true;acMsg=null;if(act)SY.busy=true;acctUI();
+  const done=(t,m,again)=>{acBusy=false;if(act)SY.busy=false;if(again){acM(t,m);return acConflictOpen(id,'',true);}acM(t,m);acctUI();};
+  const r=await acGetRow(id,uid);
+  if(r.noauth){acBusy=false;if(act)SY.busy=false;return acNoAuth();}
+  if(r.err)return done('bad',r.err+' Es wurde nichts verändert.');
+  if(r.g.version!==cf.srv.ver)return done('bad','Der Cloud-Stand hat sich inzwischen geändert. Bitte entscheide neu. Es wurde nichts verändert.',true);
+  const st0=cloudState(r.g.character_data);if(!st0)return done('bad','Der Cloud-Stand ist ungültig und wird nicht geladen. Es wurde nichts verändert.');
+  const st=sanitize(Object.assign({},st0,{cid:id}));
+  if(act){save();noSave=true;}          // ab jetzt darf nichts mehr den Zwischenspeicher überschreiben (Autosave, Seite verlassen)
+  let copy='';
+  try{if(cf.loc){for(let n=1;n<=FREE_SLOTS;n++){const k=slotKey(n);
+      if(localStorage.getItem(k)===null&&localStorage.getItem(k+'_bak')===null&&localStorage.getItem(k+'_corrupt')===null){localStorage.setItem(k,JSON.stringify(Object.assign({},cf.loc,{cid:newCid()})));copy=' Der Gerätestand liegt außerdem als lokaler Charakter auf Platz '+n+'.';break;}}}}catch(e){}
+  const meta={v:1,uid,cloudId:id,slot:m0.slot,baseVersion:r.g.version,dirty:false,syncedAt:Date.now(),baseHash:syncHash(st)};
+  if(!cloudCacheReplace(meta,st)){if(act)noSave=false;return done('bad','Der Cloud-Stand konnte nicht auf dem Gerät gespeichert werden (Speicher voll?). Es wurde nichts verändert.');}
+  acF.cf=null;
+  if(act){acBusy=false;location.reload();return;}
+  acV='home';acBusy=false;acM('ok','Der Cloud-Stand wurde geladen. Dein bisheriger Gerätestand bleibt als Kopie erhalten.'+copy);acctUI();acLoad(false,true);}
+/* Abmelden: erst Sync-Versuch, dann Warnung bei offenen Änderungen (nichts wird gelöscht) */
+function acOpenChanges(){
+  const uid=AUTH.s&&AUTH.s.user.id,out=[];
+  for(const m of cloudCaches()){if(m.uid!==uid)continue;
+    let d=m.dirty;
+    if(!d&&m.baseHash!==undefined){try{const c=tryLoad(localStorage.getItem(cloudKey(m.cloudId)));d=!!c&&syncHash(c)!==m.baseHash;}catch(e){}}
+    if(!d&&m.baseHash!==undefined&&ACTIVE.type==='cloud'&&ACTIVE.id===m.cloudId&&syOn())d=syncHash(S)!==m.baseHash;
+    if(d)out.push(m);}
+  return out;}
+async function acLogoutAsk(){
+  if(acBusy||!AUTH.s)return;
+  if(syOn()&&acOpenChanges().some(m=>m.cloudId===ACTIVE.id)){
+    acBusy=true;acV='home';acM('ok','Speichere ungespeicherte Änderungen …');acctUI();
+    await syncPush(true);acBusy=false;}
+  const open=acOpenChanges();
+  if(!open.length){acLogout();return;}
+  acF.lo=open.map(m=>{let n='Charakter';try{const c=tryLoad(localStorage.getItem(cloudKey(m.cloudId)));if(c)n=charLabel(c);}catch(e){}return n;});
+  acV='logoutwarn';acMsg=null;acctUI();}
+function acLogoutHTML(){
+  return '<h3 style="margin:4px 0">Nicht in der Cloud gespeicherte Änderungen</h3><p class="acn">Für '+escH((acF.lo||[]).join(', '))+' gibt es Änderungen, die noch nicht in der Cloud sind (z. B. ohne Verbindung). Sie bleiben sicher auf diesem Gerät und gehen nicht verloren. Hochgeladen werden sie, sobald du dich mit demselben Konto anmeldest und den Charakter spielst.</p>'
+   +'<button class="btn" data-a="aclogoutok">Trotzdem abmelden</button> <button class="btn sec" data-a="acv" data-v="home">Abbrechen</button>';}
 window.addEventListener('online',()=>{SY.next=0;SY.back=0;if(SY.st==='off'||SY.st==='err')SY.due=Date.now();});
 /* Links aus Bestätigungs-/Reset-Mails kommen als #access_token=… zurück */
 async function authBoot(){
@@ -2593,9 +2708,17 @@ document.addEventListener('click',ev=>{
     case 'acfor':acForgot();break;
     case 'acrst':acReset();break;
     case 'acres':acResend();break;
-    case 'aclogout':acLogout();break;
+    case 'aclogout':acLogoutAsk();break;
+    case 'aclogoutok':acLogout();break;
+    case 'cfopen':acConflictOpen(b.dataset.id);break;
+    case 'cfkeep':if(acF.cf){acF.cf.cfm=true;acctUI();}break;
+    case 'cfback':if(acF.cf){acF.cf.cfm=false;acctUI();}break;
+    case 'cfkeep2':acConflictKeep();break;
+    case 'cfload':acConflictLoad();break;
     case 'acref':acLoad(false);break;
-    case 'syncnow':{if(!syOn())break;syncPush(true).then(()=>{const t=syncStatus();toast(t.text+(t.st==='ok'?'':' – '+t.help));});break;}
+    case 'syncnow':{if(!syOn())break;
+      if(SY.st==='auth'){acOpen();acM('bad','Bitte melde dich neu an – dein Fortschritt ist gesichert und wird danach automatisch hochgeladen.');acctUI();break;}
+      if(SY.st==='conflict'){acConflictOpen(ACTIVE.id);break;}syncPush(true).then(()=>{const t=syncStatus();toast(t.text+(t.st==='ok'?'':' – '+t.help));});break;}
     case 'accplay':acPlay(b.dataset.id);break;
     case 'accnew':acCreateCloud(+b.dataset.slot);break;
     case 'acup':acUpload(+b.dataset.slot,+(($('#acsel'+b.dataset.slot)||{}).value));break;
@@ -2700,7 +2823,7 @@ authBoot();
 /* Test-Schnittstelle: nur aktiv, wenn vor dem Laden window.__RW_TEST=true gesetzt wird (siehe tests/). Im normalen Spiel ohne Wirkung. */
 if(window.__RW_TEST)window.__RW={get S(){return S;},set S(v){S=v;},get sel(){return sel;},set sel(v){sel=v;},get P(){return P;},get nextAtk(){return nextAtk;},set nextAtk(v){nextAtk=v;},
   get psn(){return psn;},set psn(v){psn=v;},get gpsLost(){return gpsLost;},set gpsLost(v){gpsLost=v;},
-  KEY,SLOT,ACTIVE,SY,syncPush,syncTick,syncFlush,syncAdopt,syncStatus,syKey,syncHash,cloudState,cloudStartPlan,cloudCacheReplace,acPlay,acCreateCloud,cloudKey,cloudMetaKey,readMeta,writeMeta,cloudCachePut,cloudCaches,switchCloud,CLOUD_ID_RE,createChar,save,sanitize,def,regen,pruneCd,toast,getBase,gearOf,addGear,equip,canEquip,fixEq,fixGear,upgradeGear,craftGear,craft,addXP,maxHP,defense,atk,critCh,gVal,gSell,gStats,SB,
+  KEY,SLOT,ACTIVE,AUTH,acConflictOpen,acConflictKeep,acConflictLoad,acLogoutAsk,acOpenChanges,SY,syncPush,syncTick,syncFlush,syncAdopt,syncStatus,syKey,syncHash,cloudState,cloudStartPlan,cloudCacheReplace,acPlay,acCreateCloud,cloudKey,cloudMetaKey,readMeta,writeMeta,cloudCachePut,cloudCaches,switchCloud,CLOUD_ID_RE,createChar,save,sanitize,def,regen,pruneCd,toast,getBase,gearOf,addGear,equip,canEquip,fixEq,fixGear,upgradeGear,craftGear,craft,addXP,maxHP,defense,atk,critCh,gVal,gSell,gStats,SB,
   strike,shoot,monsterHit,faint,setPos,countWalk,select,refreshWorld,cellEnts,areaEnts,usePotion,useItem,rollGear,rollPathSet,rollSet,have,add,claimQuest,checkQuests,
   ents,roam,eng,SETS,SETD,PATHS,MOBS,GR,RECIPES,QUESTS,ITEMS,NODES,SELL,BUY,ABIL,CW,TIERS,COIN,HAB,CLASSES,SSLOTS,ARM,ATYPES,ARMT,SECRET,UPQ,effClass,UPCOST,UPFEE,UPMAX,UP_LV,LV_CAP,QM,QN,
   wK,oK,enc,gBuyPrice,rollQ,DROPQ,RDROPQ,DROPT,DROPCH,RDROPCH,pickMob,hash,mulberry,dist,DLAT,DLON,RANGE,gpsWatch,setLastFix:v=>{lastFix=v;},setWatch:v=>{watchId=v;},setWatchStart:v=>{watchStart=v;lastRestart=v;},get watchId(){return watchId;},get gpsDenied(){return gpsDenied;},get lastRestart(){return lastRestart;},onPos,onErr,startGPS,roamTick,
