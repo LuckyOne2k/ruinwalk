@@ -22,8 +22,8 @@ module.exports={
   eq(r,[true,true]);await p.context().close();},
  'Besiegtes Monster: Belohnung, Statistik, Respawn-Sperre, kein Rest-Leben':async(T,eq)=>{
   const p=await P(T);
-  const r=await p.evaluate(()=>{const R=__RW,id=T.place('rohling'),m=R.MOBS[R.sel.type];R.S.mh[id]=1;T.rand([],.99);const cu=R.S.cu,xp=R.S.xp,k=R.S.stats.kills;R.nextAtk=0;R.shoot();
-    return {mh:R.S.mh[id],cd:!!R.S.cd[id],kills:R.S.stats.kills-k,xp:R.S.xp-xp===m.xp,coins:R.S.cu-cu>=R.COIN.normal[0]&&R.S.cu-cu<=R.COIN.normal[1],sel:R.sel};});
+  const r=await p.evaluate(()=>{const R=__RW,id=T.place('rohling'),m=R.mobOf(R.sel);R.S.mh[id]=1;T.rand([],.99);const cu=R.S.cu,xp=R.S.xp,k=R.S.stats.kills;R.nextAtk=0;R.shoot();
+    return {mh:R.S.mh[id],cd:!!R.S.cd[id],kills:R.S.stats.kills-k,xp:R.S.xp-xp>0&&R.S.xp-xp<=m.xp,coins:R.S.cu-cu>=R.COIN.normal[0]&&R.S.cu-cu<=R.COIN.normal[1],sel:R.sel};});
   eq(r,{kills:1,xp:true,coins:true,cd:true,sel:null});await p.context().close();},
  'Erfahrung: Mehrfach-Levelaufstieg, Rest bleibt, Obergrenze Stufe 50':async(T,eq)=>{
   const p=await P(T,{lv:1,xp:39});

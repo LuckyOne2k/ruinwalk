@@ -32,7 +32,7 @@ module.exports={
  'Gebietsboss-Kampf über 5 Minuten: keine Fehler, Werte bleiben gültig, Reaktionen wirken':async(T,eq)=>{
   const p=await T.page({...S0,hp:600,en:100,test:true});await U.install(p);
   await p.clock.install({time:Date.now()});
-  const id=await p.evaluate(()=>{const R=__RW;R.setPos(48.3705,10.8978,5);const a=R.areaEnts()[0];R.setPos(a.lat,a.lon,5);R.refreshWorld();R.select(a.id);R.eng.set(a.id,Date.now());return a.id;});
+  const id=await p.evaluate(()=>{const R=__RW;const a=T.area()[0];R.setPos(a.lat,a.lon,5);R.refreshWorld();R.select(a.id);R.eng.set(a.id,Date.now());return a.id;});
   for(let i=0;i<300;i++){
     await p.evaluate(()=>{const R=__RW;R.S.en=100;if(R.S.hp<200)R.S.hp=600;T.tap(i%2?'guard':'intr');},i).catch(()=>{});
     await p.clock.runFor(1000);}

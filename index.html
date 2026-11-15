@@ -25,6 +25,8 @@ button{font-family:inherit;color:inherit}
 #gps{position:absolute;right:10px;top:calc(10px + var(--st));z-index:500;background:rgba(31,24,20,.94);border:1px solid var(--line);border-radius:20px;padding:6px 10px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 #syncst{position:absolute;left:10px;top:calc(64px + var(--st));z-index:500;background:rgba(31,24,20,.94);border:1px solid var(--line);border-radius:16px;padding:3px 10px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.2)}#syncst.ok{opacity:.8}#syncst.wait{border-color:var(--acc)}#syncst.bad{border-color:#d9534f}body.cbt #syncst{top:calc(182px + var(--st))}
 #cu{position:absolute;right:10px;top:calc(46px + var(--st));z-index:500;background:rgba(31,24,20,.94);border:1px solid var(--line);border-radius:16px;padding:3px 10px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+#zone{position:absolute;right:10px;top:calc(46px + var(--st));z-index:500;background:rgba(31,24,20,.94);border:1px solid var(--line);border-radius:14px;padding:5px 10px;font-size:12px;text-align:right;box-shadow:0 2px 8px rgba(0,0,0,.2)}#zone small{display:block;opacity:.8;font-size:11px}#zone.warn{color:#ff8a7a;border-color:#a04030}
+#tut{position:absolute;inset:0;z-index:1250;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;padding:22px}#tut .tb{background:var(--sur);border:1px solid var(--line);border-radius:16px;padding:18px;max-width:380px;width:100%}#tut p{margin:8px 0 14px;line-height:1.5;font-size:15px}
 #gps.good{color:#7fd69a}#gps.ok{color:#f0c060}#gps.bad{color:#ff8a7a}
 #toast{position:absolute;left:50%;top:calc(66px + var(--st));transform:translateX(-50%) translateY(-10px);z-index:900;background:rgba(60,40,28,.92);color:#fff;padding:9px 16px;border-radius:20px;font-size:14px;opacity:0;pointer-events:none;transition:.25s;max-width:90%;text-align:center}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -189,6 +191,7 @@ body.cbt #react:not(.boss) [data-a=potion]{left:0;bottom:0}
   </div>
 </div>
 <div id="gps" class="bad">GPS: aus</div>
+<div id="zone" style="display:none"></div>
 <div id="syncst" data-a="syncnow" role="status" style="display:none"></div>
 <div id="cu"></div>
 <div id="toast"></div>
@@ -220,6 +223,7 @@ body.cbt #react:not(.boss) [data-a=potion]{left:0;bottom:0}
 <div id="lockov"></div>
 <div id="acct"></div>
 
+<div id="tut"><div class="tb" id="tutb"></div></div>
 <div id="faint"><div class="fbox" id="fbox"></div></div>
 
 <div id="start">
@@ -576,9 +580,9 @@ const RDROPQ={normal:[100,0,0,0,0],rare:[70,30,0,0,0],elite:[20,55,22,3,0],boss:
 const DROPCH={normal:.01,rare:.033,elite:.19,boss:.43,area:.67};
 const DROPQ={normal:[85,14,1,0,0],rare:[50,40,9,1,0],elite:[20,45,28,6,1],boss:[0,25,50,22,3],area:[0,0,35,50,15]};
 const DROPT={normal:[1],rare:[1,1,2],elite:[2],boss:[2,3],area:[3]};
-function rollGear(tier){
+function rollGear(tier,bd){
   if(Math.random()>=(DROPCH[tier]||0))return null;
-  const t=DROPT[tier][rnd(0,DROPT[tier].length-1)],q=rollQ(DROPQ[tier]);
+  const t=Math.max(DROPT[tier][rnd(0,DROPT[tier].length-1)],bd>=4?3:bd>=3?2:1),q=rollQ(DROPQ[tier]);
   const slots=['waffe','waffe',...(oK()?['nebenhand']:[]),'kopf','brust','beine','haende','fuesse','umhang','ring','amulett'];
   const sl=slots[rnd(0,slots.length-1)];
   let id;
@@ -828,7 +832,7 @@ const atkRange=()=>C0().range+(SB().range||0);
 
 /* ---------- Spielstand ---------- */
 const def=()=>({lv:1,xp:0,hp:100,en:100,inv:{},tools:[],skills:{holz:0,berg:0,sammeln:0},cd:{},mh:{},
-  stats:{col:{},nodes:{},kills:0,crafted:{},kt:{normal:0,rare:0,elite:0,boss:0,area:0},walk:0,night:0,faints:0},cu:0,path:'',tier:0,qb:null,gear:[],eq:{},gid:0,gv:0,qdone:[],qready:[],def:0,cls:'wanderer',scd:{},shield:0,stun:0,exh:0,last:Date.now(),test:false,cid:'',name:'',created:0,played:0,lp:0});
+  stats:{col:{},nodes:{},kills:0,crafted:{},kt:{normal:0,rare:0,elite:0,boss:0,area:0},walk:0,night:0,faints:0},cu:0,path:'',tier:0,qb:null,gear:[],eq:{},gid:0,gv:0,qdone:[],qready:[],def:0,cls:'wanderer',scd:{},shield:0,stun:0,exh:0,last:Date.now(),test:false,cid:'',name:'',created:0,played:0,lp:0,home:null});
 const LV_CAP=50;
 /* eindeutige, unveränderliche Charakter-ID (später die Server-character_id) */
 function newCid(){try{if(crypto.randomUUID)return crypto.randomUUID();}catch(e){}return 'c'+Date.now().toString(36)+Math.random().toString(36).slice(2,12);}
@@ -873,6 +877,7 @@ function sanitize(o){
   s.path=typeof s.path==='string'&&PATHS[s.path]?s.path:'';s.tier=s.path?Math.floor(numIn(s.tier,0,0,3)):0;
   s.cid=typeof s.cid==='string'&&/^[A-Za-z0-9_-]{8,64}$/.test(s.cid)?s.cid:newCid();
   s.name=typeof s.name==='string'?s.name.replace(/[<>&"'`\u0000-\u001f]/g,'').trim().slice(0,16):'';
+  {const h=s.home;s.home=isObj(h)&&isFinite(+h.rx)&&isFinite(+h.ry)?{rx:Math.floor(numIn(h.rx,0,-1e6,1e6)),ry:Math.floor(numIn(h.ry,0,-1e6,1e6)),t:numIn(h.t,0,0,4e12)}:null;}
   s.created=numIn(s.created,0,0,4e12)||now;s.played=Math.floor(numIn(s.played,0,0,1e9));s.lp=numIn(s.lp,0,0,4e12);
   return s;
 }
@@ -979,7 +984,9 @@ function dist(a,b){
 function hash(x,y){let h=(x*374761393+y*668265263)|0;h=(h^(h>>>13))*1274126177|0;return(h^(h>>>16))>>>0;}
 function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 const WT=Object.values(NODES).reduce((s,n)=>s+n.w,0);
-function pickType(r){let v=r()*WT;for(const k in NODES){v-=NODES[k].w;if(v<=0)return k;}return 'stock';}
+const HABW={w:{baum:2.2,ranke:1.3,kraut:1.2,erz:.3,stein:.6},g:{kraut:2.2,stock:1.1,baum:.4,erz:.25,stein:.8},s:{ranke:1.8,kraut:1.4,baum:.6,erz:.25,stein:.5},
+  f:{erz:2.4,stein:2,baum:.3,kraut:.3,ranke:.4},r:{erz:1.4,stein:1.3,stock:1.1,baum:.5,kraut:.5,ranke:.8}};
+function pickType(r,hab){const hw=HABW[hab]||{},ks=Object.keys(NODES),ws=ks.map(k=>NODES[k].w*(hw[k]||1));let v=r()*ws.reduce((a,b)=>a+b,0);for(let i=0;i<ks.length;i++){v-=ws[i];if(v<=0)return ks[i];}return 'stock';}
 function pickW(list,x){const t=list.reduce((a,b)=>a+b[1],0);let v=x*t;for(const [k,w] of list){v-=w;if(v<=0)return k;}return list[0][0];}
 /* ---------- Lebensräume (echte OpenStreetMap-Daten, Ersatz: Zonen) ---------- */
 const HK='ruinwalk_hab', CH=8;   // Chunk = 8x8 Zellen (ca. 1,3 km)
@@ -1072,6 +1079,48 @@ function ensureHab(){
   for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)habWant(px+dx,py+dy);
   for(const e of areaEnts()){const c=Math.floor(e.lon/DLON),d=Math.floor(e.lat/DLAT);habWant(Math.floor(c/CH),Math.floor(d/CH));}
 }
+/* ---------- Gebietsstufen (Phase A) ----------
+   Feste Weltstufe je Region (für alle gleich, rein aus der Regionsnummer) + Heimat-Schutzring je Charakter.
+   Effektive Stufe = min(Weltstufe, 1 + floor(Chebyshev-Abstand zur Heimatregion / 2)): Heimat und Nachbarn = Stufe 1, ab 8 Regionen volle Weltstufe. */
+const BAND_LV=[4,12,21,32,44],BAND_LO=[1,8,16,26,38],BAND_N=['Randland','Wildland','Fernmark','Schreckensmark','Ruinenreich'];
+const TIER_OFF={normal:0,rare:1,elite:3,boss:5,area:0},BAND_MIN={normal:1,rare:1,elite:2,boss:3,area:4};
+const BSC={hp:{normal:[1,3,5,8,11],rare:[1,2,3.5,5.5,8],elite:[1,1.6,2.5,4,5.5],boss:[1,1,2,3.4,4.8],area:[1,1,1,.7,.9]},
+           dmg:{normal:[1,5,8,14,20],rare:[1,3,5,9,13],elite:[1,2.5,3.5,6,9],boss:[1,1,3,5,7],area:[1,1,1,1.4,2]}};
+const BCOIN=[1,1.6,2.6,4,6],HOME_WAIT=7*864e5,WP=[11,13,17],WTH=[.27,.38,.47,.56];
+const triW=t=>{const f=t-Math.floor(t);return 1-Math.abs(2*f-1);};
+function wb0(x,y){const v=(triW(x/WP[0]+.13)+triW(y/WP[1]+.41)+triW((x+y)/WP[2]+.77))/3;let b=1;for(const t of WTH)if(v>=t)b++;return b;}
+const wbC=new Map();
+/* Weltstufe 1–5: periodisches Dreieckswellenfeld (kein Zufall), danach so geglättet, dass Nachbarregionen höchstens 1 Stufe auseinander liegen */
+function worldBand(rx,ry){
+  const k=rx+','+ry;let r=wbC.get(k);if(r!==undefined)return r;r=9;
+  for(let dx=-4;dx<=4;dx++)for(let dy=-4;dy<=4;dy++){const v=wb0(rx+dx,ry+dy)+Math.max(Math.abs(dx),Math.abs(dy));if(v<r)r=v;}
+  if(wbC.size>5000)wbC.clear();wbC.set(k,r);return r;
+}
+const regDist=(rx,ry,h)=>Math.max(Math.abs(rx-h.rx),Math.abs(ry-h.ry));
+const homeCap=d=>1+Math.floor(d/2);
+const posReg=(lat,lon)=>({rx:Math.floor(Math.floor(lon/DLON)/REGION),ry:Math.floor(Math.floor(lat/DLAT)/REGION)});
+function homeReg(){return S.home||(S.test?posReg(START_POS[0],START_POS[1]):null);}   // Testmodus: virtuelle Heimat, wird nie gespeichert
+function effBand(rx,ry){const h=homeReg();if(!h)return 1;return Math.min(worldBand(rx,ry),homeCap(regDist(rx,ry,h)));}
+const _mo={};
+/* Monster mit Gebietsstufe: Werte der vorhandenen Monster werden je Stufe und Art skaliert (Tabelle BSC) */
+function mobOf(e){
+  const m=MOBS[e.type],b=e.b;if(!b||(b===1&&m.tier!=='area'))return m;
+  const key=e.type+b;if(_mo[key])return _mo[key];
+  const t=m.tier,hm=BSC.hp[t][b-1],dm=BSC.dmg[t][b-1],T=BAND_LV[b-1]+TIER_OFF[t];
+  return _mo[key]=Object.assign({},m,{hp:Math.round(m.hp*hm),min:Math.round(m.min*dm),max:Math.round(m.max*dm),
+    xp:Math.round(m.xp*(t==='area'?hm:Math.max(1,T/m.rec))),rec:t==='area'?T:Math.max(m.rec,T),cm:BCOIN[b-1]});
+}
+let homeArm=0;
+function setHome(lat,lon){S.home=Object.assign(posReg(lat,lon),{t:Date.now()});S.mh={};rebuildWorld();save();}
+function rebuildWorld(){cellCache.clear();for(const [,o] of ents)map.removeLayer(o.m);ents.clear();roam.clear();eng.clear();if(sel)deselect();refreshWorld();}
+function zoneUI(){
+  const z=$('#zone');if(!z)return;
+  if(!P){z.style.display='none';return;}
+  const r=posReg(P.lat,P.lon),b=effBand(r.rx,r.ry),h=HAB[habAt(Math.floor(P.lon/DLON),Math.floor(P.lat/DLAT))];
+  const low=S.lv<BAND_LO[b-1]-3;
+  z.innerHTML=h.i+' Stufe '+b+' · '+BAND_N[b-1]+'<small>Lv '+BAND_LO[b-1]+(b<5?'–'+(BAND_LO[b]-1):'+')+(low?' ⚠️ zu stark für dich':'')+'</small>';
+  z.className=low?'warn':'';z.style.display='block';
+}
 const cellCache=new Map();
 function areaEnts(){
   if(!P)return [];
@@ -1079,23 +1128,24 @@ function areaEnts(){
   for(let rx=rx0-1;rx<=rx0+1;rx++)for(let ry=ry0-1;ry<=ry0+1;ry++){
     const r=mulberry(hash(rx*7919+13,ry*104729+7)),
       cx=rx*REGION+Math.floor(r()*REGION),cy=ry*REGION+Math.floor(r()*REGION);
-    out.push({id:'g'+rx+'_'+ry,kind:'mob',type:pickMob('area',habAt(cx,cy),r()),lat:(cy+.1+r()*.8)*DLAT,lon:(cx+.1+r()*.8)*DLON});
+    const bd=effBand(rx,ry);
+    if(bd>=BAND_MIN.area)out.push({id:'g'+rx+'_'+ry,kind:'mob',type:pickMob('area',habAt(cx,cy),r()),b:bd,lat:(cy+.1+r()*.8)*DLAT,lon:(cx+.1+r()*.8)*DLON});
   }
   return out;
 }
 function cellEnts(cx,cy){
   const key=cx+'_'+cy;
   if(cellCache.has(key))return cellCache.get(key);
-  const r=mulberry(hash(cx,cy)),out=[],n=3+Math.floor(r()*3);
+  const r=mulberry(hash(cx,cy)),out=[],n=3+Math.floor(r()*3),hb0=habAt(cx,cy),bd=effBand(Math.floor(cx/REGION),Math.floor(cy/REGION));
   for(let i=0;i<n;i++){
-    const type=pickType(r);
+    const type=pickType(r,hb0);
     out.push({id:'n'+key+'_'+i,kind:'node',type,lat:(cy+.1+r()*.8)*DLAT,lon:(cx+.1+r()*.8)*DLON});
   }
   if(r()<.7)out.push({id:'m'+key,kind:'mob',type:'rohling',lat:(cy+.1+r()*.8)*DLAT,lon:(cx+.1+r()*.8)*DLON});
-  const tn=r(),hb=habAt(cx,cy);const lastM=out[out.length-1];if(lastM&&lastM.kind==='mob')lastM.type=pickMob('normal',hb,tn);
+  const tn=r(),hb=habAt(cx,cy);const lastM=out[out.length-1];if(lastM&&lastM.kind==='mob'){lastM.type=pickMob('normal',hb,tn);lastM.b=bd;}
   const rareChance=[['r',.12,'rare'],['e',.04,'elite'],['b',.01,'boss']];
   for(const [pre,ch,tier] of rareChance){
-    if(r()<ch)out.push({id:pre+key,kind:'mob',type:pickMob(tier,hb,r()),lat:(cy+.1+r()*.8)*DLAT,lon:(cx+.1+r()*.8)*DLON});
+    if(r()<ch&&BAND_MIN[tier]<=bd)out.push({id:pre+key,kind:'mob',type:pickMob(tier,hb,r()),b:bd,lat:(cy+.1+r()*.8)*DLAT,lon:(cx+.1+r()*.8)*DLON});
   }
   {const bx=Math.floor(cx/6),by=Math.floor(cy/6),rr=mulberry(hash(bx*31+1,by*17+2));
    const sx=bx*6+Math.floor(rr()*6),sy=by*6+Math.floor(rr()*6);
@@ -1104,7 +1154,7 @@ function cellEnts(cx,cy){
   cellCache.set(key,out);
   return out;
 }
-function def2(e){return e.kind==='node'?NODES[e.type]:e.kind==='shop'?SHOPS[e.type]:MOBS[e.type];}
+function def2(e){return e.kind==='node'?NODES[e.type]:e.kind==='shop'?SHOPS[e.type]:mobOf(e);}
 function alive(e){const c=S.cd[e.id];return !c||Date.now()-c>=def2(e).res;}
 function pruneCd(){const now=Date.now();for(const k in S.cd){if(now-S.cd[k]>13*3600e3){delete S.cd[k];delete S.mh[k];}}
   const mk=Object.keys(S.mh);if(mk.length>300)for(const k of mk.slice(0,mk.length-300))delete S.mh[k];}
@@ -1168,6 +1218,7 @@ function onPos(p){
   lastFix=Date.now();gpsDenied=false;
   lastGps={lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy};
   if(S.test)return;
+  if(!S.home&&lastGps.acc<=100)setHome(lastGps.lat,lastGps.lon);
   setPos(lastGps.lat,lastGps.lon,lastGps.acc);
 }
 function beginWatch(){
@@ -1266,7 +1317,7 @@ function roamTick(dt){
   if(P&&!gpsLost){
     for(const [id,o] of ents){
       const r=roam.get(id);if(!r||eng.get(id)===undefined)continue;
-      const m=MOBS[o.e.type];
+      const m=mobOf(o.e);
       if(m.ab==='flucht'||dist(P,r)>(m.ab==='fern'?40:MELEE)){r.atk=undefined;continue;}
       r.atk=(r.atk===undefined?rnd(1,2):r.atk)-dt;
       if(r.atk>0)continue;
@@ -1320,7 +1371,7 @@ function refreshWorld(){
   for(const [id,o] of ents){
     if(o.e.kind==='mob'){
       const el=o.m.getElement();if(!el)continue;
-      const u=el.querySelector('.mhp u'),mx=MOBS[o.e.type].hp;
+      const u=el.querySelector('.mhp u'),mx=mobOf(o.e).hp;
       if(u)u.style.width=(100*(S.mh[id]??mx)/mx)+'%';
     }
   }
@@ -1474,7 +1525,7 @@ function bossTick(){
   for(const [id] of bossFx){const o=ents.get(id);if(!o||!eng.has(id)||!alive(o.e)||S.hp<=0)bossFx.delete(id);}
   let any=null;
   if(P&&now>S.exh)for(const [id,o] of ents){
-    if(o.e.kind!=='mob')continue;const m=MOBS[o.e.type],cfg=BFX[o.e.type];
+    if(o.e.kind!=='mob')continue;const m=mobOf(o.e),cfg=BFX[o.e.type];
     if(!cfg||m.tier!=='area'||!eng.has(id))continue;
     if(dist(P,roam.get(id)||o.e)>150)continue;
     let bf=bossFx.get(id);
@@ -1498,7 +1549,7 @@ function bossTick(){
 setInterval(bossTick,250);
 function strike(o){
   const e=sel;if(!e||e.kind!=='mob'||!P)return false;
-  const m=MOBS[e.type],C=C0();
+  const m=mobOf(e),C=C0();
   if(Date.now()<S.exh){toast('😵 Du bist noch erschöpft ('+fmtT(S.exh-Date.now())+')');return false;}
   if(Date.now()<myStun){toast('😵 Du bist benommen ('+Math.ceil((myStun-Date.now())/1000)+' s)');return false;}
   const dd=dist(P,ep(e));
@@ -1536,11 +1587,11 @@ function strike(o){
     bossFx.delete(e.id);delete S.mh[e.id];S.cd[e.id]=Date.now();S.stats.kills++;S.stats.kt[m.tier]=(S.stats.kt[m.tier]||0)+1;{const hr=new Date().getHours();if(hr>=22||hr<4)S.stats.night++;}S.stun=0;
     const got=[];
     for(const dr of m.drops){if(Math.random()<(dr.c??1)){const q=rnd(dr.min,dr.max);add(dr.i,q);S.stats.col[dr.i]=(S.stats.col[dr.i]||0)+q;got.push('+'+q+' '+ITEMS[dr.i].n);}}
-    {const cr=COIN[m.tier]||[1,3],cc=rnd(cr[0],cr[1]);earn(cc);got.push(fmtM(cc));}
+    {const cr=COIN[m.tier]||[1,3],cc=Math.round(rnd(cr[0],cr[1])*(m.cm||1));earn(cc);got.push(fmtM(cc));}
     if(Math.random()<(RDROPCH[m.tier]||0)){const rq=rollQ(RDROPQ[m.tier]);add('rune'+rq,1);got.push('📜 '+ITEMS['rune'+rq].n);}
-    const gd=rollGear(m.tier);if(gd)got.push('🎁 '+gNameT(gd.g)+(gd.auto?' (angelegt)':''));
+    const gd=rollGear(m.tier,e.b);if(gd)got.push('🎁 '+gNameT(gd.g)+(gd.auto?' (angelegt)':''));
     const sd=rollSet(e,m)||rollPathSet(m);if(sd)got.push('✨ '+gNameT(sd.g)+(sd.auto?' (angelegt)':''));
-    addXP(m.xp);
+    {const ov=S.lv-(m.rec||1);addXP(ov>6?Math.max(1,Math.round(m.xp*Math.max(.25,1-(ov-6)*.1))):m.xp);}
     toast('💥 '+m.n+' besiegt! '+got.join(', '));
     deselect();refreshWorld();checkQuests();
   }else{
@@ -1874,6 +1925,7 @@ function openSheet(s){
       +(DEV()?'<button class="btn sec" style="margin-top:8px" data-a="opendev">🧪 Klasse wechseln (Vorschau)</button>'
       +'<button class="btn sec" style="margin-top:8px" data-a="cheatmat">🧪 Upgrade-Material ins Inventar</button>':'')
       +((S.test&&S.cls!=='wanderer'&&S.tier<3)?'<button class="btn sec" style="margin-top:8px" data-a="cheatup">🧪 Nächste Klassenentwicklung freischalten</button>':'')
+      +'<h3>Heimatgebiet</h3>'+homeHTML()
       +'<h3>Charakter</h3><p style="font-size:14px">Aktiv: <b>'+charLabel(S)+'</b> ('+(ACTIVE.type==='cloud'?'Cloud':'Platz '+SLOT)+'). Jeder Charakter hat einen eigenen Spielstand.</p><button class="btn sec" data-a="chars">👥 Charakter wechseln</button>'
       +'<h3>Konto</h3><p style="font-size:14px">Optional: Mit einem Konto kannst du Charaktere in der Cloud sichern. Ohne Konto spielst du wie bisher.</p><button class="btn sec" data-a="acct">☁️ Konto &amp; Cloud</button>'
       +'<h3>Spielstand</h3><p style="font-size:14px">Wird automatisch in diesem Browser gespeichert.</p>'
@@ -2787,7 +2839,7 @@ function playerFx(){
 }
 function mobFx(e){
   if(!e||e.kind!=='mob')return [];
-  const now=Date.now(),m=MOBS[e.type],bf=bossFx.get(e.id),hp=S.mh[e.id]??m.hp,o=[];
+  const now=Date.now(),m=mobOf(e),bf=bossFx.get(e.id),hp=S.mh[e.id]??m.hp,o=[];
   if(S.stun>0&&(!stunId||stunId===e.id))o.push({id:'gelaehmt',n:S.stun});
   if(bf){
     if(bf.haut)o.push({id:'harthaut'});
@@ -2814,6 +2866,35 @@ function fxUI(){
     w.innerHTML=f.map(x=>fxChip(x,true)).join('');
   }
 }
+
+/* ---------- Heimat verlegen / Tutorial ---------- */
+function homeWait(){return S.home?Math.max(0,S.home.t+HOME_WAIT-Date.now()):0;}
+function homeHTML(){
+  const w=homeWait(),d=Math.ceil(w/864e5);
+  const info=S.home?'Dein Heimatgebiet ist gesetzt (grobe Region, keine genaue Position). Dort und in der Nähe sind die Gegner schwach, weiter weg wird es gefährlicher.':'Dein Heimatgebiet wird beim ersten echten GPS-Signal gesetzt. Im Testmodus ändert sich nichts.';
+  const can=S.home&&!S.test&&!w;
+  return '<p style="font-size:14px">'+info+'</p><button class="btn sec" data-a="homemove"'+(can?'':' disabled')+'>'+(homeArm?'Wirklich hierher verlegen? Nochmal tippen':'📍 Heimat hierher verlegen')+'</button>'
+    +'<p style="font-size:12px;opacity:.8">Nur einmal alle 7 Tage und nur mit echtem GPS'+(w?' · noch '+d+' Tag'+(d===1?'':'e'):'')+'. Beim Verlegen werden Gegner in der Nähe neu aufgebaut.</p>';
+}
+function homeMove(){
+  const w=homeWait();
+  if(S.test||!S.home){toast('Nur mit echtem GPS möglich');return;}
+  if(w){toast('Noch '+Math.ceil(w/864e5)+' Tag(e) Wartezeit');return;}
+  if(!lastGps||Date.now()-lastFix>60000||lastGps.acc>100){toast('Kein genaues GPS-Signal');return;}
+  if(!homeArm){homeArm=Date.now();setTimeout(()=>{homeArm=0;if(curSheet==='set')openSheet('set');},6000);openSheet('set');return;}
+  homeArm=0;setHome(lastGps.lat,lastGps.lon);toast('📍 Heimatgebiet verlegt');openSheet('set');
+}
+const TUT=['Willkommen bei Ruin Walk! Du läufst in der echten Welt. Ressourcen und Monster erscheinen auf der Karte um dich herum.',
+ 'Tippe ein Symbol in deiner Nähe an (innerhalb des grünen Kreises). Dann kannst du sammeln oder kämpfen. Ohne Energie geht nichts, sie lädt sich von selbst auf.',
+ 'Oben rechts siehst du die Gebietsstufe (1–5). Dein Heimatgebiet ist sicher. Je weiter du dich entfernst, desto stärker die Gegner. Achte auf die empfohlene Stufe auf der Monsterkarte.',
+ 'Starte im Quest-Menü: Äste und Steine sammeln, Axt herstellen. Viel Erfolg!'];
+let tutI=0;
+function tutShow(){const t=$('#tut');$('#tutb').innerHTML='<b>'+(tutI+1)+' / '+TUT.length+'</b><p>'+TUT[tutI]+'</p><button class="btn" data-a="tutnext" style="width:100%">'+(tutI<TUT.length-1?'Weiter':'Los geht’s')+'</button>';t.style.display='flex';}
+function tutMaybe(){
+  if(window.__RW_TEST)return;let seen=false;try{seen=!!localStorage.getItem('ruinwalk_tut');}catch(e){}
+  if(seen||S.lv>1||S.stats.kills)return;tutI=0;tutShow();
+}
+function tutNext(){if(++tutI<TUT.length){tutShow();return;}$('#tut').style.display='none';try{localStorage.setItem('ruinwalk_tut','1');}catch(e){}}
 function hud(){
   updMe();fxUI();
   const mx=maxHP();
@@ -2835,8 +2916,10 @@ document.addEventListener('click',ev=>{
   const b=ev.target.closest('[data-a]');if(!b||b.disabled)return;
   const a=b.dataset.a;
   switch(a){
-    case 'start':startGPS();break;
-    case 'starttest':$('#start').style.display='none';setTest(true);break;
+    case 'start':startGPS();setTimeout(tutMaybe,900);break;
+    case 'starttest':$('#start').style.display='none';setTest(true);setTimeout(tutMaybe,900);break;
+    case 'tutnext':tutNext();break;
+    case 'homemove':homeMove();break;
     case 'close':deselect();break;
     case 'info':$('#card').classList.toggle('inf');break;
     case 'menu':document.body.classList.toggle('nv');break;
@@ -2987,7 +3070,7 @@ function gpsWatch(){
 let tc=0;
 setInterval(()=>{
   const now=Date.now(),dt=Math.max(0,(now-S.last)/1000);S.last=now;if(!document.hidden){S.played+=Math.min(dt,5);S.lp=now;}
-  regen(dt);hud();tc++;
+  regen(dt);hud();tc++;zoneUI();
   roamTick(Math.min(3,dt>0?dt:1));
   if(P)updateNear();
   if(tc%10===0)refreshWorld();
@@ -3016,6 +3099,7 @@ if(window.__RW_TEST)window.__RW={get S(){return S;},set S(v){S=v;},get sel(){ret
   strike,shoot,monsterHit,faint,setPos,countWalk,select,refreshWorld,cellEnts,areaEnts,usePotion,useItem,rollGear,rollPathSet,rollSet,have,add,claimQuest,checkQuests,
   ents,roam,eng,SETS,SETD,PATHS,MOBS,GR,RECIPES,QUESTS,ITEMS,NODES,SELL,BUY,ABIL,CW,TIERS,COIN,HAB,CLASSES,SSLOTS,ARM,ATYPES,ARMT,SECRET,UPQ,effClass,UPCOST,UPFEE,UPMAX,UP_LV,LV_CAP,QM,QN,
   wK,oK,enc,gBuyPrice,rollQ,DROPQ,RDROPQ,DROPT,DROPCH,RDROPCH,pickMob,hash,mulberry,dist,DLAT,DLON,RANGE,gpsWatch,setLastFix:v=>{lastFix=v;},setWatch:v=>{watchId=v;},setWatchStart:v=>{watchStart=v;lastRestart=v;},get watchId(){return watchId;},get gpsDenied(){return gpsDenied;},get lastRestart(){return lastRestart;},onPos,onErr,startGPS,roamTick,
+  cellCache,pickType,worldBand,effBand,mobOf,setHome,homeCap,regDist,posReg,homeMove,homeWait,BAND_MIN,BAND_LV,BSC,zoneUI,tutMaybe,get lastGps(){return lastGps;},set lastGps(v){lastGps=v;},set lastFixT(v){lastFix=v;},
   playerFx,mobFx,FX,fxUI,get stunId(){return stunId;},set stunId(v){stunId=v;},get myStun(){return myStun;},set myStun(v){myStun=v;},set myStunK(v){myStunK=v;},
   _:0};
 })();

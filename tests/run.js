@@ -1,11 +1,11 @@
 /* Aufruf: node tests/run.js   (oder: npm test) */
 const H=require('./harness');
-const files=['save','gear','craft','combat','world','gps','ui','status','chars','cloudbase','auth','cloudplay','cloudsync','cloudresolve','cloudlock','cloudtab','datenfluss','kontoloeschen','session'];
+const files=['save','gear','craft','combat','world','gps','ui','status','chars','cloudbase','auth','cloudplay','cloudsync','cloudresolve','cloudlock','cloudtab','datenfluss','kontoloeschen','session','gebiete'];
 let pass=0,fail=0;const failed=[];
 (async()=>{
   const {srv,url}=await H.serve(),browser=await H.launch();
   const T={browser,url,page:(seed,q,_x,pre)=>H.page(browser,url,seed,q,pre)};
-  for(const f of files){
+  for(const f of (process.env.ONLY?process.env.ONLY.split(','):files)){
     const tests=require('./cases/'+f+'.js');
     console.log('\n## '+f);
     for(const [name,fn] of Object.entries(tests)){

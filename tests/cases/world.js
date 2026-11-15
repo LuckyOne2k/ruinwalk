@@ -1,3 +1,4 @@
+const U=require('../util');
 module.exports={
  'Welt ist deterministisch: gleiche Zelle ergibt in zwei Sitzungen dasselbe':async(T,eq)=>{
   const get=async()=>{const p=await T.page({lv:1});const r=await p.evaluate(()=>JSON.stringify([__RW.cellEnts(5000,6000),__RW.cellEnts(-12,34)]));await p.context().close();return r;};
@@ -19,10 +20,10 @@ module.exports={
       if(es.some(e=>e.id[0]==='m'))mobs++;shops+=es.filter(e=>e.kind==='shop').length;}
     return {nodesMin,nodesMax,mob:mobs/n,shop:n/shops};});
   eq(r.nodesMin>=3&&r.nodesMax<=5,true,'Ressourcen je Zelle');eq(Math.abs(r.mob-.7)<.05,true,'Monsterdichte '+r.mob);eq(r.shop>30&&r.shop<42,true,'Händler 1 je '+r.shop);await p.context().close();},
- 'Gebietsbosse: 9 je Umgebung, alle Gebiets-Stufe':async(T,eq)=>{
-  const p=await T.page({lv:1});
-  const r=await p.evaluate(()=>{const R=__RW;R.S.test=true;R.setPos(48.3705,10.8978,5);const a=R.areaEnts();return [a.length,a.every(e=>R.MOBS[e.type].tier==='area'),new Set(a.map(e=>e.id)).size];});
-  eq(r,[9,true,9]);await p.context().close();},
+ 'Gebietsbosse: je Gebiet höchstens einer, alle Gebiets-Stufe, eindeutige IDs':async(T,eq)=>{
+  const p=await T.page({lv:1});await U.install(p);
+  const r=await p.evaluate(()=>{const R=__RW,a=T.area();return [a.length>0&&a.length<=9,a.every(e=>R.MOBS[e.type].tier==='area'),new Set(a.map(e=>e.id)).size===a.length];});
+  eq(r,[true,true,true]);await p.context().close();},
  'Jeder Lebensraum und jede Stufe hat mindestens einen Monstertyp':async(T,eq)=>{
   const p=await T.page({lv:1});
   const bad=await p.evaluate(()=>{const R=__RW,o=[];for(const t of ['normal','rare','elite','boss','area'])for(const h of 'wgsfr'){const k=R.pickMob(t,h,.5);if(!R.MOBS[k]||R.MOBS[k].tier!==t)o.push(t+h);}return o;});

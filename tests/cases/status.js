@@ -22,7 +22,7 @@ module.exports={
   eq(r,{a:['gelaehmt2'],b:0,hitOther:true,hitStunned:true});await p.context().close();},
  'Boss-Status: Harte Haut, Flugphase mit Timer, Sprösslinge, Raserei':async(T,eq)=>{
   const p=await T.page({lv:10,cls:'krieger',hp:500,test:true});await U.install(p);
-  const r=await p.evaluate(()=>{const R=__RW;R.setPos(48.3705,10.8978,5);const e=R.areaEnts()[0];const m=R.MOBS[e.type];R.S.mh[e.id]=Math.round(m.hp*.2);
+  const r=await p.evaluate(()=>{const R=__RW;const e=T.area()[0];const m=R.mobOf(e);R.S.mh[e.id]=Math.round(m.hp*.2);
     const f=R.mobFx(e).map(x=>x.id);return {rage:f.includes('raserei')};});
   eq(r,{rage:true});await p.context().close();},
  'Alle Status-Symbole existieren als Bilddatei und sind definiert':async(T,eq)=>{
