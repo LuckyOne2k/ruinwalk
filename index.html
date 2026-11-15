@@ -62,9 +62,9 @@ body.cbt #fx{top:calc(182px + var(--st))}
 .hpbar{height:10px;border-radius:6px;background:#3a2f27;overflow:hidden;margin-top:6px}
 .hpbar i{display:block;height:100%;background:var(--hp)}
 /* Sheet */
-#chars{position:absolute;inset:0;z-index:1100;background:linear-gradient(#3a2415,#16120f);display:none;flex-direction:column;padding:18px 14px;overflow:auto;gap:10px}#chars h2{margin:0;text-align:center}#chars .rec.lock{opacity:.6}#chars input{width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--sur);color:inherit;font-size:16px;margin:6px 0}
+#chars{position:absolute;inset:0;z-index:1100;background:linear-gradient(rgba(8,12,16,.35),rgba(8,12,16,.62)),url(assets/bg_chars.jpg) center/cover #16120f;transition:background .3s;display:none;flex-direction:column;padding:18px 14px;overflow:auto;gap:10px}#chars h2{margin:0;text-align:center}#chars .rec.lock{opacity:.6}#chars input{width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--sur);color:inherit;font-size:16px;margin:6px 0}
 #lockov{position:absolute;inset:0;z-index:1050;background:rgba(22,18,15,.97);display:none;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:24px;gap:12px}#lockov h2{margin:0}#lockov p{max-width:420px;margin:0}
-#acct{position:absolute;inset:0;z-index:1300;background:linear-gradient(#3a2415,#16120f);display:none;flex-direction:column;padding:18px 14px;overflow:auto;gap:8px}#acct h2{margin:0;text-align:center}#acct .rec.lock{opacity:.6}#acct input,#acct select{width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--sur);color:inherit;font-size:16px;margin:4px 0 6px}#acct .acl{font-size:12px;opacity:.8;margin-top:4px}#acct .acn{font-size:12px;opacity:.75;margin:2px 0}#acct .msg{padding:8px 10px;border-radius:10px;background:var(--sur);border:1px solid var(--line);font-size:14px}#acct h3{font-size:15px}
+#acct{position:absolute;inset:0;z-index:1300;background:linear-gradient(rgba(8,12,16,.35),rgba(8,12,16,.62)),url(assets/bg_login.jpg) center/cover #16120f;display:none;flex-direction:column;padding:18px 14px;overflow:auto;gap:8px}#acct h2{margin:0;text-align:center}#acct .rec.lock{opacity:.6}#acct input,#acct select{width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--sur);color:inherit;font-size:16px;margin:4px 0 6px}#acct .acl{font-size:12px;opacity:.8;margin-top:4px}#acct .acn{font-size:12px;opacity:.75;margin:2px 0}#acct .msg{padding:8px 10px;border-radius:10px;background:var(--sur);border:1px solid var(--line);font-size:14px}#acct h3{font-size:15px}
 #ipop{position:absolute;inset:0;z-index:900;display:none;align-items:center;justify-content:center;padding:16px}#ipop .bd{position:absolute;inset:0;background:rgba(0,0,0,.6)}#ipop .bx{position:relative;width:100%;max-width:420px;max-height:86%;overflow:auto;background:var(--card);border:2px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.5)}#ipop .big{font-size:46px;text-align:center;line-height:1.1}#ipop .x{position:absolute;top:8px;right:10px}.rec.tap{cursor:pointer}
 #sheet{position:absolute;left:0;right:0;bottom:0;top:12%;z-index:800;background:var(--card);border-radius:22px 22px 0 0;box-shadow:0 -4px 20px rgba(0,0,0,.35);display:none;flex-direction:column}
 .sh-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 8px;background:linear-gradient(#4a2d1a,var(--card));border-radius:22px 22px 0 0}
@@ -170,8 +170,8 @@ body.cbt #react:not(.boss) [data-a=potion]{left:0;bottom:0}
 .mhp u{display:block;height:100%;background:#ff6b5e;width:100%}
 .mech{width:52px;height:52px;font-size:50px;line-height:52px;text-align:center;position:relative}.mech::before{content:'';position:absolute;left:10px;right:10px;bottom:2px;height:8px;border-radius:50%;background:rgba(0,0,0,.28)}.mech .px{position:relative}.mech.mflip .px{transform:scaleX(-1)}
 /* Start */
-#start{position:absolute;inset:0;z-index:1000;background:linear-gradient(#3a2415,#16120f);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center;gap:12px}
-#start h1{margin:0;font-size:36px}
+#start{position:absolute;inset:0;z-index:1000;background:linear-gradient(rgba(8,12,16,.35),rgba(8,12,16,.62)),url(assets/bg_login.jpg) center/cover #16120f;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center;gap:12px}
+#start h1{margin:0;line-height:0}#start .logo{display:block;width:min(86vw,380px);height:auto;filter:drop-shadow(0 4px 14px rgba(0,0,0,.6))}#chars.mk{background:linear-gradient(rgba(8,12,16,.35),rgba(8,12,16,.62)),url(assets/bg_create.jpg) center/cover #16120f}
 #start p{margin:0;max-width:340px;line-height:1.45}
 #start .btn{font-size:17px;padding:14px 22px;width:100%;max-width:340px}
 #start .warn{color:#b3322b;font-size:13px}
@@ -223,7 +223,7 @@ body.cbt #react:not(.boss) [data-a=potion]{left:0;bottom:0}
 <div id="faint"><div class="fbox" id="fbox"></div></div>
 
 <div id="start">
-  <h1>🏹 Ruin Walk</h1>
+  <h1><img class="logo" src="assets/logo.png" alt="Ruin Walk – The Forgotten World"></h1>
   <p>Erkunde deine echte Umgebung: sammle Ressourcen, stelle Werkzeug her und jage Monster. Geh dafür wirklich los, die Dinge liegen an echten Orten.</p>
   <button class="btn" data-a="start">📍 Standort aktivieren &amp; starten</button>
   <button class="btn sec" data-a="starttest">Erst ohne GPS testen (Augsburg)</button>
@@ -1897,6 +1897,8 @@ function slotInfo(n){
 const fmtPlay=sec=>{sec=Math.floor(sec);const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60);return h+' h '+String(m).padStart(2,'0')+' min';};
 let charDel=0,charDelT=0,charDet=0;
 function cloudMarked(c){try{const u=AUTH&&AUTH.s&&AUTH.s.user.id;return !!u&&!!(cloudMap()[u+':'+c.cid]);}catch(e){return false;}}
+document.addEventListener('focusin',e=>{const c=$('#chars');if(c&&e.target&&/^cnm\d$/.test(e.target.id||''))c.classList.add('mk');});
+document.addEventListener('focusout',e=>{const c=$('#chars');if(c&&e.target&&/^cnm\d$/.test(e.target.id||''))c.classList.remove('mk');});
 function charsUI(){
   const el=$('#chars');
   let h='<h2>👥 Charaktere</h2><p style="text-align:center;font-size:13px;margin:0;opacity:.8">Jeder Charakter hat Inventar, Ausrüstung, Quests und Fortschritt ganz für sich.</p>';
