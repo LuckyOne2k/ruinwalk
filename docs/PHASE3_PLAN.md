@@ -116,3 +116,12 @@ Stand: Analyse von Commit e2eb942 (13.11.2026). Es ist **nichts implementiert**;
 - **Abmelden:** zuerst Sync-Versuch; bleiben offene Änderungen (auch bei nicht aktiven Cloud-Charakteren), erscheint eine Warnung mit „Trotzdem abmelden“/„Abbrechen“. Es wird nichts gelöscht; hochgeladen wird, sobald man sich mit demselben Konto anmeldet und den Charakter spielt. Kleiner Fehler behoben: eine noch laufende Konto-Ladeanfrage überschrieb die Abmelde-Meldung mit „Sitzung abgelaufen“.
 - **Tests:** 15 neue (`tests/cases/cloudresolve.js`), gesamt **192/192**. Eingebaute Fehler (keine Versionsprüfung beim Überschreiben, Autosave nicht abgeschaltet beim Laden, keine Cloud-Kopie, kein `pend`, 401 als abgelehnt, keine Abmelde-Warnung) werden erkannt.
 - **Offene Punkte:** (1) `_srvcopy_`/`_replaced_`-Kopien werden nie automatisch gelöscht (Speicherplatz; keine Oberfläche zum Aufräumen). (2) Sperrzustand/Verschieben (3e), Tab-Sperre/Härtung (3f) offen. (3) Schema-Änderung S1 weiterhin nicht angewendet (nur auf ausdrückliche Freigabe). (4) Echtes Supabase im Sandbox-Test nicht erreichbar – praktischer Test nötig (zwei Browser mit demselben Charakter, Flugmodus beim Abmelden).
+
+## 3e – Platz 3 & Sperrzustand (umgesetzt)
+- Gesperrte Platz-3-Charaktere: Knopf „Auf freien Platz 1/2 verschieben“ (nur wenn ein Platz frei ist) → RPC `move_character`; bei Fehler/Offline bleibt alles unverändert. Meta (Platz/Version) wird nachgeführt.
+- Sperrfenster (`#lockov`): Platz-3-Charaktere starten nur nach erfolgreicher Serverprüfung (`list_characters`, `locked=false`). Offline → „nur online spielbar“. Mitten im Spiel `character_locked` → Fenster sofort, lokaler Fortschritt bleibt gesichert, Server unverändert. Der Client entscheidet nie selbst über Freischaltung. Kein Bezahlen, keine echte Freischaltung.
+
+## 3f – Härtung (umgesetzt)
+- Tab-Sperre pro Cloud-Charakter (localStorage-Lebenszeichen, 15 s): zweiter Tab startet gesperrt, „Hier übernehmen“ hält den anderen an. Lokale Charaktere nicht betroffen.
+- Gerätekopien (`_srvcopy_`/`_replaced_`) werden im Konto angezeigt, nur auf ausdrückliche, zweistufige Bestätigung gelöscht.
+- S1: Server-Sicherungen werden ausgedünnt (max. 1 „update“-Backup/10 min, letzte 10); sie sind eine zusätzliche, nicht garantierte Absicherung. Live-Einspielung siehe Abschlussbericht.

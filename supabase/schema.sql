@@ -146,11 +146,15 @@ end $$;
 create trigger characters_guard before insert or update on public.characters for each row execute function public.guard_character();
 
 -- Sicherung vor jeder Änderung der Daten und vor dem Löschen; je Charakter bleiben die letzten 10 Update-Sicherungen.
+-- Ausdünnung (S1): Bei Änderungen entsteht nur dann eine neue Sicherung, wenn die letzte Update-Sicherung älter als 10 Minuten ist
+-- (häufiges Cloud-Speichern deckt so mindestens ~100 Minuten Verlauf ab). Löschen wird immer gesichert.
 create or replace function public.backup_character() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   -- läuft das Löschen als Kaskade eines Kontos, existiert das Profil nicht mehr: dann keine neue Sicherung
   if tg_op = 'DELETE' and not exists (select 1 from public.profiles where account_id = old.account_id) then return old; end if;
+  if tg_op = 'UPDATE' and exists (select 1 from public.character_backups
+        where character_id = old.character_id and reason = 'update' and saved_at > now() - interval '10 minutes') then return new; end if;
   insert into public.character_backups(character_id, account_id, version, reason, character_data)
   values (old.character_id, old.account_id, old.version, case tg_op when 'DELETE' then 'delete' else 'update' end, old.character_data);
   delete from public.character_backups

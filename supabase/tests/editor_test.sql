@@ -281,16 +281,31 @@ select tap.throws($$update public.characters set slot_number=2 where slot_number
 select tap.throws('update public.characters set account_id='''||'bbbbbbbb-0000-0000-0000-000000000002'||''' where character_id='''||(select v::uuid from tap.vars where k='a1')||'''','immutable','Charakter kann nicht auf anderen Account übertragen werden');
 select tap.throws('update public.characters set character_id=gen_random_uuid() where character_id='''||(select v::uuid from tap.vars where k='a1')||'''','immutable|23503','Charakter-ID unveränderlich');
 
--- ===== 7. Backups =====
+-- ===== 7. Backups (mit Ausdünnung S1: neue Sicherung nur, wenn die letzte älter als 10 Minuten ist) =====
 select tap.as_admin();
-select tap.is((select count(*) from public.character_backups where character_id=(select v::uuid from tap.vars where k='a1') and reason='update'),2::bigint,'Zwei Speicherungen -> zwei Backups (jeweils der Stand davor)');
-select tap.is((select min(version)||'-'||max(version) from public.character_backups where character_id=(select v::uuid from tap.vars where k='a1')),'1-2','Backups enthalten die Versionen 1 und 2');
-select tap.is((select character_data->>'lv' from public.character_backups where character_id=(select v::uuid from tap.vars where k='a1') and version=2),'7','Backup Version 2 enthält den alten Stand');
+create function tap.age_backups(p_id uuid) returns void language sql security definer as $$ update public.character_backups set saved_at = saved_at - interval '11 minutes' where character_id = p_id $$;
+grant execute on function tap.age_backups(uuid) to public;
+select tap.is((select count(*) from public.character_backups where character_id=(select v::uuid from tap.vars where k='a1') and reason='update'),1::bigint,'Zwei Speicherungen kurz hintereinander -> nur ein Backup (Stand vor der ersten, S1)');
+select tap.is((select min(version)||'-'||max(version) from public.character_backups where character_id=(select v::uuid from tap.vars where k='a1')),'1-1','Das Backup enthält Version 1 (Stand vor der ersten Speicherung)');
+select tap.ok((select character_data is not null from public.character_backups where character_id=(select v::uuid from tap.vars where k='a1') and version=1),'Backup Version 1 enthält den alten Stand');
+select tap.age_backups((select v::uuid from tap.vars where k='a1'));
+select tap.as_user('aaaaaaaa-0000-0000-0000-000000000001');
+select tap.lives('select public.save_character('''||(select v::uuid from tap.vars where k='a1')||''','||(select version from public.characters where character_id=(select v::uuid from tap.vars where k='a1'))||',''{"lv":8}'')','A speichert erneut nach >10 Minuten');
+select tap.as_admin();
+select tap.is((select count(*) from public.character_backups where character_id=(select v::uuid from tap.vars where k='a1') and reason='update'),2::bigint,'Nach 10+ Minuten entsteht wieder ein Backup');
+select tap.is((select max(version) from public.character_backups where character_id=(select v::uuid from tap.vars where k='a1')),3,'Neuestes Backup ist der Stand davor (Version 3)');
+select tap.is((select character_data->>'lv' from public.character_backups where character_id=(select v::uuid from tap.vars where k='a1') and version=3),'9999','... mit dem Stand vor dieser Speicherung (damals zuletzt gespeichert)');
 select tap.as_user('bbbbbbbb-0000-0000-0000-000000000002');
-select tap.lives('select public.save_character('''||(select v::uuid from tap.vars where k='b1')||''','||g||',''{"lv":'||(g+1)||'}'')','B speichert Stand '||g) from generate_series(1,12) g;
+select tap.lives('select public.save_character('''||(select v::uuid from tap.vars where k='b1')||''','||g||',''{"lv":'||(g+1)||'}''), tap.age_backups('''||(select v::uuid from tap.vars where k='b1')||''')','B speichert Stand '||g) from generate_series(1,12) g;
 select tap.as_admin();
 select tap.is((select count(*) from public.character_backups where character_id=(select v::uuid from tap.vars where k='b1') and reason='update'),10::bigint,'Es bleiben nur die letzten 10 Backups je Charakter');
 select tap.is((select min(version) from public.character_backups where character_id=(select v::uuid from tap.vars where k='b1')),3,'Älteste Backups wurden entfernt');
+insert into tap.vars select 'b1mx', (max(version))::text from public.character_backups where character_id=(select v::uuid from tap.vars where k='b1');
+select tap.as_user('bbbbbbbb-0000-0000-0000-000000000002');
+select tap.lives('select public.save_character('''||(select v::uuid from tap.vars where k='b1')||''',13,''{"lv":20}''), public.save_character('''||(select v::uuid from tap.vars where k='b1')||''',14,''{"lv":21}''), public.save_character('''||(select v::uuid from tap.vars where k='b1')||''',15,''{"lv":22}'')','B: drei schnelle Speicherungen ohne Alterung');
+select tap.as_admin();
+select tap.is((select max(version) from public.character_backups where character_id=(select v::uuid from tap.vars where k='b1')),(select v::bigint from tap.vars where k='b1mx')::int+1,'Von drei schnellen Speicherungen erzeugt nur die erste ein Backup (die vorige Sicherung war >10 Min alt, S1)');
+select tap.is((select count(*) from public.character_backups where character_id=(select v::uuid from tap.vars where k='b1') and reason='update'),10::bigint,'... Anzahl bleibt 10');
 
 -- ===== 8. Löschen =====
 select tap.as_user('aaaaaaaa-0000-0000-0000-000000000001');
@@ -315,7 +330,7 @@ select tap.as_admin();
 delete from auth.users where id='cccccccc-0000-0000-0000-000000000003';
 select tap.is((select count(*) from public.profiles where account_id='cccccccc-0000-0000-0000-000000000003'),0::bigint,'Konto löschen entfernt das Profil (Kaskade)');
 select tap.as_user('bbbbbbbb-0000-0000-0000-000000000002');
-select tap.lives('select public.save_character('''||(select v::uuid from tap.vars where k='b1')||''',13,''{"lv":30}'')','B speichert noch einmal');
+select tap.lives('select public.save_character('''||(select v::uuid from tap.vars where k='b1')||''',16,''{"lv":30}'')','B speichert noch einmal');
 select tap.as_admin();
 select tap.ok((select count(*) from public.character_backups where account_id='bbbbbbbb-0000-0000-0000-000000000002')>0,'B hat Backups');
 delete from auth.users where id='bbbbbbbb-0000-0000-0000-000000000002';

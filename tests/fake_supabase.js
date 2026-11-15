@@ -3,7 +3,7 @@
 const KEY='sb_publishable_jmyPWZWX99qemJRyGh7Beg_lVDaNj4t';
 const SYM='!@#$%^&*()_+-=[]{};\':"\\|<>?,./`~';
 module.exports=function fake(){
-  const st={users:[],tokens:{},refresh:{},chars:[],calls:[],mails:[],n:0,offline:false,failCreate:0,failList:false,failGet:false,saveFail:null,dropResponse:false,saves:[],tamper:null,afterList:null,keyOk:true};
+  const st={users:[],tokens:{},refresh:{},chars:[],calls:[],mails:[],n:0,offline:false,failCreate:0,failList:false,failGet:false,saveFail:null,dropResponse:false,saves:[],moves:[],tamper:null,afterList:null,keyOk:true};
   const uid=()=>'00000000-0000-4000-8000-'+String(++st.n).padStart(12,'0');
   const J=(route,status,body)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
   const user=u=>({id:u.id,email:u.email,email_confirmed_at:u.confirmed?'2026-11-13T10:00:00Z':null,user_metadata:{username:u.username}});
@@ -65,6 +65,14 @@ module.exports=function fake(){
       c.data=Object.assign({},body.p_data,{cid:c.id});c.version++;c.level=body.p_data.lv;
       if(st.dropResponse){st.dropResponse=false;return route.abort();}
       return J(route,200,c.version);}
+    if(path==='/rest/v1/rpc/move_character'){
+      st.moves.push(body);
+      const c=st.chars.find(x=>x.id===body.p_id&&x.account===u.id);
+      if(!c)return J(route,404,{code:'PT404',message:'not_found'});
+      if(![1,2].includes(body.p_target))return J(route,400,{code:'22023',message:'invalid_slot'});
+      if(c.slot!==3)return J(route,400,{code:'22023',message:'move_not_allowed'});
+      if(st.chars.some(x=>x.account===u.id&&x.slot===body.p_target))return J(route,409,{code:'PT409',message:'slot_occupied'});
+      c.slot=body.p_target;c.version++;c.locked=false;return J(route,200,c.version);}
     if(path==='/rest/v1/rpc/create_character'){
       if(st.failCreate)return J(route,st.failCreate,{message:'boom'});
       if(!u.confirmed)return J(route,403,{code:'PT403',message:'email_not_verified'});

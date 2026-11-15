@@ -63,6 +63,7 @@ body.cbt #fx{top:calc(182px + var(--st))}
 .hpbar i{display:block;height:100%;background:var(--hp)}
 /* Sheet */
 #chars{position:absolute;inset:0;z-index:1100;background:linear-gradient(#3a2415,#16120f);display:none;flex-direction:column;padding:18px 14px;overflow:auto;gap:10px}#chars h2{margin:0;text-align:center}#chars .rec.lock{opacity:.6}#chars input{width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--sur);color:inherit;font-size:16px;margin:6px 0}
+#lockov{position:absolute;inset:0;z-index:1050;background:rgba(22,18,15,.97);display:none;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:24px;gap:12px}#lockov h2{margin:0}#lockov p{max-width:420px;margin:0}
 #acct{position:absolute;inset:0;z-index:1300;background:linear-gradient(#3a2415,#16120f);display:none;flex-direction:column;padding:18px 14px;overflow:auto;gap:8px}#acct h2{margin:0;text-align:center}#acct .rec.lock{opacity:.6}#acct input,#acct select{width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--sur);color:inherit;font-size:16px;margin:4px 0 6px}#acct .acl{font-size:12px;opacity:.8;margin-top:4px}#acct .acn{font-size:12px;opacity:.75;margin:2px 0}#acct .msg{padding:8px 10px;border-radius:10px;background:var(--sur);border:1px solid var(--line);font-size:14px}#acct h3{font-size:15px}
 #ipop{position:absolute;inset:0;z-index:900;display:none;align-items:center;justify-content:center;padding:16px}#ipop .bd{position:absolute;inset:0;background:rgba(0,0,0,.6)}#ipop .bx{position:relative;width:100%;max-width:420px;max-height:86%;overflow:auto;background:var(--card);border:2px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.5)}#ipop .big{font-size:46px;text-align:center;line-height:1.1}#ipop .x{position:absolute;top:8px;right:10px}.rec.tap{cursor:pointer}
 #sheet{position:absolute;left:0;right:0;bottom:0;top:12%;z-index:800;background:var(--card);border-radius:22px 22px 0 0;box-shadow:0 -4px 20px rgba(0,0,0,.35);display:none;flex-direction:column}
@@ -216,6 +217,7 @@ body.cbt #react:not(.boss) [data-a=potion]{left:0;bottom:0}
 <div id="ipop"></div>
 
 <div id="chars"></div>
+<div id="lockov"></div>
 <div id="acct"></div>
 
 <div id="faint"><div class="fbox" id="fbox"></div></div>
@@ -2094,6 +2096,7 @@ function acHome(){
   const dis=acBusy?' disabled':'',u=AUTH.s.user;
   let h='<div class="rec"><div class="t">Angemeldet</div><div class="c"><b>'+escH(acProf||'…')+'</b><br><small>'+escH(u.email)+'</small></div><button class="btn sec" data-a="aclogout"'+dis+'>Abmelden</button></div>'
    +'<p class="acn">Dein Spielstand liegt zuerst auf diesem Gerät. „In die Cloud kopieren“ legt nur eine Kopie an; lokal wird nichts verändert oder gelöscht.</p><h3 style="margin:4px 0">Cloud-Charakterplätze</h3><p class="acn">Aktive Cloud-Charaktere werden automatisch gespeichert: zuerst immer auf diesem Gerät, dann in der Cloud (Status oben links im Spiel). Ohne Verbindung bleibt der Fortschritt auf dem Gerät und wird später hochgeladen.</p>';
+  {const cp=acCopies();if(cp.n)h+='<div class="rec"><div class="t">Gerätekopien</div><div class="c">'+cp.n+' Sicherungskopie'+(cp.n===1?'':'n')+' aus Konflikten (ca. '+cp.kb+' KB). Sie werden nie automatisch gelöscht.</div>'+(acF.cpc?'<div class="msg bad">Wirklich alle Gerätekopien löschen? Aktive Charaktere und lokale Spielstände bleiben unberührt.</div><button class="btn" data-a="accopyclr">Ja, Kopien löschen</button> <button class="btn sec" data-a="accopyno">Abbrechen</button>':'<button class="btn sec" data-a="accopyclr">Kopien löschen …</button>')+'</div>';}
   if(syOn()){const t=syncStatus();h+='<div class="rec"><div class="t">Speicherstatus</div><div class="c"><b>'+escH(t.text)+'</b><br><small>'+escH(t.help)+(t.okAt?' Zuletzt gespeichert: '+escH(new Date(t.okAt).toLocaleTimeString('de-DE',{timeStyle:'short'}))+'.':'')+'</small></div><button class="btn" data-a="syncnow"'+dis+'>Jetzt speichern</button>'+(SY.st==='conflict'?' <button class="btn" data-a="cfopen" data-id="'+escH(ACTIVE.id)+'"'+dis+'>Konflikt lösen</button>':'')+'</div>';}
   if(acCloud==='loading')return h+'<div class="rec"><div class="c">Lade Cloud-Charaktere …</div></div><button class="btn sec" data-a="acx">Zurück</button>';
   if(!Array.isArray(acCloud))return h+'<button class="btn" data-a="acref"'+dis+'>Erneut laden</button> <button class="btn sec" data-a="acx">Zurück</button>';
@@ -2104,6 +2107,7 @@ function acHome(){
     if(c){const cl=CLASSES[c.character_class]||{i:'🧙',n:'Wanderer'};
       h+='<div class="c"><b>'+cl.i+' '+escH(c.character_name)+'</b><br>Level '+c.level+' · '+cl.n+(c.last_played?'<br><small>zuletzt '+escH(new Date(c.last_played).toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'}))+'</small>':'')+'</div>'
         +(c.locked?'<div class="c">🔒 Gesperrt, solange keine gültige Berechtigung besteht. Der Charakter bleibt sicher gespeichert.</div>'
+          +[1,2].filter(t=>!acCloud.some(x=>x.slot_number===t)).map(t=>'<button class="btn sec" data-a="acmove" data-id="'+escH(c.character_id)+'" data-to="'+t+'"'+dis+'>↪ Auf freien Platz '+t+' verschieben und spielen</button>').join(' ')
           :'<div class="c">☁️ In der Cloud gespeichert'+(ACTIVE.type==='cloud'&&ACTIVE.id===c.character_id?' · <b>aktiv</b>':'')+'</div><button class="btn" data-a="accplay" data-id="'+escH(c.character_id)+'"'+dis+'>'+(ACTIVE.type==='cloud'&&ACTIVE.id===c.character_id?'Weiterspielen':'▶ Spielen')+'</button>');
     }else if(n>FREE_SLOTS){h+='<div class="c">🔒 Gesperrt. Der dritte Platz wird später einmalig freigeschaltet.</div>';}
     else{h+='<div class="c">Leer</div><label class="acl" for="accn'+n+'">Neuer Cloud-Charakter</label><input id="accn'+n+'" maxlength="16" placeholder="Name des Charakters" autocomplete="off"><button class="btn" data-a="accnew" data-slot="'+n+'"'+dis+'>✨ Neuen Cloud-Charakter erstellen</button>';
@@ -2378,11 +2382,12 @@ async function syncPush(manual){
   if(r.status===409||/version_conflict/.test(msg+code)){
     if(await syncVerify(id,meta)){syncSet(syncHash(S)!==h?'dirty':'ok','');return true;}   // unser früheres Speichern war schon angekommen
     syncSet('conflict','');SY.due=0;if(!SY.told){SY.told=1;toast('Konflikt mit dem Cloud-Stand – tippe oben links, um ihn zu lösen.');}return false;}
-  if(/character_locked/.test(msg)){syncSet('locked','');SY.due=0;return false;}
+  if(/character_locked/.test(msg)){syncSet('locked','');SY.due=0;lockShow('locked');return false;}
   if(/email_not_verified/.test(msg)){syncSet('auth','Bitte bestätige zuerst deine E-Mail-Adresse.');SY.due=0;return false;}
   syncSet('rej','Fehler '+r.status+'.');SY.due=0;return false;}
 /* Sekundentakt: billig (nur wenn nötig Fingerabdruck, alle 5 s oder bei Schlüsselereignis) */
 function syncTick(){
+  if(ACTIVE.type==='cloud'&&!noSave&&(TLN=(TLN+1)%5)===0)tlCheck();
   if(!syOn()){syUI();return;}
   const now=Date.now();
   if(!SY.init){SY.init=true;SY.boot=now;const m=readMeta(ACTIVE.id);SY.st=m&&m.dirty?'dirty':'ok';SY.key=syKey();SY.chk=true;syUI();}
@@ -2418,7 +2423,7 @@ function syncFlush(){
   if(JSON.stringify(body).length>60000)return;                     // keepalive-Grenze des Browsers
   if(!writeMeta(Object.assign({},readMeta(id)||meta,{dirty:true,pend:{h,from:meta.baseVersion}})))return;
   sbFetch('/rest/v1/rpc/save_character',{method:'POST',token:AUTH.s.access_token,body,keepalive:true,timeout:10000});}
-document.addEventListener('visibilitychange',()=>{if(document.hidden)syncFlush();else if(syOn()&&AUTH.s&&AUTH.s.exp-Date.now()<120000)authRefresh();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)syncFlush();else{if(ACTIVE.type==='cloud'&&!noSave)tlCheck();if(syOn()&&AUTH.s&&AUTH.s.exp-Date.now()<120000)authRefresh();}});
 window.addEventListener('pagehide',syncFlush);
 /* ---------- Konflikte lösen und Abmelden (3d) ---------- */
 const clone=o=>JSON.parse(JSON.stringify(o));
@@ -2529,6 +2534,75 @@ function acLogoutHTML(){
   return '<h3 style="margin:4px 0">Nicht in der Cloud gespeicherte Änderungen</h3><p class="acn">Für '+escH((acF.lo||[]).join(', '))+' gibt es Änderungen, die noch nicht in der Cloud sind (z. B. ohne Verbindung). Sie bleiben sicher auf diesem Gerät und gehen nicht verloren. Hochgeladen werden sie, sobald du dich mit demselben Konto anmeldest und den Charakter spielst.</p>'
    +'<button class="btn" data-a="aclogoutok">Trotzdem abmelden</button> <button class="btn sec" data-a="acv" data-v="home">Abbrechen</button>';}
 window.addEventListener('online',()=>{SY.next=0;SY.back=0;if(SY.st==='off'||SY.st==='err')SY.due=Date.now();});
+/* ---------- Platz 3 und Sperrzustand (3e) ----------
+   Ob Platz 3 offen ist, entscheidet nur der Server (list_characters().locked, Antworten von save_character). Der Client rechnet nie selbst.
+   Gesperrte Charaktere bleiben unversehrt; sie lassen sich innerhalb des eigenen Kontos auf einen freien Platz 1/2 verschieben. */
+async function acMove(id,to){
+  if(acBusy||!AUTH.s||typeof id!=='string'||!CLOUD_ID_RE.test(id)||!(to===1||to===2)||!Array.isArray(acCloud))return;
+  const row=acCloud.find(x=>x.character_id===id);
+  if(!row||row.slot_number!==3||acCloud.some(x=>x.slot_number===to))return;
+  const uid=AUTH.s.user.id;
+  acBusy=true;acMsg=null;acctUI();
+  const r=await sbAuthed('/rest/v1/rpc/move_character',{method:'POST',body:{p_id:id,p_target:to},timeout:30000});
+  if(r.noauth)return acNoAuth();
+  acBusy=false;
+  if(!r.ok||!Number.isInteger(r.j)){
+    const m=String((r.j&&(r.j.message||r.j.code))||'');
+    acM('bad',r.net?'Keine Verbindung zum Server. Nichts wurde verschoben.':/slot_occupied|PT409/.test(m)||r.status===409?'Dieser Platz ist inzwischen belegt. Nichts wurde verschoben.':rpcErr(r));
+    await acLoad(false,true);return;}
+  // Ein vorhandener Zwischenspeicher gehört weiter zum selben Charakter: Platz und Version nachführen (Daten ändert das Verschieben nicht)
+  const m=readMeta(id);
+  if(m&&m.uid===uid&&m.slot===3&&r.j===m.baseVersion+1)writeMeta(Object.assign({},m,{slot:to,baseVersion:r.j}));
+  acM('ok','Verschoben auf Platz '+to+'.');await acLoad(false,true);}
+/* Sperr-/Prüf-Fenster über dem Spiel (unter Charakterauswahl und Konto, damit beides erreichbar bleibt) */
+const LK={tab:false};
+const LK_TXT={tab:['Dieser Charakter ist in einem anderen Fenster geöffnet','Damit sich zwei Fenster nicht gegenseitig überschreiben, ist er hier angehalten. Du kannst ihn hier übernehmen; das andere Fenster wird dann angehalten. Es geht nichts verloren.'],check:['Berechtigung wird geprüft …','Platz 3 wird nur nach erfolgreicher Prüfung durch den Server gespielt.'],
+  offline:['Platz 3 ist nur online spielbar','Es konnte keine Verbindung zum Server hergestellt werden. Dein Fortschritt bleibt auf diesem Gerät gesichert.'],
+  auth:['Anmeldung nötig','Platz 3 wird erst nach Anmeldung und Prüfung durch den Server gespielt. Dein Fortschritt bleibt auf diesem Gerät gesichert.'],
+  locked:['Dieser Charakter ist gesperrt','Für diesen Platz besteht keine gültige Berechtigung. Der Charakter bleibt in der Cloud und auf diesem Gerät erhalten. Du kannst ihn im Konto auf einen freien Platz 1 oder 2 verschieben.'],
+  gone:['Charakter nicht gefunden','Der Server kennt diesen Charakter an diesem Platz nicht (mehr). Es wird nichts gelöscht.']};
+let lkBusy=false;
+function lockShow(kind){
+  const el=$('#lockov');if(!el)return;const t=LK_TXT[kind]||LK_TXT.check;
+  el.innerHTML='<h2>🔒 '+escH(t[0])+'</h2><p>'+escH(t[1])+'</p>'+(kind==='check'?'':kind==='tab'?'<button class="btn" data-a="tltake">Hier übernehmen</button> ':'<button class="btn" data-a="lkretry">Erneut prüfen</button> ')
+    +'<button class="btn sec" data-a="chars">Anderen Charakter wählen</button> <button class="btn sec" data-a="acct">Konto</button>';
+  el.style.display='flex';}
+function lockHide(){const el=$('#lockov');if(el)el.style.display='none';}
+async function lockGate(){   // beim Start eines Cloud-Charakters auf Platz 3: nur nach erfolgreicher Serverprüfung spielbar (Entscheidung C)
+  if(lkBusy||ACTIVE.type!=='cloud')return;
+  const m=readMeta(ACTIVE.id);if(!m||m.slot!==3)return;
+  lkBusy=true;lockShow('check');
+  try{
+    if(!AUTH.s)return lockShow('auth');
+    if(AUTH.s.user.id!==m.uid)return lockShow('auth');
+    const lr=await sbAuthed('/rest/v1/rpc/list_characters',{method:'POST',body:{}});
+    if(lr.noauth)return lockShow('auth');
+    if(!lr.ok||!Array.isArray(lr.j))return lockShow('offline');
+    const row=lr.j.find(x=>x&&x.character_id===ACTIVE.id);
+    if(!row||row.slot_number!==3)return lockShow('gone');
+    if(row.locked!==false)return lockShow('locked');
+    lockHide();
+  }finally{lkBusy=false;}}
+/* ---------- Härtung (3f): ein Tab pro Cloud-Charakter ----------
+   Zwei offene Fenster mit demselben Charakter würden sich gegenseitig überschreiben. Der aktive Tab hält ein Lebenszeichen in localStorage;
+   ein zweiter Tab startet gesperrt und kann ausdrücklich übernehmen (lädt dann frisch aus dem Zwischenspeicher). Der verdrängte Tab hört sofort auf zu speichern. */
+let TLN=0;const TAB=newCid(),TL_FRESH=15000;
+const tlKey=id=>'ruinwalk_tl_'+id;
+function tlRead(id){try{const v=JSON.parse(localStorage.getItem(tlKey(id))||'null');return v&&typeof v.t==='string'&&Number.isFinite(v.ts)?v:null;}catch(e){return null;}}
+function tlBeat(){   // Lebenszeichen schreiben; false, wenn ein anderer Tab frisch besitzt
+  if(ACTIVE.type!=='cloud')return true;
+  const v=tlRead(ACTIVE.id),now=Date.now();
+  if(v&&v.t!==TAB&&now-v.ts<TL_FRESH)return false;
+  try{localStorage.setItem(tlKey(ACTIVE.id),JSON.stringify({t:TAB,ts:now}));}catch(e){}
+  return true;}
+function tlLost(){if(noSave&&LK.tab)return;LK.tab=true;noSave=true;lockShow('tab');}
+function tlCheck(){if(ACTIVE.type==='cloud'&&!LK.tab&&!tlBeat())tlLost();}
+function tlTake(){try{localStorage.setItem(tlKey(ACTIVE.id),JSON.stringify({t:TAB,ts:Date.now()}));}catch(e){}noSave=true;location.reload();}
+window.addEventListener('pagehide',()=>{try{const v=tlRead(ACTIVE.id);if(ACTIVE.type==='cloud'&&v&&v.t===TAB)localStorage.removeItem(tlKey(ACTIVE.id));}catch(e){}});
+/* Gerätekopien (_srvcopy_/_replaced_): entstehen bei Konflikten; werden nie automatisch gelöscht, nur auf ausdrücklichen Wunsch */
+const COPY_RE=/^ruinwalk_cc_[0-9a-f-]{36}_(srvcopy|replaced)_\d+$/;
+function acCopies(){let n=0,b=0;try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(COPY_RE.test(k||'')){n++;b+=(localStorage.getItem(k)||'').length;}}}catch(e){}return {n,kb:Math.ceil(b/1024)};}
+function acCopiesClear(){const ks=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(COPY_RE.test(k||''))ks.push(k);}ks.forEach(k=>localStorage.removeItem(k));}catch(e){}return ks.length;}
 /* Links aus Bestätigungs-/Reset-Mails kommen als #access_token=… zurück */
 async function authBoot(){
   authLoad();
@@ -2719,6 +2793,11 @@ document.addEventListener('click',ev=>{
     case 'syncnow':{if(!syOn())break;
       if(SY.st==='auth'){acOpen();acM('bad','Bitte melde dich neu an – dein Fortschritt ist gesichert und wird danach automatisch hochgeladen.');acctUI();break;}
       if(SY.st==='conflict'){acConflictOpen(ACTIVE.id);break;}syncPush(true).then(()=>{const t=syncStatus();toast(t.text+(t.st==='ok'?'':' – '+t.help));});break;}
+    case 'acmove':acMove(b.dataset.id,+b.dataset.to);break;
+    case 'lkretry':lockGate();break;
+    case 'tltake':tlTake();break;
+    case 'accopyclr':{const c=acCopies();if(!c.n)break;if(!acF.cpc){acF.cpc=true;acctUI();}else{const k=acCopiesClear();acF.cpc=false;acM('ok',k+' Gerätekopie'+(k===1?'':'n')+' gelöscht.');acctUI();}break;}
+    case 'accopyno':acF.cpc=false;acctUI();break;
     case 'accplay':acPlay(b.dataset.id);break;
     case 'accnew':acCreateCloud(+b.dataset.slot);break;
     case 'acup':acUpload(+b.dataset.slot,+(($('#acsel'+b.dataset.slot)||{}).value));break;
@@ -2820,10 +2899,12 @@ hud();buildSkillBar();
 if(loadNote.length)toast(loadNote.join(' '));
 if(S.test){/* Testmodus war aktiv: Start-Dialog bleibt, damit man wählen kann */}
 authBoot();
+tlCheck();
+lockGate();
 /* Test-Schnittstelle: nur aktiv, wenn vor dem Laden window.__RW_TEST=true gesetzt wird (siehe tests/). Im normalen Spiel ohne Wirkung. */
 if(window.__RW_TEST)window.__RW={get S(){return S;},set S(v){S=v;},get sel(){return sel;},set sel(v){sel=v;},get P(){return P;},get nextAtk(){return nextAtk;},set nextAtk(v){nextAtk=v;},
   get psn(){return psn;},set psn(v){psn=v;},get gpsLost(){return gpsLost;},set gpsLost(v){gpsLost=v;},
-  KEY,SLOT,ACTIVE,AUTH,acConflictOpen,acConflictKeep,acConflictLoad,acLogoutAsk,acOpenChanges,SY,syncPush,syncTick,syncFlush,syncAdopt,syncStatus,syKey,syncHash,cloudState,cloudStartPlan,cloudCacheReplace,acPlay,acCreateCloud,cloudKey,cloudMetaKey,readMeta,writeMeta,cloudCachePut,cloudCaches,switchCloud,CLOUD_ID_RE,createChar,save,sanitize,def,regen,pruneCd,toast,getBase,gearOf,addGear,equip,canEquip,fixEq,fixGear,upgradeGear,craftGear,craft,addXP,maxHP,defense,atk,critCh,gVal,gSell,gStats,SB,
+  KEY,SLOT,ACTIVE,AUTH,tlBeat,tlRead,tlKey,TAB,acCopies,acMove,lockGate,acConflictOpen,acConflictKeep,acConflictLoad,acLogoutAsk,acOpenChanges,SY,syncPush,syncTick,syncFlush,syncAdopt,syncStatus,syKey,syncHash,cloudState,cloudStartPlan,cloudCacheReplace,acPlay,acCreateCloud,cloudKey,cloudMetaKey,readMeta,writeMeta,cloudCachePut,cloudCaches,switchCloud,CLOUD_ID_RE,createChar,save,sanitize,def,regen,pruneCd,toast,getBase,gearOf,addGear,equip,canEquip,fixEq,fixGear,upgradeGear,craftGear,craft,addXP,maxHP,defense,atk,critCh,gVal,gSell,gStats,SB,
   strike,shoot,monsterHit,faint,setPos,countWalk,select,refreshWorld,cellEnts,areaEnts,usePotion,useItem,rollGear,rollPathSet,rollSet,have,add,claimQuest,checkQuests,
   ents,roam,eng,SETS,SETD,PATHS,MOBS,GR,RECIPES,QUESTS,ITEMS,NODES,SELL,BUY,ABIL,CW,TIERS,COIN,HAB,CLASSES,SSLOTS,ARM,ATYPES,ARMT,SECRET,UPQ,effClass,UPCOST,UPFEE,UPMAX,UP_LV,LV_CAP,QM,QN,
   wK,oK,enc,gBuyPrice,rollQ,DROPQ,RDROPQ,DROPT,DROPCH,RDROPCH,pickMob,hash,mulberry,dist,DLAT,DLON,RANGE,gpsWatch,setLastFix:v=>{lastFix=v;},setWatch:v=>{watchId=v;},setWatchStart:v=>{watchStart=v;lastRestart=v;},get watchId(){return watchId;},get gpsDenied(){return gpsDenied;},get lastRestart(){return lastRestart;},onPos,onErr,startGPS,roamTick,

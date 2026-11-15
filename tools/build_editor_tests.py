@@ -18,6 +18,7 @@ t='\n'.join(out)
 t=re.sub(r"(->>'cid'=):'(\w+)'",lambda m:"%s(select v from tap.vars where k='%s')"%(m.group(1),m.group(2)),t)   # Textvergleich
 t=re.sub(r":'(\w+)'",lambda m:"(select v::uuid from tap.vars where k='%s')"%m.group(1),t)
 t=re.sub(r":c3bak\b","(select v::bigint from tap.vars where k='c3bak')",t)
+t=re.sub(r":b1mx\b","(select v::bigint from tap.vars where k='b1mx')",t)
 for k,v in ids.items(): t=re.sub(r":%s\b"%k,"'%s'"%v,t)
 assert not re.search(r"(?<![:\w]):[A-Za-z_']",re.sub(r"'[^']*'","",t)) or True
 t=t.replace("select tap.finish();","select tap.as_admin();\nselect tap.summary();")
