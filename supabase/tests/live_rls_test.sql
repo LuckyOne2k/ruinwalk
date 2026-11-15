@@ -54,7 +54,7 @@ select pg_temp.thr('select public.save_character('''||(select v from ids where k
 select pg_temp.thr('select public.delete_character('''||(select v from ids where k='b1')||'''::uuid)','not_found','A kann Charakter von B nicht löschen');
 select pg_temp.thr('select public.move_character('''||(select v from ids where k='b2')||'''::uuid,1)','not_found','A kann Charakter von B nicht verschieben');
 select pg_temp.asadmin();
-select pg_temp.t((select count(*) from public.characters)=4 and (select (character_data->>'lv') from public.characters where character_name='B_eins')='3', 'Nach Fremdzugriffen: alle 4 Charaktere unverändert');
+select pg_temp.t((select count(*) from public.characters where account_id in ('aaaaaaaa-0000-0000-0000-0000000000a1','bbbbbbbb-0000-0000-0000-0000000000b2'))=4 and (select (character_data->>'lv') from public.characters where character_name='B_eins')='3', 'Nach Fremdzugriffen: alle 4 Charaktere unverändert');
 update public.account_entitlements set status='refunded' where account_id='aaaaaaaa-0000-0000-0000-0000000000a1';
 select pg_temp.asu('aaaaaaaa-0000-0000-0000-0000000000a1');
 select pg_temp.t((select count(*) from public.characters where slot_number=3)=0, 'Rückerstattung: Platz-3-Charakter nicht lesbar');
