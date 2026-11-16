@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#120f0d">
+<meta name="description" content="Ruin Walk – The Forgotten World. Ein mystisches GPS-Fantasy-RPG. Erkunde deine Umgebung, sammle Ressourcen, entwickle deinen Helden und stelle dich mächtigen Kreaturen.">
+<meta property="og:title" content="Ruin Walk – The Forgotten World">
+<meta property="og:description" content="Deine Welt ist das Spielfeld. Ein mystisches GPS-Fantasy-RPG.">
+<meta property="og:type" content="website">
+<title>Ruin Walk – The Forgotten World</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Crimson+Text:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:dark;--bg:#120f0d;--panel:#211812;--gold:#d8a45d;--gold2:#f0c982;--text:#f3e8d8;--muted:#c0ad99;--line:rgba(216,164,93,.27);--max:1160px}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:82px}body{margin:0;background:var(--bg);color:var(--text);font:19px/1.55 "Crimson Text",Georgia,serif}a{color:inherit}a:focus-visible{outline:3px solid var(--gold2);outline-offset:4px}.wrap{width:min(var(--max),calc(100% - 40px));margin:auto}
+header{position:absolute;z-index:5;inset:0 0 auto;background:linear-gradient(#090807c9,transparent);border-bottom:1px solid #d8a45d22}.nav{min-height:82px;display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{display:flex;align-items:center;gap:12px;text-decoration:none;font:700 14px Cinzel,serif;letter-spacing:.13em}.brand img{width:46px;height:46px;object-fit:contain}.links{display:flex;align-items:center;gap:25px}.links a{text-decoration:none;font-size:17px;color:#e5d4c0}.links a:hover{color:var(--gold2)}
+.btn{display:inline-flex;justify-content:center;align-items:center;padding:13px 22px;border:1px solid #b67a3d;border-radius:3px;background:linear-gradient(#b66d34,#77401f);color:#fff4e4;text-decoration:none;font:700 13px Cinzel,serif;letter-spacing:.1em;box-shadow:0 8px 26px #0008;transition:.2s}.btn:hover{transform:translateY(-2px);filter:brightness(1.12)}.btn.alt{background:#100d0bbd;border-color:#d8a45d88;box-shadow:none}
+.hero{min-height:min(900px,100svh);display:flex;align-items:center;position:relative;background:#100d0b url("assets/bg_login.jpg") center/cover no-repeat}.hero:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,#0a0807ed 0%,#0a0807b8 50%,#0a080733),linear-gradient(0deg,var(--bg),transparent 30%)}.hero .wrap{position:relative}.hero-copy{max-width:740px;padding:145px 0 100px}.logo{display:block;width:min(100%,520px);max-height:230px;object-fit:contain;object-position:left;filter:drop-shadow(0 8px 24px #000)}.eyebrow{margin:23px 0 12px;color:var(--gold2);font:700 12px Cinzel,serif;letter-spacing:.24em;text-transform:uppercase}.hero h1{font:600 clamp(32px,5vw,56px)/1.18 Cinzel,serif;margin:0 0 18px;text-shadow:0 3px 18px #000}.hero p{max-width:620px;color:#e0d1c0;font-size:23px;margin:0 0 28px}.actions{display:flex;flex-wrap:wrap;gap:13px}.note{font-size:16px!important;color:#c7b5a2!important;margin-top:16px!important}
+section{padding:94px 0}.head{text-align:center;max-width:760px;margin:0 auto 44px}.head .eyebrow{margin-top:0}.head h2,.intro h2,.final h2{font:600 clamp(28px,4vw,42px)/1.2 Cinzel,serif;margin:0 0 15px}.head p{font-size:21px;color:var(--muted);margin:0}
+.intro{background:radial-gradient(ellipse at 50% 0,#6f3e202e,transparent 65%),var(--bg)}.intro-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:55px;align-items:center}.art{min-height:380px;border:1px solid var(--line);border-radius:4px;background:linear-gradient(#0002,#0c080677),url("assets/bg_create.jpg") center/cover;box-shadow:0 22px 65px #0008;position:relative}.art:after{content:"";position:absolute;inset:12px;border:1px solid #f0c98244}.intro p{font-size:21px;color:#d2c1ae}
+.features{background:#120f0d}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:17px}.feature{position:relative;padding:27px 24px;min-height:205px;border:1px solid var(--line);background:linear-gradient(145deg,#2e2017f0,#18120ff5)}.feature:before{content:"";position:absolute;top:0;left:24px;right:24px;height:2px;background:linear-gradient(90deg,transparent,var(--gold),transparent)}.symbol{font-size:28px;color:var(--gold2);margin-bottom:10px}.feature h3,.class h3,.step h3{font:600 18px Cinzel,serif;margin:0 0 9px;color:#f4dfbd}.feature p,.class p,.step p{font-size:18px;color:var(--muted);margin:0}
+.classes{background:linear-gradient(#17110e,#100d0b)}.class-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.class{min-height:225px;padding:25px 18px;text-align:center;border:1px solid var(--line);background:linear-gradient(#2d1f17e0,#140f0cf5)}.sigil{font-size:39px;color:var(--gold2);margin-bottom:12px;text-shadow:0 0 22px #c17a3d66}
+.world{background:#100d0b}.world-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}.world-card{height:330px;position:relative;overflow:hidden;border:1px solid var(--line)}.world-card img{width:100%;height:100%;object-fit:cover;opacity:.72;transition:transform .5s}.world-card:hover img{transform:scale(1.04)}.world-card:after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,#0a0807f2,transparent 80%)}.world-text{position:absolute;z-index:1;bottom:22px;left:25px;right:25px}.world-text h3{font:600 22px Cinzel,serif;margin:0 0 7px}.world-text p{margin:0;color:#e0d0bd;font-size:18px}
+.journey{background:radial-gradient(ellipse at center,#844b242e,transparent 68%),#17110e}.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.step{padding:25px;border-top:1px solid var(--gold);background:#221812a6}.step b{font:700 13px Cinzel,serif;color:var(--gold);letter-spacing:.15em}.step h3{margin-top:12px}
+.final{padding:105px 0;text-align:center;background:linear-gradient(#0c0907d1,#0c0907eb),url("assets/bg_chars.jpg") center/cover}.final h2{max-width:760px;margin:0 auto 17px}.final p{max-width:640px;margin:0 auto 27px;color:#ddcbb7;font-size:21px}.ornament{color:var(--gold);font:11px Cinzel,serif;letter-spacing:.25em;text-transform:uppercase;margin-bottom:18px}
+footer{padding:27px 0;background:#0b0908;border-top:1px solid var(--line);color:#a99580;font-size:16px}.foot{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap}.foot a{color:#d6b17c;text-decoration:none}
+@media(max-width:850px){.links{gap:14px}.links a:not(.btn){display:none}.intro-grid{grid-template-columns:1fr;gap:28px}.art{min-height:300px}.grid{grid-template-columns:repeat(2,1fr)}.class-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.wrap{width:calc(100% - 30px)}.nav{min-height:70px}.brand img{width:38px;height:38px}.brand{font-size:11px}.links .btn{padding:10px 12px;font-size:10px}.hero{min-height:780px;background-position:58% center}.hero:before{background:linear-gradient(90deg,#0a0807e8,#0a08078c),linear-gradient(0deg,var(--bg),transparent 35%)}.hero-copy{padding:125px 0 80px}.logo{width:min(100%,390px)}.hero h1{font-size:34px}.hero p{font-size:20px}.actions{display:grid}.btn{width:100%;min-height:49px}section{padding:70px 0}.head{margin-bottom:32px}.head p{font-size:19px}.grid{grid-template-columns:1fr}.feature{min-height:0}.class-grid{gap:10px}.class{min-height:215px;padding:20px 12px}.class p{font-size:16px}.world-grid,.steps{grid-template-columns:1fr}.world-card{height:280px}.final{padding:80px 0}.foot{justify-content:center;text-align:center}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{transition:none!important}}
+</style>
+</head>
+<body>
+<header><div class="wrap nav">
+<a class="brand" href="#top"><img src="assets/logo.png" alt=""><span>THE FORGOTTEN WORLD</span></a>
+<nav class="links" aria-label="Hauptnavigation"><a href="#welt">Die Welt</a><a href="#klassen">Klassen</a><a href="#ablauf">Spielprinzip</a><a class="btn" href="index.html">ABENTEUER BEGINNEN ↗</a></nav>
+</div></header>
+<main id="top">
+<section class="hero"><div class="wrap"><div class="hero-copy">
+<img class="logo" src="assets/logo.png" alt="Ruin Walk – The Forgotten World">
+<div class="eyebrow">Ein mystisches GPS-Fantasy-RPG</div>
+<h1>Deine Welt ist das Spielfeld.</h1>
+<p>Verlass die bekannten Wege. Entdecke Begegnungen, sammle die Schätze deiner Umgebung und stelle dich Kreaturen, die nur darauf warten, herausgefordert zu werden.</p>
+<div class="actions"><a class="btn" href="index.html">✦ JETZT IN DIE WELT EINTRETEN</a><a class="btn alt" href="#welt">DIE WELT ENTDECKEN</a></div>
+<p class="note">Ruin Walk verbindet Fantasy-Abenteuer mit deiner echten Umgebung.</p>
+</div></div></section>
+<section class="intro"><div class="wrap intro-grid"><div class="art" role="img" aria-label="Mystische Szenerie aus der Charaktererstellung"></div><div><div class="eyebrow">Jenseits der vertrauten Pfade</div><h2>Die Wildnis birgt mehr, als du sehen kannst.</h2><p>In Ruin Walk wird deine Umgebung zum Schauplatz eines Fantasy-Abenteuers. Aktiviere deinen Standort und erkunde die Welt Schritt für Schritt. Sammle Rohstoffe, entdecke Kreaturen und werde mit jeder Herausforderung stärker.</p><p>Ob du dich auf Kämpfe vorbereitest, seltene Materialien suchst oder deinen Charakter weiterentwickelst – dein nächstes Abenteuer beginnt direkt vor deiner Tür.</p></div></div></section>
+<section class="features" id="welt"><div class="wrap"><div class="head"><div class="eyebrow">Ein Weg voller Möglichkeiten</div><h2>Erkunde. Kämpfe. Werde stärker.</h2><p>Jeder Schritt kann dich näher an Ressourcen, gefährliche Gegner oder wertvolle Beute bringen.</p></div>
+<div class="grid">
+<article class="feature"><div class="symbol">⌖</div><h3>Erkundung mit GPS</h3><p>Deine reale Umgebung wird Teil des Spiels. Bewege dich draußen und entdecke die Welt an deinem Standort.</p></article>
+<article class="feature"><div class="symbol">⚔</div><h3>Begegnungen und Kämpfe</h3><p>Stelle dich normalen, seltenen und Elite-Monstern. Nutze Angriffe, Fähigkeiten und die richtige Taktik.</p></article>
+<article class="feature"><div class="symbol">♜</div><h3>Mächtige Bossgegner</h3><p>Fordere besondere Bosse heraus – mit angekündigten Angriffen, auf die du reagieren musst.</p></article>
+<article class="feature"><div class="symbol">⚒</div><h3>Sammeln und herstellen</h3><p>Finde Rohstoffe, baue Ressourcen ab und fertige Werkzeuge, Ausrüstung und hilfreiche Gegenstände.</p></article>
+<article class="feature"><div class="symbol">✧</div><h3>Charakterentwicklung</h3><p>Sammle Erfahrung, steige im Level auf und entwickle deinen Charakter mit Klassen und Spezialisierungen weiter.</p></article>
+<article class="feature"><div class="symbol">▤</div><h3>Quests und Belohnungen</h3><p>Erfülle Aufgaben, sammle Fortschritt und verdiene Erfahrung sowie Gegenstände für deinen Weg.</p></article>
+</div></div></section>
+<section class="classes" id="klassen"><div class="wrap"><div class="head"><div class="eyebrow">Wähle deinen Weg</div><h2>Vier Wege. Ein Abenteuer.</h2><p>Beginne als Wanderer und entscheide dich im Laufe deiner Entwicklung für eine Klasse, die zu deinem Kampfstil passt.</p></div>
+<div class="class-grid">
+<article class="class"><div class="sigil">♜</div><h3>Krieger</h3><p>Stelle dich deinen Gegnern im Nahkampf. Widerstandskraft und Durchhaltevermögen sind deine Stärke.</p></article>
+<article class="class"><div class="sigil">➶</div><h3>Bogenschütze</h3><p>Halte Abstand, ziele präzise und nutze deine Reichweite für entscheidende Treffer.</p></article>
+<article class="class"><div class="sigil">✧</div><h3>Elementarmagier</h3><p>Entfessle mächtige Zauber und beherrsche deine Gegner mit arkaner Kraft.</p></article>
+<article class="class"><div class="sigil">☼</div><h3>Heiler</h3><p>Verbinde Licht und Angriff. Heile dich und halte auch lange Kämpfe durch.</p></article>
+</div></div></section>
+<section class="world"><div class="wrap"><div class="head"><div class="eyebrow">Die Welt ruft</div><h2>Auch im Schatten wartet Gefahr.</h2><p>Seltene Kreaturen, Elitegegner und Gebietsbosse machen jeden Ausflug zu einer möglichen Prüfung.</p></div>
+<div class="world-grid"><article class="world-card"><img src="assets/bg_chars.jpg" alt="" loading="lazy"><div class="world-text"><h3>Wähle deinen Helden</h3><p>Gestalte deinen Charakter und finde den Weg, der zu deiner Art zu spielen passt.</p></div></article><article class="world-card"><img src="assets/bg_create.jpg" alt="" loading="lazy"><div class="world-text"><h3>Stelle dich dem Unbekannten</h3><p>Bereite dich vor, verbessere deine Ausrüstung und wage dich an stärkere Gegner.</p></div></article></div></div></section>
+<section class="journey" id="ablauf"><div class="wrap"><div class="head"><div class="eyebrow">Dein Abenteuer beginnt</div><h2>Der Einstieg ist einfach.</h2><p>Du brauchst ein kompatibles Gerät mit Standortfreigabe und Lust, die Welt draußen neu zu entdecken.</p></div>
+<div class="steps"><article class="step"><b>01 / BEGINN</b><h3>Spiel öffnen</h3><p>Starte Ruin Walk im Browser und beginne mit deinem Charakter.</p></article><article class="step"><b>02 / VERBINDEN</b><h3>Standort freigeben</h3><p>Aktiviere GPS, damit deine reale Umgebung zum Spielfeld werden kann.</p></article><article class="step"><b>03 / LOSZIEHEN</b><h3>Entdecken und wachsen</h3><p>Sammle, kämpfe, stelle Gegenstände her und entwickle deinen Helden weiter.</p></article></div></div></section>
+<section class="final"><div class="wrap"><div class="ornament">The Forgotten World</div><h2>Manche Legenden werden nicht erzählt. Sie werden erlebt.</h2><p>Die Wege liegen vor dir. Die Kreaturen warten. Mach den ersten Schritt und entdecke, was deine Umgebung verbirgt.</p><a class="btn" href="index.html">✦ RUIN WALK SPIELEN</a></div></section>
+</main>
+<footer><div class="wrap foot"><span>© <span id="year">2026</span> Ruin Walk – The Forgotten World</span><span><a href="index.html">Zum Spiel</a> · <a href="https://github.com/LuckyOne2k/ruinwalk" target="_blank" rel="noopener noreferrer">Projekt auf GitHub</a></span></div></footer>
+<script>document.getElementById("year").textContent=new Date().getFullYear();</script>
+</body></html>
