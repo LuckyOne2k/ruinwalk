@@ -364,10 +364,10 @@ begin
 end $$;
 
 -- Herzschlag eines Spielers (schreibend). instance_view selbst schreibt nie.
-create function rwi.heartbeat(p_instance bigint) returns jsonb language plpgsql as $$
-declare me text := rwi.current_player(); i rwi.instances; m rwi.members; t timestamptz; r jsonb;
+create function rwi.heartbeat_for(p_instance bigint, me text) returns jsonb language plpgsql as $$   -- INTERN: Spielerparameter, nur über die Produktions-Wrapper (05_produktion.sql) oder Tests aufrufbar
+declare i rwi.instances; m rwi.members; t timestamptz; r jsonb;
 begin
-  if me is null then return jsonb_build_object('status','unauthenticated'); end if;             -- Identität nur aus der authentifizierten Sitzung, nie als Parameter
+  if me is null then return jsonb_build_object('status','unauthenticated'); end if;             -- Identität kommt nie vom Client, sondern aus der authentifizierten Sitzung (Wrapper) bzw. dem Testschlüssel
   select * into i from rwi.instances where id = p_instance for update;                           -- erst sperren, dann die Zeit nehmen
   if not found then return jsonb_build_object('status','not_member'); end if;
   t := clock_timestamp();                                                                        -- ausschließlich Serverzeit, keine Zeit vom Client
@@ -381,6 +381,8 @@ begin
   update rwi.members set last_seen_at = t where id = m.id;
   return r;
 end $$;
+create function rwi.heartbeat(p_instance bigint) returns jsonb language sql as $$ select rwi.heartbeat_for(p_instance, rwi.current_player()) $$;   -- Testidentität aus request.jwt.claim.sub; Produktion: public.group_heartbeat
+
 
 -- Zeitregeln der Gruppe: Abwesenheit (5 min), Bereitschaft (60 s), Mindestgröße nach automatischer Entfernung, Nachrücken, Eventende
 create function rwi.group_tick(p_now timestamptz default null) returns jsonb language plpgsql as $$

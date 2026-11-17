@@ -1,9 +1,9 @@
 name: instance-tests
 on:
   push:
-    paths: ['server/instance/**', '.github/workflows/instance-tests.yml']
+    paths: ['server/instance/**', 'supabase/schema.sql', 'supabase/tests/00_stub.sql', '.github/workflows/instance-tests.yml']
   pull_request:
-    paths: ['server/instance/**']
+    paths: ['server/instance/**', 'supabase/schema.sql', 'supabase/tests/00_stub.sql']
 jobs:
   determinism:
     runs-on: ubuntu-latest
@@ -44,6 +44,8 @@ jobs:
         run: node server/instance/tests/gruppe.mjs
       - name: Eventende K.2 Regel 4a-4d (Watchdog, Sweeps, Endzustand, Anlage, Rennen)
         run: node server/instance/tests/eventende.mjs
+      - name: Produktionssicherheit - Spieleridentität und Rechte mit echten Datenbankrollen (anon, authenticated, service_role; Modus neu und legacy)
+        run: node server/instance/tests/produktion.mjs
       - name: K.2-Vergleich (neue Variante muss fehlerfrei sein)
         run: |
           node server/instance/tests/k2-compare.mjs skip 15

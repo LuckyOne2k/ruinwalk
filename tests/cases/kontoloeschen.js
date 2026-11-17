@@ -25,6 +25,7 @@ const go=p=>p.evaluate(()=>document.querySelector('#ac_dgo').click());
 module.exports={
  'Konto löschen: Erfolg – Login dann delete_account, Anmeldung weg, lokale Spielstände und Zwischenspeicher byte-gleich, Hinweis, Kopie als „ohne Cloud-Verbindung“ gekennzeichnet':async(T,eq)=>{
   const {p,st,snap,before}=await mk(T);await p.evaluate(tap('acexport'));
+  await until(async()=>(await acct(p)).includes('Export heruntergeladen'),'Export beendet');   // der Export läuft asynchron und sperrt solange alle Aktionen (acBusy); ohne dieses Warten wurde das folgende acdel zufällig ignoriert
   // Zwischenspeicher eines Cloud-Charakters dieses Kontos (Normalfall nach dem Spielen)
   await p.evaluate(([id,uid])=>{localStorage.setItem('ruinwalk_cc_'+id,JSON.stringify({lv:12,cls:'jaeger',name:'Wolke',inv:{holz:5},stats:{kills:1,walk:0},tools:[],cid:id}));
     localStorage.setItem('ruinwalk_cm_'+id,JSON.stringify({v:1,cloudId:id,uid,slot:1,baseVersion:3,dirty:false,syncedAt:1,baseHash:'x:1'}));},[CID,st.users[0].id]);
