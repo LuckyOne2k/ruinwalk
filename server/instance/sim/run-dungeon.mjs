@@ -24,7 +24,7 @@ try {
   await q(`update rwi.cfg set v = 1 where k = 'lease_seconds'; update rwi.cfg set v = 30 where k = 'round_seconds'`);
   const S0 = newFight(players);
   const ev = WB ? `, 5000, clock_timestamp() + interval '2600 milliseconds'` : `, null, null`;
-  const ids = (await q(`with i as (insert into rwi.instances(id, event_id, ends_at) overriding system value select 1 ${ev} returning id),
+  const ids = (await q(`with i as (insert into rwi.instances(id, event_id, ends_at, seed) overriding system value select 1 ${ev}, decode('${seedHex}', 'hex') returning id),
       m as (insert into rwi.members(instance_id, key, last_seen_at) select i.id, k, clock_timestamp() from i, unnest(array[${players.map((p) => `'${p.id}'`).join(',')}]) k),
       f as (insert into rwi.fights(instance_id, due_at, state) select id, clock_timestamp() + interval '30 seconds', $j$${JSON.stringify(S0)}$j$::jsonb from i returning id) select (select id from f)`));
   const FID = +ids;

@@ -42,13 +42,16 @@ create table rwi.system_gaps (id bigint generated always as identity primary key
 create table rwi.ops_alerts (id bigint generated always as identity primary key, at timestamptz not null default clock_timestamp(), what text, detail text);
 
 -- Hilfsfunktion: Eventende-Abschluss je Event, mengenbasiert, Sperren in aufsteigender ID (K.2 Regel 4).
-create function rwi.sweep_event(p_event bigint) returns int language plpgsql as $$
-declare n int;
+create function rwi.sweep_event(p_event bigint, p_skip boolean default false) returns int language plpgsql as $$
+declare n int; ids bigint[];
 begin
-  with locked as (
-    select id from rwi.instances where event_id = p_event and status in ('active','frozen') and ends_at is not null and clock_timestamp() >= ends_at
-    order by id for update),
-  upd as (update rwi.instances i set status = 'event_ended', engine_stuck = false from locked l where i.id = l.id returning i.id),
+  -- p_skip = false (Watchdog): wartet auf gesperrte Instanzen, aufsteigend nach ID. p_skip = true (innerhalb von Claim/Commit): wartet nie.
+  if p_skip then
+    select coalesce(array_agg(id), '{}') into ids from (select id from rwi.instances where event_id = p_event and status in ('active','frozen') and ends_at is not null and clock_timestamp() >= ends_at order by id for update skip locked) x;
+  else
+    select coalesce(array_agg(id), '{}') into ids from (select id from rwi.instances where event_id = p_event and status in ('active','frozen') and ends_at is not null and clock_timestamp() >= ends_at order by id for update) x;
+  end if;
+  with upd as (update rwi.instances i set status = 'event_ended', engine_stuck = false where i.id = any(ids) returning i.id),
   f as (update rwi.fights f set status = 'event_ended', phase = 'done', claim_token = null, lease_until = null
         where f.instance_id in (select id from upd) and f.status = 'active' returning f.id),
   j as (update rwi.resolve_jobs j set status = 'cancelled' where j.fight_id in (select id from f) and j.status in ('pending','claimed','stuck') returning 1)
@@ -56,7 +59,8 @@ begin
   return n;
 end $$;
 
--- Beendet NUR die eigene, bereits gesperrte Instanz (kein Zugriff auf fremde Sperren -> keine Zyklen mit dem Massen-Sweep).
+-- Beendet die eigene, bereits gesperrte Instanz. Die übrigen Instanzen des Events beendet der Aufrufer danach mit sweep_event(event, true):
+-- SKIP LOCKED wartet nie auf fremde Sperren, kann also keinen Zyklus mit anderen Sweepern oder Commits bilden.
 create function rwi.end_instance(p_instance bigint) returns void language plpgsql as $$
 begin
   update rwi.instances set status = 'event_ended', engine_stuck = false where id = p_instance and status in ('active','frozen');
@@ -75,7 +79,7 @@ begin
   select * into f from rwi.fights where id = p_fight for update;            -- danach neu lesen (jetzt unter Sperre)
   t := clock_timestamp();
   if i.status <> 'active' then return jsonb_build_object('status', i.status); end if;
-  if i.ends_at is not null and t >= i.ends_at then perform rwi.end_instance(i.id); return jsonb_build_object('status','event_ended'); end if;
+  if i.ends_at is not null and t >= i.ends_at then perform rwi.end_instance(i.id); perform rwi.sweep_event(i.event_id, true); return jsonb_build_object('status','event_ended'); end if;
   if f.round_no <> p_round then return jsonb_build_object('status', case when f.round_no > p_round then 'already_resolved' else 'stale' end); end if;
   if f.phase = 'done' then return jsonb_build_object('status','already_resolved'); end if;
   if f.phase = 'resolving' and f.lease_until > t then return jsonb_build_object('status','busy'); end if;
@@ -105,7 +109,7 @@ begin
   if exists (select 1 from rwi.round_results where fight_id = p_fight and round_no = p_round) then return jsonb_build_object('status','already_resolved'); end if;
   if i.status <> 'active' then return jsonb_build_object('status', i.status); end if;
   if i.ends_at is not null and t >= i.ends_at then                            -- K.2 Regel 6: kein Ergebnis, Instanz endet, KEIN Rollback
-    perform rwi.end_instance(i.id); return jsonb_build_object('status','event_ended'); end if;
+    perform rwi.end_instance(i.id); perform rwi.sweep_event(i.event_id, true); return jsonb_build_object('status','event_ended'); end if;
   if f.round_no <> p_round or f.claim_token is distinct from p_token or f.round_version <> p_expected_version then return jsonb_build_object('status','superseded'); end if;
   if f.input_hash <> p_input_hash then return jsonb_build_object('status','input_mismatch'); end if;
   -- Invarianten (E.5): nur ungültige Zustände, keine Logikprüfung

@@ -34,11 +34,18 @@ jobs:
       - name: Phase-0-Tests (isoliertes temporäres Postgres, keine Spielerdaten)
         run: node server/instance/tests/run.mjs
       - name: K.2-Vergleich (neue Variante muss fehlerfrei sein)
-        run: node server/instance/tests/k2-compare.mjs new 15
+        run: |
+          node server/instance/tests/k2-compare.mjs skip 15
+          node server/instance/tests/k2-compare.mjs skip 15 nosweep
       - name: Dungeon-Kämpfe über die komplette Auftragskette
         run: |
           for s in 3 4 5; do node server/instance/sim/run-dungeon.mjs --seed $s --ruhig || exit 1; done
           node server/instance/sim/run-dungeon.mjs --seed 3 --weltboss-ende --ruhig
+      - name: Reproduzierbarkeit (gleicher Seed = identisches Kampfprotokoll)
+        run: |
+          a=$(node server/instance/sim/run-dungeon.mjs --seed 3 | grep -v "Worker-Absturz" | md5sum)
+          b=$(node server/instance/sim/run-dungeon.mjs --seed 3 | grep -v "Worker-Absturz" | md5sum)
+          echo "$a / $b"; [ "$a" = "$b" ]
   bestehende-tests:
     # Die schon vorhandenen Tests (Spiellogik und Supabase-Schema) laufen hier zusätzlich; pages.yml bleibt unberührt.
     runs-on: ubuntu-latest
@@ -57,4 +64,5 @@ jobs:
       - name: Node-Tests (npm test)
         run: npm test
       - name: Supabase-Schema-Tests
+        if: ${{ !cancelled() }}
         run: bash supabase/tests/run.sh

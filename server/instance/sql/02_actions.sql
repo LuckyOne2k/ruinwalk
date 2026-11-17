@@ -11,7 +11,7 @@ begin
   select * into f from rwi.fights where id = p_fight for update;
   t := clock_timestamp();
   if i.status <> 'active' then return jsonb_build_object('status', i.status); end if;
-  if i.ends_at is not null and t >= i.ends_at then perform rwi.end_instance(i.id); return jsonb_build_object('status','event_ended'); end if;
+  if i.ends_at is not null and t >= i.ends_at then perform rwi.end_instance(i.id); perform rwi.sweep_event(i.event_id, true); return jsonb_build_object('status','event_ended'); end if;
   if f.round_no <> p_round then return jsonb_build_object('status', case when f.round_no > p_round then 'late' else 'stale' end); end if;
   if f.phase <> 'planning' then return jsonb_build_object('status','late'); end if;          -- Runde ist bereits eingefroren
   if not exists (select 1 from jsonb_array_elements(f.state->'members') m where m->>'id' = p_key and (m->>'alive')::boolean) then return jsonb_build_object('status','unknown_member'); end if;
