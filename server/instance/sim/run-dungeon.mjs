@@ -56,15 +56,19 @@ try {
       out(`    Störungsfenster erkannt (${gaps}), niemand gilt als getrennt: ${dc === 'f' ? 'ja' : 'NEIN'}; nach Ablauf der 20 s: ${await q(`select rwi.permanently_disconnected(${memberDb[players[0].id]}, ${vts(V + 25000)})`) === 't' ? 'getrennt' : 'verbunden'}`);
       if (dc !== 'f') fail('Störungsfenster wirkt nicht');
     }
-    const submitted = [];
+    const submitted = []; let evOver = false;
     for (const m of S.members) { if (!m.alive) continue; if ((offline[m.id] || []).includes(r)) continue;
       const a = decide(S, m); const res = J(await q(`select rwi.submit_action(${FID}, '${m.id}', ${r}, $j$${JSON.stringify(a)}$j$::jsonb)`));
+      if (res.status === 'event_ended' && WB) { evOver = true; break; }                                  // Eventende während der Planung: Ablehnung ist hier die richtige Antwort (K.2 Regel 9)
       if (res.status !== 'ok') fail(`Aktion von ${m.id} abgelehnt: ${res.status}`); else { submitted.push(m.id); await q(`update rwi.members set last_seen_at = ${vts(V + 5000)} where key='${m.id}'`); } }
+    const endNow = async () => WB && (evOver || (await q(`select (status = 'event_ended' or clock_timestamp() >= ends_at) from rwi.instances where id=1`)) === 't');
+    const finishEnded = async (why) => { out(`  Runde ${r}: Event ist abgelaufen (${why}) – kein Ergebnis gespeichert`); await q(`select rwi.watchdog_tick()`); return J(await q(`select row_to_json(f) from (select id, round_no, phase, status, state from rwi.fights where id=${FID}) f`)); };
+    if (evOver) { final = await finishEnded('Eingabe abgelehnt'); break; }
     V += 30000; await q(`select rwi.advance_clock(1, ${vts(V)})`);
     const off = heal && (offline[heal.id] || []).includes(r) ? J(await q(`select to_json(rwi.permanently_disconnected(${memberDb[heal.id]}, ${vts(V)}))`)) : false;
     // Runde fällig machen (simulierte Uhr: wir springen zum Rundenende), danach Watchdog + Worker
     await q(`update rwi.fights set due_at = clock_timestamp() - interval '1 second' where id=${FID}`);
-    const wd = J(await q(`select rwi.watchdog_tick()`)); if (!wd.due.includes(FID)) fail(`Runde ${r} nicht als fällig gemeldet`);
+    const wd = J(await q(`select rwi.watchdog_tick()`)); if (!wd.due.includes(FID)) { if (await endNow()) { final = await finishEnded('nicht mehr fällig'); break; } fail(`Runde ${r} nicht als fällig gemeldet`); }
     if (r === 10) {                                                    // Worker-Absturz: claimt, stirbt vor dem Commit
       const c = J(await q(`select rwi.claim_resolution(${FID}, ${r})`)); out(`  ⚠ Worker-Absturz nach Claim (Token ${c.token.slice(0, 8)}…); Lease läuft ab`);
       const busy = J(await q(`select rwi.claim_resolution(${FID}, ${r})`)); if (busy.status !== 'busy') fail('zweiter Claim während Lease nicht „busy“');
