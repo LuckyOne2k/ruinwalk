@@ -3,7 +3,8 @@ import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, readdirSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-const binDir = () => { const b = readdirSync('/usr/lib/postgresql').sort().pop(); return `/usr/lib/postgresql/${b}/bin`; };
+// PG_MAJOR (z. B. 17) wählt die Hauptversion ausdrücklich; ohne Angabe die höchste installierte. Eine nicht installierte gewünschte Version ist ein Fehler (kein stilles Ausweichen).
+const binDir = () => { const want = process.env.PG_MAJOR; const have = readdirSync('/usr/lib/postgresql').sort((a, b) => +a - +b); if (want && !have.includes(want)) throw new Error(`PG_MAJOR=${want} ist nicht installiert (vorhanden: ${have.join(', ')})`); return `/usr/lib/postgresql/${want || have.pop()}/bin`; };
 export async function startCluster(port = 54331, extra = '') {
   const BIN = binDir(), tmp = mkdtempSync(join(tmpdir(), 'rwi-')); chmodSync(tmp, 0o755);
   const root = process.getuid && process.getuid() === 0, pre = root ? ['runuser', '-u', 'postgres', '--'] : [];

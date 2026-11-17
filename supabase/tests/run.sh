@@ -7,7 +7,7 @@ if [ -z "${RW_MODE:-}" ]; then
   echo "== Modus: ältere Projekte (automatische Rechte für API-Rollen) =="; o=$(RW_MODE=legacy LEGACY=1 bash "$0") || { echo "$o" | grep -v '^ok'; exit 1; }; echo "$o" | tail -1
   exit 0
 fi
-D="$(cd "$(dirname "$0")" && pwd)"; BIN=$(ls -d /usr/lib/postgresql/*/bin | tail -1); PORT=${PGTESTPORT:-54329}
+D="$(cd "$(dirname "$0")" && pwd)"; BIN=${PG_MAJOR:+/usr/lib/postgresql/$PG_MAJOR/bin}; BIN=${BIN:-$(ls -d /usr/lib/postgresql/*/bin | sort -V | tail -1)}; [ -x "$BIN/initdb" ] || { echo "PostgreSQL-Binaries nicht gefunden: $BIN"; exit 1; }; PORT=${PGTESTPORT:-54329}
 RUN=""; TMP=$(mktemp -d); chmod 755 "$TMP"
 if [ "$(id -u)" = 0 ]; then id postgres >/dev/null; chown postgres "$TMP"; chmod 755 "$D" "$D/.." ; RUN="runuser -u postgres --"; fi
 $RUN $BIN/initdb -D "$TMP/data" -A trust -U postgres >/dev/null

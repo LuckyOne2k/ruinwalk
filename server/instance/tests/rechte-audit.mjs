@@ -61,6 +61,14 @@ try {
   ok((await lines(`select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','rwi') and p.prosecdef and exists (select 1 from unnest(p.proconfig) c where c like 'search_path=%' and c !~ 'pg_temp$')`)).length === 0, 'in jedem festen search_path steht pg_temp zuletzt (kein Vorrang für temporäre Objekte)');
   ok((await q(`select count(*) from pg_proc p where p.pronamespace='rwi'::regnamespace and not p.prosecdef and p.proconfig is not null`)) === '0', 'rwi: übrige Funktionen laufen als Aufrufer ohne eigene Konfiguration (Serverrollen, kein erweiterter Zugriff)');
 
+
+  // Statische Heuristik (kein Parser): in den Instanz-Skripten steht hinter from/join/update/into/delete from/insert into keine rwi-Tabelle ohne Schemaname.
+  // Ergänzt die Laufzeitnachweise (claim/commit mit search_path pg_catalog, Wrapper mit search_path public, pg_temp); ersetzt keinen Beweis für jede Verzweigung.
+  { const tabs = (await lines(`select relname from pg_class where relnamespace='rwi'::regnamespace and relkind='r' order by 1`));
+    const re = new RegExp(`\\b(from|join|update|into)\\s+(${tabs.join('|')})\\b`, 'gi'); const hits = [];
+    for (const f of ['01_proto', '02_actions', '03_windows', '04_gruppe', '05_produktion']) SQL(f).split('\n').forEach((l, i) => { const code = l.replace(/--.*$/, ''); re.lastIndex = 0; if (re.test(code)) hits.push(`${f}:${i + 1}`); });
+    eq(hits, [], `statisch: keine unqualifizierten Verweise auf die ${tabs.length} rwi-Tabellen in den Instanz-Skripten (Heuristik)`); }
+
   // Trigger auf auth.users und Wechselwirkungen
   eq(await lines(`select tgname from pg_trigger where tgrelid='auth.users'::regclass and not tgisinternal`), ['on_auth_user_created'], 'auth.users: genau ein eigener Trigger');
   eq(await lines(`select n.nspname || '.' || c.relname || '.' || t.tgname || ' ' || case when t.tgtype & 2 = 2 then 'BEFORE' else 'AFTER' end from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where not t.tgisinternal and n.nspname = 'public' order by 1`),
