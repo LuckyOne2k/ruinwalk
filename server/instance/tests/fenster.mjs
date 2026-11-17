@@ -12,7 +12,7 @@ const cl = await startCluster(54390);
 const q = async (s) => { const r = await cl.psql(s); if (r.code) throw new Error(r.err + '\n' + s.slice(0, 300)); return r.out; };
 const J = (s) => JSON.parse(s);
 try {
-  for (const f of ['01_proto', '02_actions', '03_windows']) await q(readFileSync(join(here, `../sql/${f}.sql`), 'utf8'));
+  for (const f of ['01_proto', '02_actions', '03_windows', '04_gruppe']) await q(readFileSync(join(here, `../sql/${f}.sql`), 'utf8'));
   // Testkampf mit Gruppe REAL5; dead: Ids der toten Mitglieder (deaths=1), items: Wiederbelebungsitems je Mitglied
   const setup = async ({ dead = [], items = {}, deaths = 1 } = {}) => {
     const S = newFight(REAL5, { bossHp: REAL_BOSS_HP });

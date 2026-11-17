@@ -4,6 +4,8 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { playFight, TEAM4 } from '../sim/fight.mjs';
+import { enableLegacyReference } from '../engine/v1.mjs';
+enableLegacyReference();                                        // eingefrorene Regressionsreferenz: nur hier und in den Kernregeltests erlaubt
 import { sha256, utf8, hex, canon } from '../engine/rng.mjs';
 const file = join(dirname(fileURLToPath(import.meta.url)), 'golden/dungeon-referenz.json');
 const rows = [];

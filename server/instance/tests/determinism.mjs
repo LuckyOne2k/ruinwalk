@@ -2,7 +2,8 @@
 import { sha256, hmac, utf8, hex, draw32 } from '../engine/rng.mjs';
 import { playAll } from './scenarios.mjs';
 import { playFight, TEAM4, REAL4, REAL5, REAL_BOSS_HP, REAL_BOSS_ATK } from '../sim/fight.mjs';
-import { ENGINE_VERSION } from '../engine/v1.mjs';
+import { ENGINE_VERSION, enableLegacyReference } from '../engine/v1.mjs';
+enableLegacyReference();                                        // die 120-Kämpfe-Kette der alten Phase-1-Referenz nutzt die Testprofile
 const rt = typeof Deno !== 'undefined' ? 'deno ' + Deno.version.deno : typeof Bun !== 'undefined' ? 'bun ' + Bun.version : 'node ' + process.version;
 const checks = [];
 const eq = (n, a, b) => checks.push({ n, ok: a === b });

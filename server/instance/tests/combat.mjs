@@ -1,6 +1,7 @@
 // Engine-Tests Phase 1, Kern (alte Testprofile, wie die Dungeon-Referenz):  node server/instance/tests/combat.mjs
 // Klassenstruktur, Fähigkeiten, Wiederbelebung, Todesfenster: tests/struktur.mjs
-import { resolveRound, newFight, DEFAULT_CFG, ENGINE_VERSION } from '../engine/v1.mjs';
+import { resolveRound, newFight, DEFAULT_CFG, ENGINE_VERSION, enableLegacyReference } from '../engine/v1.mjs';
+enableLegacyReference();                                        // Kernregeltests laufen auf den alten Testprofilen
 import { hashOf } from '../engine/rng.mjs';
 import { playFight, TEAM4 } from '../sim/fight.mjs';
 import { BOSS } from '../engine/content.mjs';

@@ -5,13 +5,14 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { startCluster } from '../tests/pg.mjs';
-import { newFight, resolveClaim, ENGINE_VERSION } from '../engine/v1.mjs';
+import { newFight, resolveClaim, ENGINE_VERSION, enableLegacyReference } from '../engine/v1.mjs';
 import { decide, decideRevive } from './bots.mjs';
 import { describe, TEAM4, REAL4, REAL_BOSS_HP, REAL_BOSS_ATK } from './fight.mjs';
 import { BOSS, GRUNDKLASSEN, PFADE } from '../engine/content.mjs';
 import { LEGACY_CLASSES } from '../engine/legacy.mjs';
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i < 0 ? d : (process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : true); };
 const SEEDN = +arg('seed', 1), TEAM = arg('team', '4'), WB = !!arg('weltboss-ende', false), QUIET = !!arg('ruhig', false);
+if (TEAM === 'legacy') enableLegacyReference();                  // nur die ausdrücklich gewählte Referenzgruppe
 const here = dirname(fileURLToPath(import.meta.url)), sqlDir = join(here, '../sql');
 const LEG = TEAM === 'legacy', T4 = LEG ? TEAM4 : REAL4;                                          // Standard: Gruppe nach der echten Klassenstruktur; legacy: alte Testprofile
 const players = TEAM === 'noheal' ? T4.slice(0, 3) : TEAM === 'notank' ? T4.slice(1) : TEAM === '3' ? [T4[0], T4[1], T4[3]] : T4;
@@ -23,7 +24,7 @@ const q = async (sql) => { const r = await cl.psql(sql); if (r.code) throw new E
 const J = (s) => JSON.parse(s);
 let problems = 0; const fail = (m) => { problems++; console.log('PROBLEM: ' + m); };
 try {
-  await q(readFileSync(join(sqlDir, '01_proto.sql'), 'utf8')); await q(readFileSync(join(sqlDir, '02_actions.sql'), 'utf8')); await q(readFileSync(join(sqlDir, '03_windows.sql'), 'utf8'));
+  await q(readFileSync(join(sqlDir, '01_proto.sql'), 'utf8')); await q(readFileSync(join(sqlDir, '02_actions.sql'), 'utf8')); await q(readFileSync(join(sqlDir, '03_windows.sql'), 'utf8')); await q(readFileSync(join(sqlDir, '04_gruppe.sql'), 'utf8'));
   await q(`update rwi.cfg set v = 1 where k = 'lease_seconds'; update rwi.cfg set v = 30 where k = 'round_seconds'`);
   const S0 = newFight(players, LEG ? {} : { bossHp: REAL_BOSS_HP, bossAtk: REAL_BOSS_ATK });
   const ev = WB ? `, 5000, clock_timestamp() + interval '1 hour'` : `, null, null`;

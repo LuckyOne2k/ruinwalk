@@ -8,7 +8,13 @@ import { ABILITIES, LEGACY_ABILITIES, GRUNDKLASSEN, PFADE, LEGACY_CLASSES, BOSS,
 export const ENGINE_VERSION = 'v1-0.1+' + CONTENT_VERSION;
 
 // players: [{id, name?, grundklasse, pfad, tier}] (Struktur laut Architekturbericht) oder – nur für die Regressionsreferenz – [{id, cls: 'waechter'|…}] (alte Testprofile)
+// Trennung der Referenzprofile: Die alten Testprofile (legacy.mjs) laufen nur nach ausdrücklicher Freischaltung durch ein Regressions-Werkzeug
+// (Referenzkämpfe, Kernregeltests). Der reguläre Pfad (Server, Edge Function, Gruppenkämpfe) schaltet sie nie frei und lehnt sie ab.
+let LEGACY_OK = false;
+export const enableLegacyReference = () => { LEGACY_OK = true; };
+export const legacyReferenceEnabled = () => LEGACY_OK;
 export function newFight(players, cfg = {}) {
+  if (!LEGACY_OK && players.some((p) => p.cls)) throw new Error('Referenzprofil (legacy) im regulären Engine-Pfad nicht erlaubt');
   const members = players.map((p) => {
     let base, abilities, auto, cls;
     if (p.cls && LEGACY_CLASSES[p.cls]) { base = LEGACY_CLASSES[p.cls]; abilities = [...base.abilities]; auto = abilities[0]; cls = p.cls; }
@@ -25,6 +31,7 @@ export const DEFAULT_CFG = { crit_pct: 15, crit_mult: 200, spread: 4, round_limi
 
 export function resolveRound(input) {
   const cfg = { ...DEFAULT_CFG, ...(input.cfg || {}) }, seed = fromHex(input.seed), fid = input.fight_id, rn = input.round_no;
+  if (!LEGACY_OK && (input.state.members || []).some((m) => m.legacy)) throw new Error('Referenzprofil (legacy) im regulären Engine-Pfad nicht erlaubt');
   const S = JSON.parse(JSON.stringify(input.state)), A = input.actions || {}, boss = S.monster, log = []; let n = 0;
   const reviveOk = new Set(input.revive_ok || []), revivedNow = new Set();   // reviveOk: Ziele, für die der Server die Wiederbelebung vor Fensterablauf gültig angenommen hat
   const rnd = (stream, max) => drawInt(seed, stream, fid, rn, n++, max);
@@ -197,4 +204,21 @@ export const CFG_VERSIONS = { 1: DEFAULT_CFG };
 export function resolveClaim(claimInput) {
   const cfg = CFG_VERSIONS[claimInput.cfg_version]; if (!cfg) throw new Error('unbekannte cfg_version ' + claimInput.cfg_version);
   return resolveRound({ fight_id: claimInput.fight_id, round_no: claimInput.round_no, seed: claimInput.seed, cfg, state: claimInput.snapshot.state, actions: claimInput.snapshot.actions || {}, conn: claimInput.snapshot.conn || {}, item_ok: claimInput.snapshot.item_ok || [], wipe_resume: !!claimInput.snapshot.wipe_resume, revive_ok: claimInput.snapshot.revive_ok || [], left: claimInput.snapshot.left || [] });
+}
+
+// Anfangszustand des nächsten Kampfes (Plan 1b, Übergang): Lebende behalten ihre HP, Tote kehren mit kleinem Anteil zurück (keine Wiederbelebung), alle temporären Zustände
+// entfallen, Abklingzeiten bleiben, das Wiederbelebungslimit wird zurückgesetzt. Nachrücker (nicht im vorherigen Zustand) starten mit einem Anteil ihrer HP und ohne Abklingzeiten.
+// Die Anteile sind PLATZHALTER (Balance, noch nicht festgelegt). Der Gegner ist unabhängig vom vorherigen Kampf konfiguriert.
+export const NEXT_FIGHT_PLACEHOLDERS = { returnHpPct: 10, joinerHpPct: 50 };
+export function nextFight(prev, roster, cfg = {}) {
+  const ret = cfg.returnHpPct ?? NEXT_FIGHT_PLACEHOLDERS.returnHpPct, join = cfg.joinerHpPct ?? NEXT_FIGHT_PLACEHOLDERS.joinerHpPct;
+  const before = Object.fromEntries(((prev && prev.members) || []).map((m) => [m.id, m]));
+  const S = newFight(roster, cfg);
+  S.members = S.members.map((m) => {
+    const o = before[m.id];
+    if (!o) return { ...m, hp: Math.max(1, Math.floor((m.maxhp * join) / 100)) };
+    const hp = o.alive ? o.hp : Math.max(1, Math.floor((o.maxhp * ret) / 100));
+    return { ...m, hp: Math.min(hp, m.maxhp), cd: { ...o.cd } };
+  });
+  return S;
 }

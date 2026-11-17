@@ -23,6 +23,8 @@ jobs:
           node server/instance/tests/golden.mjs
           node server/instance/tests/combat.mjs
           node server/instance/tests/struktur.mjs
+          node server/instance/tests/trennung.mjs
+          node server/instance/tests/offen.mjs
   database:
     runs-on: ubuntu-latest
     steps:
@@ -38,6 +40,8 @@ jobs:
         run: node server/instance/tests/run.mjs
       - name: Todesfenster, Wiederbelebung, Wipe-Halt, Gruppenpause, Eventende je Eingangsfunktion
         run: node server/instance/tests/fenster.mjs
+      - name: Gruppenverwaltung und instance_view
+        run: node server/instance/tests/gruppe.mjs
       - name: K.2-Vergleich (neue Variante muss fehlerfrei sein)
         run: |
           node server/instance/tests/k2-compare.mjs skip 15
