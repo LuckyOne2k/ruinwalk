@@ -52,7 +52,7 @@ async function suite(mode) {
       '|' || coalesce((select bool_or(a.grantee = 0) from aclexplode(p.proacl) a), true)::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'rwi' order by p.proname, p.oid::regprocedure::text`);
     const rows = FN.split('\n').map((l) => l.split('|'));
     const TEST = ['join', 'leave', 'set_ready', 'submit_action', 'submit_action_for', 'instance_view', 'heartbeat', 'heartbeat_for', 'use_revive_item', 'decline_revive_item', 'current_player'];
-    const TRIG = ['members_size_guard', 'on_fight_end', 'reward_filter'];
+    const TRIG = ['members_size_guard', 'on_fight_end', 'reward_filter', 'on_character_deleted'];
     ok(rows.length >= 45, `${tag} Inventar: ${rows.length} Funktionen im Schema rwi gefunden`);
     ok(rows.every((r) => r[2] === 'false' && r[3] === 'false'), `${tag} KEINE rwi-Funktion ist für anon oder authenticated ausführbar`, rows.filter((r) => r[2] !== 'false' || r[3] !== 'false').map((r) => r[0]).join(','));
     ok(rows.every((r) => r[5] === 'false'), `${tag} KEINE rwi-Funktion hat ein PUBLIC-Recht (auch nicht das Standard-EXECUTE)`, rows.filter((r) => r[5] !== 'false').map((r) => r[0]).join(','));
@@ -73,13 +73,13 @@ async function suite(mode) {
     ok(wr.map((r) => r[0]).join() === [...WR].sort().join(), `${tag} genau die acht Client-Wrapper existieren in public`, wr.map((r) => r[0]).join(','));
     ok(wr.every((r) => r[1] === 'false' && r[2] === 'true' && r[3] === 'false' && r[4] === 'false'), `${tag} Wrapper: nur authenticated darf ausführen (kein anon, kein PUBLIC, kein service_role)`);
     ok(wr.every((r) => r[5] === 'true' && /search_path=public, pg_temp/.test(r[6])), `${tag} Wrapper: SECURITY DEFINER mit festem search_path`);
-    const SD = await q(`select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='rwi' and p.prosecdef and p.proname <> 'own_character'`);
-    ok(SD === '0', `${tag} im Schema rwi ist nur own_character SECURITY DEFINER (kein verstecktes Definer-Recht)`);
+    const SD = await q(`select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='rwi' and p.prosecdef and p.proname not in ('own_character', 'on_character_deleted')`);
+    ok(SD === '0', `${tag} im Schema rwi sind nur own_character und der Löschtrigger on_character_deleted SECURITY DEFINER (kein verstecktes Definer-Recht)`);
     ok((await q(`select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and (p.proname ~* 'reward|claim|belohn') and has_function_privilege('authenticated', p.oid, 'execute')`)) === '0',
       `${tag} es gibt (noch) keine für Clients ausführbare Belohnungs-Abruf- oder Einlösefunktion – Belohnungstabellen sind unerreichbar`);
     // Wächter: eine neue, nicht eingeordnete rwi-Funktion bricht die Rechte-Skript-Ausführung ab
     await q(`create function rwi.neu_unklassifiziert() returns int language sql as $$ select 1 $$`);
-    const g = await cl.psql(SQL('05_produktion').replace(/create function rwi\.own_character[\s\S]*?end \$\$;\n/, '').replace(/create function public\.group_[\s\S]*?end \$\$;\n/g, ''));
+    const g = await cl.psql(SQL('05_produktion').replace(/create function rwi\.own_character[\s\S]*?end \$\$;\n/, '').replace(/create function rwi\.on_character_deleted[\s\S]*?end \$\$;\n/, '').replace(/create trigger characters_rwi_cleanup[^\n]*\n/, '').replace(/create function public\.group_[\s\S]*?end \$\$;\n/g, ''));
     ok(failsWith(g, /nicht \(eindeutig\) klassifiziert/), `${tag} Wächter: neue rwi-Funktion ohne Einordnung lässt das Rechte-Skript scheitern`);
     await q(`drop function rwi.neu_unklassifiziert()`);
 
@@ -229,7 +229,7 @@ async function suite(mode) {
     // gleiche Daten als Superuser: der Prototyp-Weg (Tests mit Spielerparametern) bleibt für den Tabelleneigentümer erhalten
     const own = J(await q(`select rwi.instance_view(${I1}, '${CH.B1}')`)); ok(own.status === 'ok', `${tag} Tabelleneigentümer (Migrationsrolle) kann die Testfunktionen weiter nutzen`);
     // Rechte stabil nach erneuter Ausführung
-    await q(SQL('05_produktion').replace(/create function rwi\.own_character[\s\S]*?end \$\$;\n/, '').replace(/create function public\.group_[\s\S]*?end \$\$;\n/g, ''));
+    await q(SQL('05_produktion').replace(/create function rwi\.own_character[\s\S]*?end \$\$;\n/, '').replace(/create function rwi\.on_character_deleted[\s\S]*?end \$\$;\n/, '').replace(/create trigger characters_rwi_cleanup[^\n]*\n/, '').replace(/create function public\.group_[\s\S]*?end \$\$;\n/g, ''));
     const again = (await q(`select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='rwi' and (has_function_privilege('anon', p.oid, 'execute') or has_function_privilege('authenticated', p.oid, 'execute'))`));
     ok(again === '0', `${tag} Rechte-Skript ist wiederholbar und lässt keine Clientrechte zurück`);
     // Ausgabe der Matrix für den Bericht (nur Ausgabe, keine Prüfung)

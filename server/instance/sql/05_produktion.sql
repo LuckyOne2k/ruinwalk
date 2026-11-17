@@ -100,6 +100,34 @@ begin
 end $$;
 
 ------------------------------------------------------------------------------------------------
+-- Charakter oder Konto gelöscht: Instanzdaten bereinigen (Integration mit public.characters)
+------------------------------------------------------------------------------------------------
+-- Das Schema rwi hat keinen Fremdschlüssel auf public.characters (Spielerschlüssel = character_id::text). Ohne diesen Trigger blieben nach dem Löschen eines
+-- Charakters (delete_character) oder Kontos (delete_account, Kaskade) ein aktives Mitglied ohne Charakter in laufenden Instanzen und die Profilzeile in
+-- rwi.players zurück. Regel: Löschen = freiwilliger Austritt über die bestehende Funktion rwi.leave (keine neue Spielregel), danach wird das Profil entfernt.
+-- Das Löschen selbst scheitert nie am Spielstand (Kontolöschung darf nicht blockiert werden); ein Fehler beim Austritt wird in rwi.ops_alerts protokolliert.
+-- Mitglieds-, Kampf- und Belohnungszeilen bleiben als Verlauf erhalten; sie enthalten nur die nicht mehr zuordenbare Charakter-ID.
+create function rwi.on_character_deleted() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare k text := old.character_id::text; r record;
+begin
+  for r in select i.id from rwi.instances i
+            where i.status = 'active'
+              and (exists (select 1 from rwi.members m where m.instance_id = i.id and m.player = k and m.mstate = 'active')
+                   or exists (select 1 from rwi.waitlist w where w.instance_id = i.id and w.player = k and w.status = 'waiting'))
+            order by i.id loop
+    begin
+      perform rwi.leave(r.id, k);
+    exception when others then
+      insert into rwi.ops_alerts(what, detail) values ('char_cleanup_failed', 'instance ' || r.id || ': ' || sqlstate);
+    end;
+  end loop;
+  delete from rwi.players where player = k;
+  return old;
+end $$;
+create trigger characters_rwi_cleanup after delete on public.characters for each row execute function rwi.on_character_deleted();
+
+------------------------------------------------------------------------------------------------
 -- Rechte: ausdrücklich, nachvollziehbar, ohne Standardrechte
 ------------------------------------------------------------------------------------------------
 do $$
@@ -108,7 +136,7 @@ declare
                                'watchdog_tick','watchdog_core','eligible','glog','active_count','abort_instance','drop_member','after_auto_removal','deadline_verdict','enforce_deadlines',
                                'enforce_deadlines_quiet','promote_waitlist','create_group','roster','start_fight','contribution','set_connection','set_connection_core','group_tick','sweep_core','sweep_events'];
   test_fns     text[] := array['join','leave','set_ready','submit_action','submit_action_for','instance_view','heartbeat','heartbeat_for','use_revive_item','decline_revive_item','current_player'];
-  trigger_fns  text[] := array['members_size_guard','on_fight_end','reward_filter'];
+  trigger_fns  text[] := array['members_size_guard','on_fight_end','reward_filter','on_character_deleted'];
   internal_fns text[] := array['own_character'];
   r record; t record;
 begin
