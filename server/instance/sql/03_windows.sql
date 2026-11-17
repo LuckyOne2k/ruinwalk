@@ -88,7 +88,7 @@ begin
     snap := f.snapshot;                                                                       -- abgelaufene Lease: gespeicherter Snapshot (E.1)
   end if;
   inp := jsonb_build_object('fight_id', f.id, 'round_no', f.round_no, 'seed', encode(i.seed,'hex'), 'cfg_version', i.cfg_version, 'snapshot', snap);
-  h := encode(digest(inp::text, 'sha256'), 'hex');
+  h := encode(sha256(convert_to(inp::text, 'UTF8')), 'hex');
   update rwi.fights set phase='resolving', claim_token=tok, lease_until = t + make_interval(secs => rwi.cfg('lease_seconds')),
     round_version = round_version + 1, snapshot = snap, input_hash = h where id = f.id;
   insert into rwi.resolve_jobs(fight_id, round_no, status, last_dispatch_at) values (f.id, f.round_no, 'claimed', t)
