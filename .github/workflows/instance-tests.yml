@@ -1,0 +1,31 @@
+name: instance-tests
+on:
+  push:
+    paths: ['server/instance/**', '.github/workflows/instance-tests.yml']
+  pull_request:
+    paths: ['server/instance/**']
+jobs:
+  determinism:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: oven-sh/setup-bun@v2
+      - uses: denoland/setup-deno@v2
+        with: { deno-version: v2.x }
+      - name: Determinismus Node / Bun / Deno
+        run: bash server/instance/tests/run-determinism.sh
+  database:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: PostgreSQL-Binaries und pgcrypto
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y postgresql postgresql-contrib
+          sudo systemctl stop postgresql || true
+      - name: Phase-0-Tests (isoliertes temporäres Postgres, keine Spielerdaten)
+        run: node server/instance/tests/run.mjs
