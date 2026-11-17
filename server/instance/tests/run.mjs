@@ -16,6 +16,7 @@ const PB = (process.getuid && process.getuid() === 0) ? ['runuser', '-u', 'postg
 const q = async (sql) => { const r = await cl.psql(sql); if (r.code) throw new Error(r.err + '\n' + sql.slice(0, 300)); return r.out; };
 const J = (s) => JSON.parse(s);
 try {
+  await q('create extension if not exists pgcrypto;');   // nur für die Querprüfung 10 (HMAC in SQL); die Instanz-Skripte brauchen pgcrypto nicht mehr
   await q(readFileSync(join(here, '../sql/01_proto.sql'), 'utf8')); await q(readFileSync(join(here, '../sql/02_actions.sql'), 'utf8')); await q(readFileSync(join(here, '../sql/03_windows.sql'), 'utf8')); await q(readFileSync(join(here, '../sql/04_gruppe.sql'), 'utf8'));
   // --- Helfer: Testkampf anlegen
   const mk = async ({ ends = null, event = null, n = 1 } = {}) => {

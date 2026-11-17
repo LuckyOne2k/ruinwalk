@@ -1,6 +1,5 @@
 -- PROTOTYP Instanzkampf, Phase 0. Eigenes Schema "rwi", nur Testdaten, keine Verbindung zu Spielercharakteren oder public-Tabellen.
 -- Setzt den Architekturbericht V2 um: A.2/A.6 (Aufträge, stuck), D.1/F (effective_last_seen), E.1 (claim/commit), K.2 (Eventende).
-create extension if not exists pgcrypto;
 create schema if not exists rwi;
 
 create table rwi.cfg (k text primary key, v numeric not null);
@@ -12,7 +11,7 @@ create table rwi.instances (
   event_id bigint, ends_at timestamptz,                         -- nur Weltboss (K)
   status text not null default 'active' check (status in ('active','event_ended','aborted','technical_end','frozen','completed')),
   engine_stuck boolean not null default false,
-  seed bytea not null default gen_random_bytes(32), cfg_version int not null default 1);
+  seed bytea not null default sha256(decode(replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''), 'hex')), cfg_version int not null default 1);
 create index on rwi.instances (event_id) where status in ('active','frozen');
 
 create table rwi.members (id bigint generated always as identity primary key, instance_id bigint not null references rwi.instances, last_seen_at timestamptz not null);
