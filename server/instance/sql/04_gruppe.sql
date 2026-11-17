@@ -1,6 +1,6 @@
 -- Phase 1: Gruppenverwaltung (Beitritt, Warteliste, Nachrücken, Bereitschaft, Austritt, Entfernung) und instance_view. Schema rwi, nur Testdaten.
 -- Setzt 01_proto.sql, 02_actions.sql und 03_windows.sql voraus.
-alter table rwi.instances add column kind text not null default 'dungeon' check (kind in ('dungeon','weltboss')),
+alter table rwi.instances add column kind text not null default 'dungeon' check (kind in ('dungeon','special','weltboss')),   -- dungeon = normales Gruppendungeon, special = besonderes Dungeon (z. B. Verschlinger)
   add column stage text not null default 'fight' check (stage in ('ready','fight','done')),     -- ready = Bereitschaftsphase (auch vor dem ersten Kampf)
   add column min_size int not null default 2, add column max_size int not null default 8 check (max_size between 1 and 8),
   add column fights_total int not null default 1, add column fight_no int not null default 0, add column outcome text;
@@ -9,8 +9,10 @@ alter table rwi.members add column player text,
   add column leave_reason text check (leave_reason in ('freiwillig','abwesenheit','bereitschaft')), add column left_at timestamptz,
   add column joined_after_fights int not null default 0, add column ready boolean not null default false, add column ready_at timestamptz,
   add column ready_due timestamptz, add column disc_since timestamptz, add column potions int not null default 3;
+-- Feste Größen je Typ, nicht durch Parameter änderbar: normal ab 2, besonders und Weltboss ab 6, Höchstgröße immer 8
+alter table rwi.instances add constraint instances_size_rule check (max_size = 8 and min_size = case kind when 'dungeon' then 2 else 6 end);
 create unique index members_player_uq on rwi.members (instance_id, player) where player is not null;       -- höchstens eine Mitgliedschaft je Spieler und Instanz (kein Wiederbeitritt)
-insert into rwi.cfg values ('ready_seconds', 60), ('absence_seconds', 300);
+insert into rwi.cfg values ('ready_seconds', 60), ('absence_seconds', 300), ('contribution_min', 1);   -- contribution_min: PLATZHALTER (Balance): Mindestzahl ausgeführter Aktionen im letzten Kampf
 
 -- Testcharakter-Quelle: der Server leitet das Kampfprofil nur hieraus ab, nie aus Clientangaben (Bericht, Abschnitt B/L)
 create table rwi.players (player text primary key, lv int not null, grundklasse text, pfad text, tier int not null default 0);
@@ -53,6 +55,49 @@ begin
 end $$;
 
 -- Warteliste -> Mitglieder, nur in der Bereitschaftsphase, der Reihe nach, höchstens bis zur Höchstgröße
+-- Nach einer automatischen Entfernung: Mindestgröße prüfen (Abbruch) oder frei gewordene Plätze füllen. Instanzzeile ist gesperrt.
+create function rwi.after_auto_removal(p_instance bigint) returns boolean language plpgsql as $$
+declare i rwi.instances;
+begin
+  select * into i from rwi.instances where id = p_instance;
+  if rwi.active_count(p_instance) = 0 or rwi.active_count(p_instance) < i.min_size then perform rwi.abort_instance(p_instance, 'Mindestgröße unterschritten'); return true; end if;
+  if i.stage = 'ready' then perform rwi.promote_waitlist(p_instance); end if;
+  return false;
+end $$;
+
+-- Fristen eines Mitglieds unter der Instanzsperre prüfen (t = clock_timestamp() nach der Sperre). Abgelaufen => sofort entfernen, nie auf den Worker warten.
+-- Gibt die Ursache der Entfernung zurück oder null. Störungsfenster zählen nicht als Abwesenheit; Abwesenheit läuft in jeder Phase, auch bei Gruppenpause.
+create function rwi.enforce_deadlines(p_instance bigint, p_player text, t timestamptz) returns text language plpgsql as $$
+declare m rwi.members; i rwi.instances; gap timestamptz; why text;
+begin
+  select * into m from rwi.members where instance_id = p_instance and player = p_player and mstate = 'active';
+  if not found then return null; end if;
+  select * into i from rwi.instances where id = p_instance;
+  select coalesce(max(to_at), '-infinity') into gap from rwi.system_gaps;
+  if m.disc_since is not null and t - greatest(m.disc_since, gap) >= make_interval(secs => rwi.cfg('absence_seconds')) then why := 'abwesenheit';
+  elsif i.stage = 'ready' and not m.ready and m.ready_due is not null and m.ready_due <= t then why := 'bereitschaft'; end if;
+  if why is null then return null; end if;
+  perform rwi.drop_member(p_instance, p_player, why);
+  perform rwi.after_auto_removal(p_instance);
+  return why;
+end $$;
+
+create function rwi.enforce_deadlines_quiet(p_instance bigint, p_player text, t timestamptz) returns text language plpgsql as $$
+declare m rwi.members; i rwi.instances; gap timestamptz; why text;
+begin
+  select * into m from rwi.members where instance_id = p_instance and player = p_player and mstate = 'active';
+  if not found then return null; end if;
+  select * into i from rwi.instances where id = p_instance;
+  select coalesce(max(to_at), '-infinity') into gap from rwi.system_gaps;
+  if m.disc_since is not null and t - greatest(m.disc_since, gap) >= make_interval(secs => rwi.cfg('absence_seconds')) then why := 'abwesenheit';
+  elsif i.stage = 'ready' and not m.ready and m.ready_due is not null and m.ready_due <= t then why := 'bereitschaft'; end if;
+  if why is null then return null; end if;
+  perform rwi.drop_member(p_instance, p_player, why);
+  return why;
+end $$;
+
+create function rwi.current_player() returns text language sql stable as $$ select nullif(coalesce(current_setting('request.jwt.claim.sub', true), ''), '') $$;   -- authentifizierte Sitzung (wie auth.uid())
+
 create function rwi.promote_waitlist(p_instance bigint) returns int language plpgsql as $$
 declare i rwi.instances; w rwi.waitlist; n int := 0; t timestamptz := clock_timestamp();
 begin
@@ -69,15 +114,19 @@ begin
   return n;
 end $$;
 
-create function rwi.create_group(p_kind text, p_players text[], p_min int, p_max int, p_fights_total int, p_event bigint default null, p_ends_at timestamptz default null) returns jsonb language plpgsql as $$
-declare iid bigint; pl text; t timestamptz := clock_timestamp();
+create function rwi.create_group(p_kind text, p_players text[], p_fights_total int, p_event bigint default null, p_ends_at timestamptz default null) returns jsonb language plpgsql as $$
+declare iid bigint; pl text; t timestamptz := clock_timestamp(); mn int; n int := coalesce(array_length(p_players, 1), 0);
 begin
-  if p_max > 8 or p_min < 1 or p_min > p_max then return jsonb_build_object('status','bad_size'); end if;
-  if coalesce(array_length(p_players, 1), 0) < p_min or array_length(p_players, 1) > p_max then return jsonb_build_object('status','bad_size'); end if;
-  if (select count(distinct x) from unnest(p_players) x) <> array_length(p_players, 1) then return jsonb_build_object('status','duplicate'); end if;
+  if p_kind not in ('dungeon','special','weltboss') then return jsonb_build_object('status','bad_kind'); end if;
+  mn := case p_kind when 'dungeon' then 2 else 6 end;                                          -- feste Mindestgrößen, kein Parameter
+  if p_kind = 'dungeon' and coalesce(p_fights_total, 0) < 2 then return jsonb_build_object('status','single_fight_dungeon'); end if;       -- normale Ein-Kampf-Dungeons sind nicht vorgesehen
+  if p_kind = 'special' and coalesce(p_fights_total, 0) < 1 then return jsonb_build_object('status','bad_fights'); end if;
+  if p_kind = 'weltboss' and (p_fights_total is distinct from 1 or p_event is null or p_ends_at is null) then return jsonb_build_object('status','bad_weltboss'); end if;
+  if p_kind <> 'weltboss' and (p_event is not null or p_ends_at is not null) then return jsonb_build_object('status','bad_weltboss'); end if;
+  if n < mn or n > 8 then return jsonb_build_object('status','bad_size','min',mn,'max',8); end if;
+  if (select count(distinct x) from unnest(p_players) x) <> n then return jsonb_build_object('status','duplicate'); end if;
   foreach pl in array p_players loop if not rwi.eligible(pl) then return jsonb_build_object('status','not_eligible','player',pl); end if; end loop;
-  if p_kind = 'weltboss' and p_fights_total <> 1 then return jsonb_build_object('status','bad_size'); end if;
-  insert into rwi.instances(kind, stage, min_size, max_size, fights_total, event_id, ends_at) values (p_kind, 'ready', p_min, p_max, p_fights_total, p_event, p_ends_at) returning id into iid;
+  insert into rwi.instances(kind, stage, min_size, max_size, fights_total, event_id, ends_at) values (p_kind, 'ready', mn, 8, p_fights_total, p_event, p_ends_at) returning id into iid;
   insert into rwi.members(instance_id, player, key, last_seen_at, ready_due, potions) select iid, x, x, t, t + make_interval(secs => rwi.cfg('ready_seconds')), 3 from unnest(p_players) x;
   return jsonb_build_object('status','ok','instance',iid);
 end $$;
@@ -94,12 +143,12 @@ begin
   select * into m from rwi.members where instance_id = i.id and player = p_player;
   if found then return jsonb_build_object('status', case when m.mstate = 'active' then 'already_member' else 'no_rejoin' end); end if;      -- kein Wiederbeitritt nach Austritt oder Entfernung
   if exists (select 1 from rwi.waitlist where instance_id = i.id and player = p_player and status = 'waiting') then return jsonb_build_object('status','already_waiting'); end if;
-  if i.fights_total = 1 then                                                                 -- Einkampf-Instanz (Weltboss): kein Nachrücken, Beitritt nur vor dem Start und nur mit freiem Platz
+  if i.kind = 'weltboss' or i.fights_total = 1 then                                          -- Weltboss (Typ) oder Einkampf-Instanz: kein Übergang, also kein Nachrücken; Beitritt nur vor dem Start und nur mit freiem Platz
     if i.fight_no > 0 or i.stage <> 'ready' then return jsonb_build_object('status','no_join'); end if;
     if rwi.active_count(i.id) >= i.max_size then return jsonb_build_object('status','full'); end if;
   elsif i.fight_no >= i.fights_total then return jsonb_build_object('status','no_join');       -- im letzten Kampf gibt es keinen weiteren Übergang
   end if;
-  if i.fights_total = 1 then
+  if i.kind = 'weltboss' or i.fights_total = 1 then
     insert into rwi.members(instance_id, player, key, last_seen_at, ready_due, joined_after_fights, potions) values (i.id, p_player, p_player, t, t + make_interval(secs => rwi.cfg('ready_seconds')), 0, 3);
     perform rwi.glog(i.id, p_player, 'beigetreten', null); return jsonb_build_object('status','joined');
   end if;
@@ -129,7 +178,7 @@ begin
 end $$;
 
 create function rwi.set_ready(p_instance bigint, p_player text) returns jsonb language plpgsql as $$
-declare i rwi.instances; t timestamptz; m rwi.members; allr boolean;
+declare i rwi.instances; t timestamptz; m rwi.members; allr boolean; why text;
 begin
   select * into i from rwi.instances where id = p_instance for update;
   if not found then return jsonb_build_object('status','no_instance'); end if;
@@ -138,6 +187,8 @@ begin
   if i.status <> 'active' then return jsonb_build_object('status', i.status); end if;
   select * into m from rwi.members where instance_id = i.id and player = p_player;
   if not found or m.mstate <> 'active' then return jsonb_build_object('status','not_member'); end if;
+  why := rwi.enforce_deadlines(i.id, p_player, t);                                           -- abgelaufene Frist: nicht annehmen, auch wenn group_tick noch nicht gelaufen ist
+  if why is not null then return jsonb_build_object('status','removed','reason',why,'instance_aborted',(select status = 'aborted' from rwi.instances where id = i.id)); end if;
   if i.stage <> 'ready' then return jsonb_build_object('status','not_ready_phase'); end if;
   if not m.ready then update rwi.members set ready = true, ready_at = t, ready_due = null where id = m.id; end if;          -- bestätigt, nicht widerrufbar, bleibt bei Verbindungsabbruch bestehen
   select not exists (select 1 from rwi.members where instance_id = i.id and mstate = 'active' and not ready) into allr;
@@ -205,6 +256,11 @@ begin
 end $$;
 create trigger fights_end after update of status on rwi.fights for each row when (old.status = 'active' and new.status in ('won','lost')) execute function rwi.on_fight_end();
 
+-- Beitrag im letzten Kampf: Anzahl ausgeführter Aktionen (Platzhalter für die noch offene Beitragsberechnung, Plan 1d)
+create function rwi.contribution(p_instance bigint, p_key text) returns int language sql stable as $$
+  select count(*)::int from rwi.round_results r, lateral jsonb_array_elements(r.result->'log') e
+  where r.fight_id = (select max(id) from rwi.fights where instance_id = p_instance) and e->>'a' = p_key and e->>'e' in ('act','revive') $$;
+
 -- Persönliche Abschlussbelohnung: nur bei Abschluss der gesamten Instanz; entfällt bei freiwilligem Austritt und (vorsichtig, Beitragsschwelle ist Balance) bei Entfernung
 create function rwi.reward_filter() returns trigger language plpgsql as $$
 declare mb rwi.members; i rwi.instances;
@@ -213,7 +269,8 @@ begin
     select * into i from rwi.instances where id = new.instance_id;
     if found and i.fight_no >= 1 and not (i.stage = 'done' and i.outcome = 'won') then return null; end if;        -- Gruppeninstanz: Abschlussbelohnung erst beim erfolgreichen Abschluss der gesamten Instanz, nicht nach Einzelkämpfen
     select * into mb from rwi.members where instance_id = new.instance_id and key = new.test_member;
-    if found and mb.mstate <> 'active' then return null; end if;
+    if found and mb.mstate = 'left' then return null; end if;                                                     -- freiwilliger Austritt: entfällt
+    if found and mb.mstate = 'removed' and rwi.contribution(new.instance_id, new.test_member) < rwi.cfg('contribution_min') then return null; end if;   -- automatisch entfernt: bleibt, wenn im letzten Kampf beigetragen (Schwelle ist Balance, Platzhalter)
   end if;
   return new;
 end $$;
@@ -253,11 +310,15 @@ end $$;
 -- In der Bereitschaftsphase gibt es keine Gruppenpause, die Abwesenheitsfrist läuft weiter.
 alter function rwi.set_connection(bigint, text, boolean) rename to set_connection_core;
 create function rwi.set_connection(p_instance bigint, p_key text, p_connected boolean) returns jsonb language plpgsql as $$
-declare i rwi.instances; m rwi.members; t timestamptz;
+declare i rwi.instances; m rwi.members; t timestamptz; why text;
 begin
   select * into i from rwi.instances where id = p_instance for update; t := clock_timestamp();
   select * into m from rwi.members where instance_id = p_instance and key = p_key;
   if found and m.mstate <> 'active' then return jsonb_build_object('status','ignored'); end if;                -- Ausgeschiedene zählen nicht mehr als Verbundene
+  if found and p_connected and m.player is not null and i.status = 'active' then
+    why := rwi.enforce_deadlines(p_instance, m.player, t);                                   -- Frist zuerst prüfen, erst danach darf disc_since zurückgesetzt werden
+    if why is not null then return jsonb_build_object('status','removed','reason',why,'instance_aborted',(select status = 'aborted' from rwi.instances where id = p_instance)); end if;
+  end if;
   if found then
     if p_connected then
       update rwi.members set disc_since = null, ready_due = case when i.stage = 'ready' and not ready and player is not null then t + make_interval(secs => rwi.cfg('ready_seconds')) else ready_due end where id = m.id;   -- 60 s ab Wiederverbindung
@@ -273,38 +334,43 @@ begin
 end $$;
 
 -- Herzschlag eines Spielers (schreibend). instance_view selbst schreibt nie.
-create function rwi.heartbeat(p_instance bigint, p_player text, p_now timestamptz default clock_timestamp()) returns jsonb language plpgsql as $$
-declare k text;
+create function rwi.heartbeat(p_instance bigint) returns jsonb language plpgsql as $$
+declare me text := rwi.current_player(); i rwi.instances; m rwi.members; t timestamptz; r jsonb;
 begin
-  select key into k from rwi.members where instance_id = p_instance and player = p_player and mstate = 'active';
-  if k is null then return jsonb_build_object('status','not_member'); end if;
-  perform rwi.advance_clock(p_instance, p_now);
-  update rwi.members set last_seen_at = p_now where instance_id = p_instance and player = p_player;
-  return rwi.set_connection(p_instance, k, true);
+  if me is null then return jsonb_build_object('status','unauthenticated'); end if;             -- Identität nur aus der authentifizierten Sitzung, nie als Parameter
+  select * into i from rwi.instances where id = p_instance for update;                           -- erst sperren, dann die Zeit nehmen
+  if not found then return jsonb_build_object('status','not_member'); end if;
+  t := clock_timestamp();                                                                        -- ausschließlich Serverzeit, keine Zeit vom Client
+  select * into m from rwi.members where instance_id = p_instance and player = me;
+  if not found or m.mstate <> 'active' then return jsonb_build_object('status','not_member'); end if;
+  if i.status = 'active' and i.ends_at is not null and t >= i.ends_at then perform rwi.end_instance(i.id); perform rwi.sweep_event(i.event_id, true); return jsonb_build_object('status','event_ended'); end if;
+  if i.status <> 'active' then return jsonb_build_object('status', i.status); end if;
+  perform rwi.advance_clock(p_instance, t);
+  r := rwi.set_connection(p_instance, m.key, true);                                              -- prüft zuerst die Fristen, setzt dann Anwesenheit und Verbindungsstatus
+  if r->>'status' = 'removed' then return r; end if;
+  update rwi.members set last_seen_at = t where id = m.id;
+  return r;
 end $$;
 
 -- Zeitregeln der Gruppe: Abwesenheit (5 min), Bereitschaft (60 s), Mindestgröße nach automatischer Entfernung, Nachrücken, Eventende
-create function rwi.group_tick(p_now timestamptz default clock_timestamp()) returns jsonb language plpgsql as $$
-declare iid bigint; i rwi.instances; mm record; auto int; removed int := 0; aborted int := 0; promoted int := 0; start_ids jsonb := '[]'; gap timestamptz;
+create function rwi.group_tick(p_now timestamptz default null) returns jsonb language plpgsql as $$
+declare iid bigint; i rwi.instances; mm record; auto int; removed int := 0; aborted int := 0; promoted int := 0; start_ids jsonb := '[]'; t timestamptz; why text;
 begin
-  select coalesce(max(to_at), '-infinity') into gap from rwi.system_gaps;
   for iid in select id from rwi.instances where status = 'active' and stage <> 'done' and exists (select 1 from rwi.members where instance_id = rwi.instances.id and player is not null) order by id loop
     perform 1 from rwi.instances where id = iid for update skip locked; if not found then continue; end if;
+    t := coalesce(p_now, clock_timestamp());                                                    -- Zeit erst nach der Sperre
     select * into i from rwi.instances where id = iid;
     if i.status <> 'active' or i.stage = 'done' then continue; end if;
-    if i.ends_at is not null and p_now >= i.ends_at then perform rwi.end_instance(i.id); perform rwi.sweep_event(i.event_id, true); continue; end if;
+    if i.ends_at is not null and t >= i.ends_at then perform rwi.end_instance(i.id); perform rwi.sweep_event(i.event_id, true); continue; end if;
     auto := 0;
-    for mm in select * from rwi.members where instance_id = iid and mstate = 'active' and disc_since is not null and p_now - greatest(disc_since, gap) >= make_interval(secs => rwi.cfg('absence_seconds')) order by id loop
-      perform rwi.drop_member(iid, mm.player, 'abwesenheit'); auto := auto + 1;
+    for mm in select player from rwi.members where instance_id = iid and mstate = 'active' order by id loop
+      why := rwi.enforce_deadlines_quiet(iid, mm.player, t); if why is not null then auto := auto + 1; end if;
     end loop;
-    if i.stage = 'ready' then
-      for mm in select * from rwi.members where instance_id = iid and mstate = 'active' and not ready and ready_due is not null and ready_due <= p_now order by id loop
-        perform rwi.drop_member(iid, mm.player, 'bereitschaft'); auto := auto + 1;
-      end loop;
-    end if;
     removed := removed + auto;
-    if rwi.active_count(iid) = 0 or (auto > 0 and rwi.active_count(iid) < i.min_size) then perform rwi.abort_instance(iid, 'Mindestgröße unterschritten'); aborted := aborted + 1; continue; end if;
-    if i.stage = 'ready' and auto > 0 then promoted := promoted + rwi.promote_waitlist(iid); end if;
+    if auto > 0 then
+      if rwi.after_auto_removal(iid) then aborted := aborted + 1; continue; end if;
+      select * into i from rwi.instances where id = iid;
+    end if;
     if i.stage = 'ready' and not exists (select 1 from rwi.members where instance_id = iid and mstate = 'active' and not ready) and (i.fight_no > 0 or rwi.active_count(iid) >= i.min_size) then
       start_ids := start_ids || to_jsonb(iid);
     end if;
