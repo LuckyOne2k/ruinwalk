@@ -12,6 +12,7 @@ Alle Inhalte (Klassen, Boss, Zahlen) sind **Testwerte**, keine Spielbalance.
 | Klassenstruktur (4 Grundklassen, 12 Pfade, 48 Fähigkeiten), Statusregeln, Wiederbelebung A/B/C, Limit, Wipe-Wiederaufnahme (57) | `node server/instance/tests/struktur.mjs` |
 | Eingefrorene Referenzkämpfe (12, alte Testprofile) | `node server/instance/tests/golden.mjs` |
 | Gruppenverwaltung (Beitritt, Warteliste, Nachrücken, Bereitschaft, Austritt, Entfernung, Abbruch) und `instance_view` (157) | `node server/instance/tests/gruppe.mjs` |
+| Eventende-Semantik: `completed_at < ends_at` zählt, Commit darf später folgen; konkurrierende Transaktionen, Ansicht „ending“, kein Sieg/keine Belohnung nach dem Ende (27) | `node server/instance/tests/semantik.mjs` |
 | Produktionssicherheit: Spieleridentität und Rechte mit echten Rollen anon/authenticated/service_role, Modus neu und legacy (214) | `node server/instance/tests/produktion.mjs` |
 | Trennung der alten Testprofile vom regulären Engine-Pfad (12) | `node server/instance/tests/trennung.mjs` |
 | Statusliste offener Kampfregeln, an echtem Engine-Verhalten belegt (10 Proben) | `node server/instance/tests/offen.mjs` |

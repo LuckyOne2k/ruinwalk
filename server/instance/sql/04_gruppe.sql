@@ -495,10 +495,12 @@ begin
   select * into me from rwi.members where instance_id = p_instance and player = p_player; have_me := found;
   select * into w from rwi.waitlist where instance_id = p_instance and player = p_player and status = 'waiting'; have_w := found;
   if not have_me and not have_w then return jsonb_build_object('status','forbidden'); end if;
-  eff := i.status; if eff in ('active','frozen') and i.ends_at is not null and t >= i.ends_at then eff := 'event_ended'; end if;     -- Eventende gilt auch bei veraltetem Datenbankstand
-  stg := case when eff <> 'active' then 'done' else i.stage end;
+  -- Endzustände (event_ended, completed, …) stammen ausschließlich aus festgeschriebenen Daten, nie aus der Uhr: Eine bereits vor ends_at getroffene, noch nicht committete Abschlussentscheidung
+  -- ist für diese Lesesicht unsichtbar. Nach ends_at ohne festgehaltenen Endzustand meldet die Ansicht deshalb nur den vorläufigen, nicht endgültigen Zustand 'ending' (nichts ist mehr handlungsfähig).
+  eff := i.status; if eff in ('active','frozen') and i.ends_at is not null and t >= i.ends_at then eff := 'ending'; end if;
+  stg := case when eff in ('active','ending') then i.stage else 'done' end;
   out := jsonb_build_object('status','ok','server_now', t, 'instance', jsonb_build_object('id', i.id, 'kind', i.kind, 'status', eff, 'stage', stg, 'fight_no', i.fight_no, 'fights_total', i.fights_total,
-         'ends_at', i.ends_at, 'outcome', case when eff = 'event_ended' then 'event_ended' else i.outcome end));
+         'ends_at', i.ends_at, 'outcome', i.outcome));
   if have_w and not have_me then
     return out || jsonb_build_object('me', jsonb_build_object('state','waiting','position', (select count(*)::int from rwi.waitlist x where x.instance_id = p_instance and x.status = 'waiting' and x.id <= w.id)));
   end if;
@@ -512,9 +514,9 @@ begin
     'waitlist_size', (select count(*)::int from rwi.waitlist x where x.instance_id = p_instance and x.status = 'waiting'));
   select * into f from rwi.fights where instance_id = p_instance order by id desc limit 1;
   if found then
-    rem := case when stg <> 'fight' or f.status <> 'active' or f.phase <> 'planning' then null when f.due_at = 'infinity' then f.due_remaining_ms else greatest(0, (extract(epoch from (f.due_at - t)) * 1000)::bigint) end;
+    rem := case when eff <> 'active' or stg <> 'fight' or f.status <> 'active' or f.phase <> 'planning' then null when f.due_at = 'infinity' then f.due_remaining_ms else greatest(0, (extract(epoch from (f.due_at - t)) * 1000)::bigint) end;
     out := out || jsonb_build_object('stale', p_known_version is distinct from f.round_version, 'version', f.round_version, 'fight', jsonb_build_object(
-      'id', f.id, 'status', case when eff = 'event_ended' and f.status = 'active' then 'event_ended' else f.status end, 'phase', f.phase, 'round', f.round_no, 'remaining_ms', rem, 'paused', i.paused_at is not null,
+      'id', f.id, 'status', f.status, 'phase', f.phase, 'round', f.round_no, 'remaining_ms', rem, 'paused', i.paused_at is not null,
       'telegraph', f.state->'telegraph', 'monster', jsonb_build_object('name', f.state->'monster'->>'name', 'hp', f.state->'monster'->'hp', 'maxhp', f.state->'monster'->'maxhp', 'phase', f.state->'monster'->'phase', 'st', f.state->'monster'->'st'),
       'adds', coalesce((select jsonb_agg(jsonb_build_object('name', a->>'name', 'hp', a->'hp')) from jsonb_array_elements(f.state->'adds') a), '[]'::jsonb),
       'members', (select coalesce(jsonb_agg(jsonb_build_object('key', x->>'id', 'name', x->>'name', 'cls', x->>'cls', 'hp', x->'hp', 'maxhp', x->'maxhp', 'alive', x->'alive', 'st', x->'st',

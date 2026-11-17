@@ -367,7 +367,7 @@ try {
   { const G = (await mk(U(1, 2, 3, 4, 5, 6), { kind: 'weltboss', fights: 1, event: 80, ends: '1 hour' })).instance; await ready(G, U(1, 2, 3, 4, 5, 6)); await start(G);
     await q(`update rwi.instances set ends_at = clock_timestamp() - interval '1 second' where id=${G}`);
     const b = await dump(); const v = await V(G, 'u1'); const a = await dump();
-    ok(v.instance.status === 'event_ended' && v.instance.stage === 'done' && v.instance.outcome === 'event_ended' && v.fight.can_act === false, 'Eventende gilt in der Ansicht sofort, auch bevor der Watchdog gelaufen ist');
+    ok(v.instance.status === 'ending' && v.instance.outcome === null && v.fight.can_act === false, 'nach ends_at und vor dem festgehaltenen Ende meldet die Ansicht nur den vorläufigen Zustand „ending“ (kein Endzustand aus der Uhr), nichts ist handlungsfähig');
     ok(b === a && (await inst(G)).status === 'active', 'Ansicht schreibt das Ende nicht selbst (Datenbankstand bleibt), das tut erst der Watchdog');
     await q(`select rwi.watchdog_tick()`); ok((await inst(G)).status === 'event_ended' && (await V(G, 'u1')).instance.status === 'event_ended', 'danach hält der Watchdog das Ende fest'); }
   { const G = (await mk(U(1, 2, 3, 4, 5, 6, 7, 8), { kind: 'special', fights: 2 })).instance; await call('join', G, 'u9'); const vw = await V(G, 'u9');
