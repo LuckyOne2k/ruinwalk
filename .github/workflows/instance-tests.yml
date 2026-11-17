@@ -73,7 +73,7 @@ jobs:
       - name: Vergleich der Zusammenfassungen (ok-Zahlen je Test müssen gleich sein)
         run: |
           cat results/db-tests-pg16/pg16/summary.txt results/db-tests-pg17/pg17/summary.txt || true
-          diff <(grep -E '^[a-z0-9-]+ +exit' results/db-tests-pg16/pg16/summary.txt | sed 's/ \+/ /g') <(grep -E '^[a-z0-9-]+ +exit' results/db-tests-pg17/pg17/summary.txt | sed 's/ \+/ /g')
+          diff <(grep -E '^[a-z0-9-]+ +exit' results/db-tests-pg16/pg16/summary.txt | sed 's/ | .*//; s/ \+/ /g') <(grep -E '^[a-z0-9-]+ +exit' results/db-tests-pg17/pg17/summary.txt | sed 's/ | .*//; s/ \+/ /g')
   bestehende-tests:
     # Die schon vorhandenen Tests (Spiellogik und Supabase-Schema) laufen hier zusätzlich; pages.yml bleibt unberührt.
     runs-on: ubuntu-latest
