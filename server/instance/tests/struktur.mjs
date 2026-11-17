@@ -1,0 +1,123 @@
+// Engine-Tests: Klassenstruktur laut Architekturbericht, alle Fähigkeiten, Statusregeln, Wiederbelebung (Plan 1b), Austritt.   node server/instance/tests/struktur.mjs
+import { resolveRound, newFight, DEFAULT_CFG, ENGINE_VERSION } from '../engine/v1.mjs';
+import { GRUNDKLASSEN, PFADE, GRUND_ABILITIES, REAL_ABILITIES, ABILITIES, REVIVE_ABILITIES, abilitiesOf } from '../engine/content.mjs';
+import * as CONTENT from '../engine/content.mjs';
+import { playFight, REAL4, REAL5, REAL_BOSS_HP, REAL_BOSS_ATK } from '../sim/fight.mjs';
+import { decide, decideRevive } from '../sim/bots.mjs';
+const SEED = '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
+let pass = 0, fail = 0; const ok = (c, n, i = '') => { c ? pass++ : fail++; console.log(`${c ? 'ok' : 'NICHT OK'} - ${n}${i ? '  [' + i + ']' : ''}`); };
+const seedOf = (k) => ((k * 2654435761 >>> 0).toString(16).padStart(8, '0')).repeat(8);
+const inp = (S, r = 1, actions = {}, extra = {}) => ({ fight_id: 7, round_no: r, seed: SEED, cfg: { ...DEFAULT_CFG, crit_pct: 0, ...(extra.cfg || {}) }, state: S, actions, conn: {}, ...extra, ...(extra.cfg ? { cfg: { ...DEFAULT_CFG, crit_pct: 0, ...extra.cfg } } : {}) });
+const fresh = (team = REAL5) => newFight(team, { bossHp: REAL_BOSS_HP, bossAtk: REAL_BOSS_ATK });
+const mem = (S, id) => S.members.find((m) => m.id === id);
+const kill = (S, id, revives = 0) => { const m = mem(S, id); m.alive = false; m.hp = 0; m.st = []; m.deaths = (m.deaths || 0) + 1; m.revives = revives; return S; };
+const REV = (id, S) => ({ mode: 'revive', death: mem(S, id).deaths });
+const chk = (S) => { const bad = []; for (const m of S.members) { if (m.hp < 0 || m.hp > m.maxhp) bad.push('hp ' + m.id); if (m.alive && m.hp === 0) bad.push('alive0 ' + m.id); if (!m.alive && (m.hp !== 0 || m.st.length)) bad.push('tot ' + m.id); for (const s of m.st) if (s.turns <= 0) bad.push('turns'); }
+  if (S.monster.hp < 0 || S.monster.hp > S.monster.maxhp) bad.push('boss hp'); for (const a of S.adds) if (!a.alive || a.hp <= 0) bad.push('add'); return bad; };
+
+// ─── 1. Klassenstruktur (Architekturbericht: 4 Grundklassen, 12 Pfade, je 3 Fähigkeiten) ───
+ok(JSON.stringify(Object.values(GRUNDKLASSEN).map((g) => g.name)) === JSON.stringify(['Krieger', 'Bogenschütze', 'Magier', 'Heiler']), 'genau vier Grundklassen: Krieger, Bogenschütze, Magier, Heiler');
+ok(!('druide' in GRUNDKLASSEN) && !('druide' in PFADE) && !('druide' in REAL_ABILITIES) && !('CLASSES' in CONTENT) && !JSON.stringify(Object.keys(CONTENT)).includes('druide'), 'Druide ist weder Grundklasse noch Pfad noch Fähigkeit; es gibt kein altes CLASSES mehr');
+ok(Object.keys(PFADE).length === 12 && Object.values(PFADE).every((p) => p.abilities.length === 3 && GRUNDKLASSEN[p.grundklasse]), 'zwölf Pfade mit je drei Fähigkeiten, jeder gehört zu einer Grundklasse');
+ok(Object.keys(GRUNDKLASSEN).every((g) => Object.values(PFADE).filter((p) => p.grundklasse === g).length === 3 && GRUND_ABILITIES[g].length === 3), 'je Grundklasse drei Pfade und drei Grundfähigkeiten');
+const NAMES = { krieger: ['ritter', 'berserker', 'duellant'], bogenschuetze: ['scharfschuetze', 'jaeger', 'fallensteller'], magier: ['feuer', 'frost', 'sturm'], heiler: ['priester', 'moench', 'natur'] };
+ok(Object.entries(NAMES).every(([g, l]) => l.every((p) => PFADE[p] && PFADE[p].grundklasse === g)), 'Pfadzuordnung wie im Bericht (Ritter/Berserker/Duellant, Scharfschütze/Jäger/Fallensteller, Feuer/Frost/Sturm, Priester/Mönch/Natur)');
+const all48 = [...Object.values(GRUND_ABILITIES).flat(), ...Object.values(PFADE).flatMap((p) => p.abilities)];
+ok(all48.length === 48 && new Set(all48).size === 48 && all48.every((id) => REAL_ABILITIES[id]) && Object.keys(REAL_ABILITIES).filter((k) => k !== 'standard').length === 48, '48 Fähigkeiten (12 Grund- und 36 Pfadfähigkeiten), keine zusätzliche erfunden (außer dem Standardangriff des Plans)');
+ok(JSON.stringify(PFADE.natur.abilities) === JSON.stringify(['kraeuterbalsam', 'dornenranken', 'segen_des_weltenbaums']) && PFADE.natur.grundklasse === 'heiler', 'Natur (Heiler) hat Kräuterbalsam, Dornenranken und Segen des Weltenbaums');
+ok(['Kräuterbalsam', 'Dornenranken', 'Segen des Weltenbaums'].every((n, i) => REAL_ABILITIES[PFADE.natur.abilities[i]].name === n) && JSON.stringify(PFADE.priester.abilities) === JSON.stringify(['gebet', 'heiliger_schild', 'himmelslicht']), 'Natur-Fähigkeiten tragen die Namen des Plans; Priester: Gebet, Heiliger Schild, Himmelslicht');
+ok(JSON.stringify(REVIVE_ABILITIES.sort()) === JSON.stringify(['heiliger_schild', 'kraeuterbalsam']), 'genau zwei Wiederbelebungsfähigkeiten: Heiliger Schild (Priester) und Kräuterbalsam (Natur)');
+{ let bad = 0; try { newFight([{ id: 'x', grundklasse: 'druide', tier: 0 }]); } catch { bad++; } try { newFight([{ id: 'x', grundklasse: 'krieger', pfad: 'natur', tier: 1 }]); } catch { bad++; } try { newFight([{ id: 'x', grundklasse: 'krieger', tier: 2 }]); } catch { bad++; }
+  ok(bad === 3, 'ungültige Figuren werden abgelehnt: Grundklasse Druide, Pfad der falschen Grundklasse, Stufe ohne Pfad'); }
+{ const S = newFight([{ id: 'a', grundklasse: 'heiler', pfad: 'natur', tier: 1 }, { id: 'b', grundklasse: 'heiler', pfad: 'natur', tier: 3 }, { id: 'c', grundklasse: 'magier', tier: 0 }]);
+  ok(S.members[0].abilities.length === 4 && S.members[1].abilities.length === 6 && S.members[2].abilities.length === 3 && S.members[1].grundklasse === 'heiler' && S.members[1].pfad === 'natur' && S.members[1].tier === 3, 'Figuren tragen eindeutige Felder grundklasse und pfad; Fähigkeiten = 3 Grund + Pfad bis Stufe'); }
+{ const T = REAL4; ok(T.every((p) => p.grundklasse && p.pfad && !p.cls), 'Testgruppen der echten Struktur nutzen nur grundklasse/pfad'); }
+
+// ─── 2. Jede der 48 Fähigkeiten läuft, wirkt im Protokoll und hält die Invarianten ───
+{ let n = 0, bad = 0, noLog = 0, errs = [];
+  const seen = new Set();
+  for (const [pfad, p] of Object.entries(PFADE)) for (const id of [...GRUND_ABILITIES[p.grundklasse], ...p.abilities]) { if (seen.has(id)) continue; seen.add(id);
+    const S = newFight([{ id: 'p1', grundklasse: p.grundklasse, pfad, tier: 3 }, { id: 'p2', grundklasse: 'krieger', tier: 0 }], { bossHp: 5000 });
+    S.members[1].hp = 100; S.adds = [{ id: 'add1', name: 'x', hp: 90, maxhp: 90, atk: 10, def: 2, init: 9, alive: true, st: [] }];
+    const ab = REAL_ABILITIES[id], tgt = ab.tgt === 'foe' ? 'boss' : ab.tgt === 'ally' || ab.tgt === 'allyDead' ? 'p2' : undefined;
+    try { const r = resolveRound(inp(S, 1, { p1: { ability: id, target: tgt } })); n++; bad += chk(r.state).length; if (!r.log.some((e) => e.e === 'act' && e.a === 'p1' && e.ab === id && e.o === 'bestätigt')) { noLog++; errs.push(id); } } catch (e) { errs.push(id + ':' + e.message); } }
+  ok(n === 48 && bad === 0 && noLog === 0, 'alle 48 Fähigkeiten werden ausgeführt, bestätigt protokolliert, Invarianten gelten', errs.join(',') || `${n}/48`); }
+
+// ─── 3. Statusregeln des Plans ───
+{ const mk = (bossInit) => { const T = newFight([{ id: 'k', grundklasse: 'krieger', pfad: 'berserker', tier: 3 }], { bossHp: 5000 }); T.monster.init = bossInit; return T; };
+  const r1 = resolveRound(inp(mk(1), 1, { k: { ability: 'erdbeben', target: 'boss' } }));
+  ok(r1.log.some((e) => e.e === 'stun' && e.a === 'boss') && !r1.log.some((e) => e.e === 'boss') && r1.state.monster.st.some((s) => s.id === 'stunres') && !r1.state.monster.st.some((s) => s.id === 'stun'), 'Betäubung: Boss handelt später in derselben Runde und verliert diese Aktion; danach Marker verbraucht, Resistenz aktiv');
+  const r2 = resolveRound(inp(r1.state, 2, { k: { ability: 'standard', target: 'boss' } })); ok(r2.log.some((e) => e.e === 'boss'), 'resistenter Boss handelt in der Folgerunde wieder');
+  const r3 = resolveRound(inp(mk(99), 1, { k: { ability: 'erdbeben', target: 'boss' } })); ok(r3.state.monster.st.some((s) => s.id === 'stun') && r3.state.monster.st.some((s) => s.id === 'stunres') && !r3.log.some((e) => e.e === 'stun'), 'Boss hat schon gehandelt: Marker bleibt für die nächste Runde, genau eine Aktion geht verloren');
+  const r4 = resolveRound(inp(r3.state, 2, { k: { ability: 'standard', target: 'boss' } })); ok(r4.log.filter((e) => e.e === 'stun' && e.a === 'boss').length === 1 && !r4.log.some((e) => e.e === 'boss') && !r4.state.monster.st.some((s) => s.id === 'stun'), 'verlorene Aktion in Runde 2, Marker verbraucht');
+  const T2 = mk(1); T2.monster.st.push({ id: 'stunres', turns: 2, power: 0 }); const r5 = resolveRound(inp(T2, 1, { k: { ability: 'erdbeben', target: 'boss' } }));
+  ok(!r5.state.monster.st.some((s) => s.id === 'stun') && !r5.log.some((e) => e.e === 'stun') && r5.log.find((e) => e.ab === 'erdbeben').hits.length === 1, 'resistentes Ziel: Schaden normal, Betäubung entfällt'); }
+{ const mkN = (hasSlow) => { const T = newFight([{ id: 'f', grundklasse: 'bogenschuetze', pfad: 'fallensteller', tier: 3 }], { bossHp: 5000 }); if (hasSlow) T.monster.st.push({ id: 'slow', turns: 2, power: 0, n: 1 }); return resolveRound(inp(T, 1, { f: { ability: 'nachtschuss', target: 'boss' } })); };
+  ok(mkN(true).state.monster.st.some((s) => s.id === 'stun') && !mkN(false).state.monster.st.some((s) => s.id === 'stun'), 'Nachtschuss betäubt nur, wenn das Ziel bereits Verlangsamung trägt'); }
+{ const T = newFight([{ id: 'm', grundklasse: 'magier', tier: 0 }], { bossHp: 5000 }); T.members[0].st.push({ id: 'slow', turns: 2, power: 0, n: 2 }); const r = resolveRound(inp(T, 1, { m: { ability: 'feuerball', target: 'boss' } }));
+  ok(r.state.members[0].cd.feuerball === 2, 'Verlangsamung: Abklingzeit +1 je Stapel (Feuerball 1 +2 = 3, am Rundenende 2)', String(r.state.members[0].cd.feuerball)); }
+{ const T = newFight([{ id: 'j', grundklasse: 'bogenschuetze', pfad: 'jaeger', tier: 3 }], { bossHp: 9000 }); T.monster.init = 1; let S = T;
+  for (let r = 1; r <= 4; r++) { S = resolveRound(inp(S, r, { j: { ability: 'wolf_fass', target: 'boss' } })).state; S.members[0].cd = {}; }
+  const bl = S.monster.st.find((s) => s.id === 'bleed'); ok(bl && bl.n === 3, 'Blutung stapelt bis 3 Stapel (Obergrenze), nicht darüber', JSON.stringify(bl)); }
+{ const T = newFight([{ id: 'n', grundklasse: 'heiler', pfad: 'natur', tier: 3 }], { bossHp: 5000 }); T.monster.st.push({ id: 'shield', turns: 3, power: 500 }); T.monster.init = 1; T.monster.def = 8;
+  const r = resolveRound(inp(T, 1, { n: { ability: 'dornenranken', target: 'boss' } })); ok(r.state.monster.st.some((s) => s.id === 'gift'), 'Dornenranken bringt Gift auf das Ziel'); const r2 = resolveRound(inp(r.state, 2, { n: { ability: 'standard', target: 'boss' } })); const g = r2.log.find((e) => e.e === 'dot' && e.st === 'gift');
+  ok(g && g.v === 6 && r2.state.monster.st.find((s) => s.id === 'shield').power === r.state.monster.st.find((s) => s.id === 'shield').power - r2.log.find((e) => e.a === 'n' && e.ab === 'standard').hits[0].abs, 'Gift ignoriert Schild und Verteidigung (Schild sinkt nur durch den Direktschaden)', JSON.stringify(g)); }
+{ const A_ = newFight([{ id: 'd', grundklasse: 'krieger', pfad: 'duellant', tier: 3 }], { bossHp: 9000 }); A_.monster.init = 1; const r0 = resolveRound(inp(A_, 1, { d: { ability: 'standard', target: 'boss' } })); const dmg0 = r0.log.find((e) => e.ab === 'standard').hits[0].v;
+  const B = newFight([{ id: 'd', grundklasse: 'krieger', pfad: 'duellant', tier: 3 }], { bossHp: 9000 }); B.monster.init = 1; B.monster.st.push({ id: 'ruest', turns: 3, power: 10, n: 3 }); const r1 = resolveRound(inp(B, 1, { d: { ability: 'standard', target: 'boss' } })); const dmg1 = r1.log.find((e) => e.ab === 'standard').hits[0].v;
+  ok(dmg1 > dmg0 && B.monster.def - Math.floor(B.monster.def * 30 / 100) === 6, 'Rüstungsschwächung senkt die Verteidigung (3 Stapel = −30 %) und erhöht den Schaden', `${dmg0} → ${dmg1}`); }
+{ const T = newFight([{ id: 'p', grundklasse: 'heiler', pfad: 'priester', tier: 3 }, { id: 'k', grundklasse: 'krieger', tier: 0 }], { bossHp: 5000 }); T.monster.init = 1; mem(T, 'k').st.push({ id: 'burn', turns: 2, power: 5, n: 1 }, { id: 'gift', turns: 3, power: 6, n: 1 }, { id: 'slow', turns: 2, power: 0, n: 1 }); mem(T, 'k').hp = 100;
+  const r = resolveRound(inp(T, 1, { p: { ability: 'gebet', target: 'k' } })); const left = mem(r.state, 'k').st.filter((s) => ['burn', 'gift', 'slow'].includes(s.id)).length; ok(left === 1 && mem(r.state, 'k').st.some((s) => s.id === 'slow'), 'Gebet reinigt genau 2 negative Stapel, ältester zuerst (Brand, Gift weg, Verlangsamung bleibt)', `übrig ${left}`); }
+{ const T = newFight([{ id: 'p', grundklasse: 'heiler', tier: 0 }, { id: 'k', grundklasse: 'krieger', tier: 0 }], { bossHp: 5000 }); mem(T, 'k').hp = 100; mem(T, 'k').st.push({ id: 'bleed', turns: 2, power: 8, n: 2 }); T.monster.init = 1;
+  const r = resolveRound(inp(T, 1, { p: { ability: 'heilendes_licht', target: 'k' } })); ok(mem(r.state, 'k').st.find((s) => s.id === 'bleed').n === 1, 'Direktheilung entfernt genau einen Blutungsstapel (2 → 1)'); }
+
+// ─── 4. Wiederbelebung: Aktionsart beim Bestätigen (C), Konkurrenz (A), Heilung auf Tote (B) ───
+const RV = (S, actions, okIds = [], extra = {}) => resolveRound({ ...inp(S, 1, actions), revive_ok: okIds, ...extra });
+{ const S = kill(fresh(), 'p2'); const r = RV(S, { p4: { ability: 'heiliger_schild', target: 'p2', ...REV('p2', S) } }, ['p2']); const m = mem(r.state, 'p2');
+  ok(m.alive && m.hp === Math.floor(m.maxhp * 30 / 100) && m.revives === 1 && m.st.some((x) => x.id === 'shield') && r.log.some((e) => e.e === 'revive' && e.t === 'p2'), 'Heiliger Schild (Modus Wiederbelebung): belebt mit Lebensanteil und Schild, Zähler 1');
+  ok(!r.log.some((e) => e.e === 'act' && e.a === 'p2') && mem(r.state, 'p4').cd.heiliger_schild === 3, 'Wiederbelebter handelt erst ab der nächsten Runde; Abklingzeit der Fähigkeit gesetzt'); }
+{ const S = kill(fresh(), 'p2'); const r = RV(S, { p5: { ability: 'kraeuterbalsam', target: 'p2', ...REV('p2', S) } }, ['p2']); const m = mem(r.state, 'p2'); const e = r.log.find((x) => x.e === 'revive');
+  ok(m.alive && e.hp === Math.floor(m.maxhp * 15 / 100) && m.st.some((x) => x.id === 'regen'), 'Kräuterbalsam (Modus Wiederbelebung): kleiner Lebensanteil plus Regeneration'); }
+// A) zwei Wiederbelebungen auf dasselbe Ziel in einer Auflösung
+{ const S = kill(fresh(), 'p2'); const r = RV(S, { p4: { ability: 'heiliger_schild', target: 'p2', ...REV('p2', S) }, p5: { ability: 'kraeuterbalsam', target: 'p2', ...REV('p2', S) } }, ['p2']);
+  const revs = r.log.filter((e) => e.e === 'revive'), vf = r.log.filter((e) => e.e === 'verfall');
+  ok(revs.length === 1 && revs[0].a === 'p4' && vf.length === 1 && vf[0].a === 'p5' && vf[0].why === 'ziel_lebt', 'A: zweite gleichzeitige Wiederbelebung verfällt (Ziel lebt bereits), nur eine zählt', JSON.stringify(vf.map((x) => x.why)));
+  ok(mem(r.state, 'p2').revives === 1 && !mem(r.state, 'p5').cd.kraeuterbalsam && !mem(r.state, 'p2').st.some((s) => s.id === 'regen'), 'A: Zähler nur 1, keine Abklingzeit für die verfallene Aktion, keine Nebenwirkung (kein Regen/normale Wirkung)'); }
+{ const S = kill(fresh(), 'p2'); const r = RV(S, { p5: { ability: 'kraeuterbalsam', target: 'p2', ...REV('p2', S) }, p4: { ability: 'heiliger_schild', target: 'p2', ...REV('p2', S) } }, ['p2'], {}); ok(r.log.filter((e) => e.e === 'revive').length === 1, 'A: Reihenfolge nach Initiative entscheidet, nie zwei Wiederbelebungen'); }
+// B) normale Heilung auf einen Toten
+{ const S = kill(fresh(), 'p2'); const r = RV(S, { p4: { ability: 'heilendes_licht', target: 'p2' } }, ['p2']); const v = r.log.find((e) => e.e === 'verfall');
+  ok(v && v.why === 'ziel_tot' && v.t === 'p2' && !mem(r.state, 'p2').alive && !r.log.some((e) => e.e === 'act' && e.a === 'p4') && !mem(r.state, 'p4').cd.heilendes_licht, 'B: normale Heilung auf Toten verfällt, wird nicht umgeleitet, keine Abklingzeit, kein Wiederbeleben');
+  const S2 = kill(fresh(), 'p2'); const r2 = RV(S2, { p4: { ability: 'schutzsegen', target: 'p2' } }, ['p2']); ok(r2.log.some((e) => e.e === 'verfall') && !mem(r2.state, 'p2').alive, 'B: normales Schild auf Toten verfällt ebenfalls'); }
+// C) Aktionsart legt die Bestätigung fest
+{ const S = kill(fresh(), 'p2'); const r = RV(S, { p4: { ability: 'heiliger_schild', target: 'p2' } }, ['p2']); ok(!r.log.some((e) => e.e === 'revive') && r.log.find((e) => e.e === 'verfall').why === 'ziel_tot' && !mem(r.state, 'p2').alive, 'C: als normale Heilung bestätigt, wirkt der Heilige Schild auch bei zwischenzeitlichem Tod nicht als Wiederbelebung');
+  const S2 = fresh(); mem(S2, 'p2').hp = 60; const r2 = RV(S2, { p4: { ability: 'heiliger_schild', target: 'p2', mode: 'revive', death: 0 } }, ['p2']); ok(r2.log.find((e) => e.e === 'verfall').why === 'ziel_lebt' && !mem(r2.state, 'p4').cd.heiliger_schild && mem(r2.state, 'p2').revives === 0, 'C: als Wiederbelebung bestätigt, aber Ziel lebt: Aktion verfällt, keine normale Heilung/Schild, keine Abklingzeit');
+  const S3 = fresh(); mem(S3, 'p2').hp = 60; const r3 = RV(S3, { p4: { ability: 'heiliger_schild', target: 'p2' } }); ok(r3.log.some((e) => e.e === 'act' && e.ab === 'heiliger_schild') && mem(r3.state, 'p2').st.some((s) => s.id === 'shield') && mem(r3.state, 'p4').cd.heiliger_schild === 3, 'C: normale Wirkung auf Lebende bleibt Heilung plus Schild');
+  const S4 = kill(fresh(), 'p2'); const r4 = RV(S4, { p4: { ability: 'heiliger_schild', target: 'p2', mode: 'revive', death: 0 } }, ['p2']); ok(r4.log.find((e) => e.e === 'verfall').why === 'anderer_todesfall' && !mem(r4.state, 'p2').alive, 'Bindung an den Todesfall: Bestätigung für einen anderen Todesfall verfällt');
+  const r5 = RV(kill(fresh(), 'p2'), { p1: { ability: 'wuchtschlag', target: 'boss', mode: 'revive', death: 1 } }); ok(r5.log.find((e) => e.a === 'p1').o === 'ungültig→automatisch', 'Modus „Wiederbelebung“ bei einer Fähigkeit ohne Wiederbelebung ist ungültig'); }
+// Fenster/Limit/Item/Austritt
+{ const S = kill(fresh(), 'p2'); const r = RV(S, { p4: { ability: 'heiliger_schild', target: 'p2', ...REV('p2', S) } }, []); const v = r.log.find((e) => e.e === 'verfall'); ok(v.why === 'fenster' && !mem(r.state, 'p4').cd.heiliger_schild && !mem(r.state, 'p2').alive, 'ohne vom Server rechtzeitig angenommenen Versuch: Aktion verfällt mit Erstattung');
+  const S2 = kill(fresh(), 'p2', 2); const r2 = RV(S2, { p4: { ability: 'heiliger_schild', target: 'p2', ...REV('p2', S2) } }, ['p2']); ok(r2.log.find((e) => e.e === 'verfall').why === 'limit' && mem(r2.state, 'p2').final === true && !mem(r2.state, 'p4').cd.heiliger_schild, 'Limit (2) erreicht: Tod endgültig, Aktion verfällt mit Erstattung'); }
+{ const S = kill(kill(fresh(), 'p2'), 'p3'); const r = RV(S, { p4: { ability: 'heiliger_schild', target: 'p2', ...REV('p2', S) }, p5: { ability: 'kraeuterbalsam', target: 'p3', ...REV('p3', S) } }, ['p2', 'p3']);
+  ok(r.log.filter((e) => e.e === 'revive').map((e) => e.t).sort().join() === 'p2,p3' && mem(r.state, 'p2').alive && mem(r.state, 'p3').alive, 'zwei gleichzeitig offene Todesfälle werden unabhängig voneinander wiederbelebt');
+  const S2 = kill(kill(fresh(), 'p2', 2), 'p3', 1); const r2 = RV(S2, { p4: { ability: 'heiliger_schild', target: 'p2', ...REV('p2', S2) }, p5: { ability: 'kraeuterbalsam', target: 'p3', ...REV('p3', S2) } }, ['p2', 'p3']);
+  ok(r2.log.find((e) => e.t === 'p2' && e.e === 'verfall').why === 'limit' && mem(r2.state, 'p3').alive && mem(r2.state, 'p3').revives === 2 && mem(r2.state, 'p2').final === true && !mem(r2.state, 'p3').final, 'zwei Todesfälle, ein Limit erreicht: nur der andere wird belebt; jeder Spieler hat sein eigenes Limit'); }
+{ const S = fresh(); const m = mem(S, 'p2'); m.hp = 1; m.st.push({ id: 'burn', turns: 2, power: 5, n: 1 }, { id: 'shield', turns: 2, power: 3 }, { id: 'regen', turns: 3, power: 4, n: 1 }); const r = RV(S, {}); ok(!mem(r.state, 'p2').alive && mem(r.state, 'p2').st.length === 0 && mem(r.state, 'p2').deaths === 1, 'Tod entfernt alle Statuseffekte vollständig und zählt den Todesfall');
+  const S2 = kill(fresh(), 'p2'); mem(S2, 'p2').st = []; const r2 = RV(S2, { p4: { ability: 'heiliger_schild', target: 'p2', ...REV('p2', S2) } }, ['p2']); ok(mem(r2.state, 'p2').st.length === 1 && mem(r2.state, 'p2').st[0].id === 'shield', 'Wiederbelebter startet nur mit den Effekten der Wiederbelebung (kein Altstatus)'); }
+{ const S = kill(fresh(), 'p2'); const r = resolveRound({ ...inp(S, 1, {}), item_ok: ['p2'] }); ok(mem(r.state, 'p2').alive && mem(r.state, 'p2').revives === 1 && r.log.some((e) => e.e === 'item_revive' && e.u === 'p2') && !r.log.some((e) => e.e === 'act' && e.a === 'p2'), 'Wiederbelebungsitem (Sonderreaktion): belebt, zählt im selben Zähler, Wiederbelebter handelt erst später');
+  const S2 = kill(fresh(), 'p2', 2); const r2 = resolveRound({ ...inp(S2, 1, {}), item_ok: ['p2'] }); ok(r2.log.some((e) => e.e === 'item_verfall') && !mem(r2.state, 'p2').alive, 'Item bei erschöpftem Limit: verfällt, Server verbraucht nichts');
+  const S3 = kill(fresh(), 'p2', 1); const r3 = resolveRound({ ...inp(S3, 1, {}), item_ok: ['p2'] }); const S4 = kill(r3.state, 'p2', 2); const r4 = RV(S4, { p4: { ability: 'heiliger_schild', target: 'p2', ...REV('p2', S4) } }, ['p2']); ok(mem(r3.state, 'p2').revives === 2 && r4.log.find((e) => e.e === 'verfall').why === 'limit', 'Item und Fähigkeit teilen sich das Limit von 2'); }
+{ const S = fresh(); const r = resolveRound({ ...inp(S, 1, {}), left: ['p2'] }); ok(mem(r.state, 'p2').gone && !mem(r.state, 'p2').alive && mem(r.state, 'p2').final && r.log.filter((e) => e.e === 'left').length === 1, 'Austritt: dauerhaft ausgefallen (gone/final), einmal protokolliert');
+  const r3 = resolveRound({ ...inp(r.state, 2, { p4: { ability: 'heiliger_schild', target: 'p2', mode: 'revive', death: mem(r.state, 'p2').deaths } }), revive_ok: ['p2'], left: ['p2'] }); ok(r3.log.some((e) => e.e === 'verfall' && e.why === 'verlassen') && !mem(r3.state, 'p2').alive, 'keine Wiederbelebung nach freiwilligem Austritt');
+  const r4 = resolveRound({ ...inp(r.state, 2, {}), item_ok: ['p2'] }); ok(r4.log.some((e) => e.e === 'item_verfall') && !mem(r4.state, 'p2').alive, 'auch das Item belebt keinen Ausgetretenen'); }
+// Wipe-Wiederaufnahme: Item belebt, niemand handelt, keine Ticks
+{ const S = fresh(); for (const m of S.members) { m.alive = false; m.hp = 0; m.st = []; m.deaths = 1; } S.monster.st.push({ id: 'burn', turns: 2, power: 9, n: 1 }); const hp0 = S.monster.hp;
+  const r = resolveRound({ ...inp(S, 2, {}), item_ok: ['p4'], wipe_resume: true }); ok(r.outcome === 'continue' && mem(r.state, 'p4').alive && r.state.monster.hp === hp0 && !r.log.some((e) => e.e === 'boss' || e.e === 'dot'), 'Wipe-Wiederaufnahme: Item belebt, Boss handelt nicht, keine Ticks');
+  const r2 = resolveRound({ ...inp(S, 2, {}), item_ok: [], wipe_resume: true }); ok(r2.outcome === 'lost' && r2.reason === 'wipe', 'Wiederaufnahme ohne gültige Wiederbelebung: Niederlage (wipe)'); }
+
+// ─── 5. Ganze Kämpfe: Struktur mit Bots, Revive, Replay, Determinismus ───
+{ let bad = 0, wins = 0, revs = 0, over = 0, replay = 0, total = 0, nf = 0, wipes = 0, verf = {};
+  for (let k = 0; k < 90; k++) { const f = playFight({ players: k % 2 ? REAL5 : REAL4, seed: seedOf(k + 500), fightId: k + 500, bossHp: REAL_BOSS_HP, bossAtk: REAL_BOSS_ATK, decideFn: k % 3 ? decideRevive : decide, reviveWindowRounds: 2, offline: k % 5 === 0 ? { p2: [2, 3] } : {} }); nf++; if (f.outcome === 'won') wins++; else if (f.reason === 'wipe') wipes++;
+    for (const { input, res } of f.rounds) { total++; bad += chk(res.state).length; if (resolveRound(JSON.parse(JSON.stringify(input))).result_hash === res.result_hash) replay++; for (const e of res.log) { if (e.e === 'revive') revs++; if (e.e === 'verfall') verf[e.why] = (verf[e.why] || 0) + 1; } for (const m of res.state.members) if (m.revives > 2) over++; } }
+  ok(bad === 0 && over === 0, 'Kämpfe der echten Struktur (90): Invarianten, nie mehr als 2 Wiederbelebungen je Spieler', `${total} Runden`); ok(replay === total, 'Replay aller Runden bitgleich', `${replay}/${total}`);
+  ok(wins > 10 && wipes > 5 && revs > 30, 'echte Gruppen gewinnen und verlieren, Wiederbelebungen kommen vor', `Siege ${wins}, Wipes ${wipes}, Revives ${revs}, Verfall ${JSON.stringify(verf)}`); }
+{ let diff = 0; for (let k = 0; k < 30; k++) { const o = { players: REAL5, seed: seedOf(k + 900), fightId: k, bossHp: REAL_BOSS_HP, bossAtk: REAL_BOSS_ATK, decideFn: decideRevive, reviveWindowRounds: 2 }; if (playFight(o).rounds.map((x) => x.res.result_hash).join() !== playFight(o).rounds.map((x) => x.res.result_hash).join()) diff++; } ok(diff === 0, 'Kämpfe mit Wiederbelebung sind reproduzierbar (30 Wiederholungen)'); }
+console.log(`\n${fail === 0 ? 'ALLE TESTS OK' : 'FEHLER'}: ${pass} bestanden, ${fail} fehlgeschlagen  (Engine ${ENGINE_VERSION})`); process.exit(fail ? 1 : 0);

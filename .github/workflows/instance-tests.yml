@@ -18,8 +18,11 @@ jobs:
         env:
           REQUIRE_RUNTIMES: node bun deno
         run: bash server/instance/tests/run-determinism.sh
-      - name: Engine-Tests Phase 1 (Node)
-        run: node server/instance/tests/combat.mjs
+      - name: Engine v1 (Node) - Referenzkämpfe, Kernregeln, Klassenstruktur und Wiederbelebung
+        run: |
+          node server/instance/tests/golden.mjs
+          node server/instance/tests/combat.mjs
+          node server/instance/tests/struktur.mjs
   database:
     runs-on: ubuntu-latest
     steps:
@@ -33,6 +36,8 @@ jobs:
           sudo systemctl stop postgresql || true
       - name: Phase-0-Tests (isoliertes temporäres Postgres, keine Spielerdaten)
         run: node server/instance/tests/run.mjs
+      - name: Todesfenster, Wiederbelebung, Wipe-Halt, Gruppenpause, Eventende je Eingangsfunktion
+        run: node server/instance/tests/fenster.mjs
       - name: K.2-Vergleich (neue Variante muss fehlerfrei sein)
         run: |
           node server/instance/tests/k2-compare.mjs skip 15

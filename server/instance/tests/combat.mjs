@@ -1,9 +1,10 @@
-// Engine-Tests Phase 1:  node server/instance/tests/combat.mjs
+// Engine-Tests Phase 1, Kern (alte Testprofile, wie die Dungeon-Referenz):  node server/instance/tests/combat.mjs
+// Klassenstruktur, Fähigkeiten, Wiederbelebung, Todesfenster: tests/struktur.mjs
 import { resolveRound, newFight, DEFAULT_CFG, ENGINE_VERSION } from '../engine/v1.mjs';
 import { hashOf } from '../engine/rng.mjs';
 import { playFight, TEAM4 } from '../sim/fight.mjs';
-import { decideRevive } from '../sim/bots.mjs';
-import { ABILITIES, CLASSES, BOSS } from '../engine/content.mjs';
+import { BOSS } from '../engine/content.mjs';
+import { LEGACY_CLASSES } from '../engine/legacy.mjs';
 const SEED = '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
 let pass = 0, fail = 0; const ok = (c, n, i = '') => { c ? pass++ : fail++; console.log(`${c ? 'ok' : 'NICHT OK'} - ${n}${i ? '  [' + i + ']' : ''}`); };
 const inp = (S, r = 1, actions = {}, over = {}) => ({ fight_id: 7, round_no: r, seed: over.seed || SEED, cfg: { ...DEFAULT_CFG, ...(over.cfg || {}) }, state: S, actions, conn: {} });
@@ -51,7 +52,7 @@ const chk = (S) => { let bad = []; for (const m of S.members) { if (m.hp < 0 || 
 { const S = fresh(); S.members[0].hp = S.members[0].maxhp - 3; const r = resolveRound(inp(S, 1, { p4: { ability: 'heilung', target: 'p1' } })); ok(r.log.find((e) => e.ab === 'heilung').v === 3 && r.state.members[0].hp <= r.state.members[0].maxhp, 'Heilung ist durch maxhp begrenzt (+3 statt voller Wert)'); }
 { const S = fresh(); S.members[0].st.push({ id: 'taunt', turns: 2, power: 0 }, { id: 'shield', turns: 3, power: 30 }); const r = resolveRound(inp(S, 1, {}, { cfg: { crit_pct: 0 } }));
   const bl = r.log.find((e) => e.e === 'boss'); ok(bl.t === 'p1' && bl.abs === 24 - 0 || bl.abs === Math.min(30, bl.v), 'Schutzschild nimmt zuerst auf', JSON.stringify(bl));
-  const lost = CLASSES.waechter.hp - r.state.members[0].hp; ok(lost === bl.v - bl.abs, 'nur der Rest geht von den Lebenspunkten ab', `Schaden ${bl.v}, abgefangen ${bl.abs}, verloren ${lost}`); }
+  const lost = LEGACY_CLASSES.waechter.hp - r.state.members[0].hp; ok(lost === bl.v - bl.abs, 'nur der Rest geht von den Lebenspunkten ab', `Schaden ${bl.v}, abgefangen ${bl.abs}, verloren ${lost}`); }
 { const S = fresh(); S.members[1].st.push({ id: 'stun', turns: 1, power: 0 }); const r = resolveRound(inp(S, 1, { p2: { ability: 'stoss', target: 'boss' } })); ok(r.log.some((e) => e.e === 'stun' && e.a === 'p2') && !r.log.some((e) => e.e === 'act' && e.a === 'p2'), 'Betäubung überspringt die Aktion'); }
 
 // Fähigkeiten: Abklingzeit, Ungültiges, fehlende Bestätigung
@@ -87,34 +88,6 @@ const chk = (S) => { let bad = []; for (const m of S.members) { if (m.hp < 0 || 
 // Ausgefallene Spieler brechen den Kampf nicht ab
 { const f = playFight({ players: TEAM4, seed: seedOf(21), fightId: 21, offline: { p1: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], p4: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] } });
   ok(f.rounds.length > 0 && f.rounds.slice(0, 3).every((x) => x.res.log.filter((e) => e.e === 'act' && (e.a === 'p1' || e.a === 'p4')).every((e) => e.o === 'automatisch')), 'ausgefallene Spieler handeln automatisch, der Kampf läuft weiter', `${f.rounds.length} Runden, ${f.outcome}`); }
-
-// Wiederbelebung (Plan 1b), Austritt
-const dead = (S, id, revives = 0) => { const m = S.members.find((x) => x.id === id); m.alive = false; m.hp = 0; m.st = []; m.revives = revives; return S; };
-const RV = (S, actions, okIds, extra = {}) => resolveRound({ ...inp(S, 1, actions, { cfg: { crit_pct: 0 } }), revive_ok: okIds, ...extra });
-{ const S = dead(fresh(), 'p2'); const r = RV(S, { p4: { ability: 'schutz', target: 'p2' } }, ['p2']); const m = r.state.members[1];
-  ok(m.alive && m.hp === 45 && m.revives === 1 && m.st.some((x) => x.id === 'shield') && r.log.some((e) => e.e === 'revive' && e.t === 'p2' && e.hp === 45), 'Heiliger Schild auf Toten: belebt mit 30 % Lebenspunkten und Schild, Zähler 1');
-  ok(!r.log.some((e) => e.e === 'act' && e.a === 'p2'), 'Wiederbelebter handelt erst ab der nächsten Runde'); ok(r.state.members[3].cd.schutz === 2, 'Abklingzeit der Wiederbelebungsfähigkeit wird gesetzt (3, am Rundenende 2)'); }
-{ const S = dead(fresh(), 'p2'); const r = RV(S, { p4: { ability: 'schutz', target: 'p2' } }, []); const v = r.log.find((e) => e.e === 'verfall');
-  ok(v && v.why === 'fenster' && !r.state.members[1].alive && !r.state.members[3].cd.schutz, 'ohne gültige Annahme vor Fensterablauf: Aktion verfällt, Abklingzeit erstattet (nicht gesetzt)'); }
-{ const S = dead(fresh(), 'p2', 2); const r = RV(S, { p4: { ability: 'schutz', target: 'p2' } }, ['p2']); const v = r.log.find((e) => e.e === 'verfall');
-  ok(v && v.why === 'limit' && !r.state.members[1].alive && r.state.members[1].final === true && !r.state.members[3].cd.schutz, 'Limit (2 Wiederbelebungen) erreicht: Tod endgültig (final), Aktion verfällt mit Erstattung'); }
-{ const S = dead(fresh(), 'p2'); const r = RV(S, { p4: { ability: 'heilung', target: 'p2' } }, ['p2']); ok(!r.state.members[1].alive && !r.log.some((e) => e.e === 'revive'), 'normale Heilung wirkt nie auf Tote (und belebt nicht)');
-  const S2 = fresh(); S2.members[1].hp = 120; const r2 = RV(S2, { p4: { ability: 'schutz', target: 'p2' } }, ['p2']); ok(!r2.log.some((e) => e.e === 'revive') && r2.log.some((e) => e.e === 'act' && e.ab === 'schutz' && e.t === 'p2') && r2.state.members[1].revives === 0, 'Heiliger Schild auf Lebenden: normales Schild, keine Wiederbelebung'); }
-{ const T = [...TEAM4.slice(0, 3), { id: 'p4', cls: 'druide' }]; const S = dead(newFight(T), 'p2'); const r = RV(S, { p4: { ability: 'balsam', target: 'p2' } }, ['p2']); const m = r.state.members[1];
-  ok(m.alive && r.log.find((e) => e.e === 'revive').hp === Math.floor(150 * 15 / 100) && m.st.some((x) => x.id === 'regen') && m.revives === 1, 'Kräuterbalsam auf Toten: 15 % Lebenspunkte plus Regeneration');
-  const S2 = newFight(T); S2.members[1].hp = 30; const r2 = RV(S2, { p4: { ability: 'balsam', target: 'p2' } }, []); ok(!r2.log.some((e) => e.e === 'revive') && r2.log.find((e) => e.ab === 'balsam').v > 0, 'Kräuterbalsam auf Lebenden: Heilung'); }
-{ const T = TEAM4; const S = dead(fresh(T), 'p3'); const r = RV(S, { p1: { ability: 'hieb', target: 'boss' }, p4: { ability: 'heilung', target: 'p3' } }, []); ok(r.log.filter((e) => e.e === 'revive').length === 0, 'Nur zwei Fähigkeiten dürfen wiederbeleben: Heilung der Klasse Quell tut es nicht'); }
-{ const S = fresh(); const r = resolveRound({ ...inp(S, 1, {}), left: ['p2'] }); ok(r.state.members[1].gone && !r.state.members[1].alive && r.state.members[1].final && r.log.filter((e) => e.e === 'left').length === 1, 'Austritt: Mitglied fällt dauerhaft aus (gone/final), einmal protokolliert');
-  const r2 = resolveRound({ ...inp(r.state, 2, {}), left: ['p2'] }); ok(r2.log.filter((e) => e.e === 'left').length === 0, 'wiederholter Austritt wird nicht erneut protokolliert (idempotent)');
-  const r3 = resolveRound({ ...inp(r.state, 2, { p4: { ability: 'schutz', target: 'p2' } }), revive_ok: ['p2'], left: ['p2'] }); ok(r3.log.some((e) => e.e === 'verfall' && e.why === 'verlassen'), 'Ausgetretene sind kein gültiges Wiederbelebungsziel');
-  const S4 = fresh(); const r4 = resolveRound({ ...inp(S4, 1, {}), left: ['p1', 'p2', 'p3', 'p4'] }); ok(r4.outcome === 'lost' && r4.reason === 'wipe', 'alle ausgetreten: Niederlage (wipe)'); }
-{ let revs = 0, over = 0, bad = 0, maxN = 0, wins = 0, nf = 0; const T = [TEAM4[0], TEAM4[1], TEAM4[2], TEAM4[3], { id: 'p5', cls: 'druide' }];
-  for (let k = 0; k < 120; k++) { const f = playFight({ players: T, seed: seedOf(k + 700), fightId: k + 700, decideFn: decideRevive, reviveWindowRounds: 2 }); nf++; if (f.outcome === 'won') wins++;
-    for (const x of f.rounds) { bad += chk(x.res.state).length; for (const e of x.res.log) if (e.e === 'revive') { revs++; maxN = Math.max(maxN, e.n); } for (const m of x.res.state.members) if (m.revives > 2) over++; } }
-  ok(bad === 0 && over === 0 && maxN <= 2, 'Revive-Läufe (120 Kämpfe): Invarianten gelten, nie mehr als 2 Wiederbelebungen je Spieler', `${revs} Wiederbelebungen, Max ${maxN}`);
-  ok(revs > 50, 'Wiederbelebungen kommen im Kampf tatsächlich vor', String(revs)); }
-{ const T = [...TEAM4, { id: 'p5', cls: 'druide' }]; let diff = 0; for (let k = 0; k < 40; k++) { const a = playFight({ players: T, seed: seedOf(k + 900), fightId: k, decideFn: decideRevive, reviveWindowRounds: 2 }), b = playFight({ players: T, seed: seedOf(k + 900), fightId: k, decideFn: decideRevive, reviveWindowRounds: 2 }); if (a.rounds.map((x) => x.res.result_hash).join() !== b.rounds.map((x) => x.res.result_hash).join()) diff++; }
-  ok(diff === 0, 'Kämpfe mit Wiederbelebung sind reproduzierbar (40 Wiederholungen)'); }
 
 // Ankündigung stimmt immer mit der folgenden Boss-Aktion überein
 { let n = 0, bad = 0; for (let k = 0; k < 60; k++) { const f = playFight({ players: TEAM4, seed: seedOf(k + 300), fightId: k }); for (let i = 0; i + 1 < f.rounds.length; i++) { const t = f.rounds[i].res.state.telegraph; const nb = f.rounds[i + 1].res.log.find((e) => e.e === 'boss'); if (!nb) continue; const kind = nb.k === 'angriff' ? null : nb.k === 'flammenwelle' ? 'flammenwelle' : 'schwerer_schlag'; n++; if (kind !== t) bad++; } }
