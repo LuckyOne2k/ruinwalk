@@ -134,7 +134,7 @@ do $$
 declare
   server_fns   text[] := array['cfg','sweep_event','end_instance','claim_resolution','commit_round','advance_clock','effective_last_seen','permanently_disconnected','sync_windows','wipe_hold',
                                'watchdog_tick','watchdog_core','eligible','glog','active_count','abort_instance','drop_member','after_auto_removal','deadline_verdict','enforce_deadlines',
-                               'enforce_deadlines_quiet','promote_waitlist','create_group','roster','start_fight','contribution','set_connection','set_connection_core','group_tick','sweep_core','sweep_events'];
+                               'enforce_deadlines_quiet','promote_waitlist','create_group','roster','start_fight','contribution','set_connection','set_connection_core','group_tick','sweep_core','sweep_events','report_failure'];
   test_fns     text[] := array['join','leave','set_ready','submit_action','submit_action_for','instance_view','heartbeat','heartbeat_for','use_revive_item','decline_revive_item','current_player'];
   trigger_fns  text[] := array['members_size_guard','on_fight_end','reward_filter','on_character_deleted'];
   internal_fns text[] := array['own_character'];

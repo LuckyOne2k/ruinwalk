@@ -529,3 +529,29 @@ begin
   end if;
   return out;
 end $$;
+
+-- Engine-Fehler des Workers (Architekturbericht V2 A.5): kein Commit; Zähler +1, Fehlertext gespeichert, Wartezeit bis zur Wiederholung 5/10/20/40/60 s
+-- (die Lease wird entsprechend verkürzt), ab max_attempts „stuck“ mit Eintrag in ops_alerts und engine_stuck (gleiche Behandlung wie bei verletzten Invarianten
+-- in commit_round). Wirkt nur mit dem Token der aktuellen Lease; alles andere (veraltet, schon aufgelöst, Instanz beendet) wird ohne Änderung ignoriert.
+create function rwi.report_failure(p_fight bigint, p_round int, p_token uuid, p_error text) returns jsonb language plpgsql as $$
+declare i rwi.instances; f rwi.fights; a int; st text; wait_s int;
+begin
+  select * into f from rwi.fights where id = p_fight;
+  if not found then return jsonb_build_object('status','unknown_fight'); end if;
+  select * into i from rwi.instances where id = f.instance_id for update;        -- gleiche Sperrreihenfolge wie claim_resolution/commit_round
+  select * into f from rwi.fights where id = p_fight for update;
+  if i.status <> 'active' or f.status <> 'active' or f.round_no <> p_round or f.phase <> 'resolving' or f.claim_token is distinct from p_token then
+    return jsonb_build_object('status','ignored');
+  end if;
+  update rwi.resolve_jobs set attempts = attempts + 1, last_error = left(coalesce(p_error, 'engine'), 500),
+         status = case when attempts + 1 >= rwi.cfg('max_attempts') then 'stuck' else status end
+   where fight_id = p_fight and round_no = p_round returning attempts, status into a, st;
+  if a is null then return jsonb_build_object('status','ignored'); end if;
+  if st = 'stuck' then
+    update rwi.instances set engine_stuck = true where id = i.id;
+    insert into rwi.ops_alerts(what, detail) values ('stuck', 'fight ' || p_fight || ' round ' || p_round);
+  end if;
+  wait_s := least(60, 5 * (2 ^ least(a - 1, 4))::int);
+  update rwi.fights set lease_until = clock_timestamp() + make_interval(secs => wait_s) where id = p_fight;
+  return jsonb_build_object('status', case when st = 'stuck' then 'stuck' else 'recorded' end, 'attempts', a, 'retry_in', wait_s);
+end $$;
