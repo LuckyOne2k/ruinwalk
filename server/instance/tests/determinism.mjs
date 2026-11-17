@@ -1,6 +1,7 @@
 // Läuft unverändert unter Node, Bun und Deno. Gibt eine JSON-Zeile aus: Laufzeit + Digest. Der Vergleich erfolgt in run-determinism.sh.
 import { sha256, hmac, utf8, hex, draw32 } from '../engine/rng.mjs';
 import { playAll } from './scenarios.mjs';
+import { playFight, TEAM4 } from '../sim/fight.mjs';
 const rt = typeof Deno !== 'undefined' ? 'deno ' + Deno.version.deno : typeof Bun !== 'undefined' ? 'bun ' + Bun.version : 'node ' + process.version;
 const checks = [];
 const eq = (n, a, b) => checks.push({ n, ok: a === b });
@@ -13,6 +14,10 @@ eq('utf8 mehrbyte', hex(utf8('äß€😀')), 'c3a4c39fe282acf09f9880');
 const seed = Uint8Array.from({ length: 32 }, (_, i) => i);
 eq('draw32 fest', String(draw32(seed, 'crit', 7, 3, 0)), String(draw32(seed, 'crit', 7, 3, 0)));
 const run = playAll(300);
+// Phase-1-Engine: 120 komplette Dungeon-Kämpfe (verschiedene Gruppen, Ausfälle); die Kette aller Ergebnis-Hashes geht in den Digest ein
+const comps = [TEAM4, TEAM4.slice(0, 3), TEAM4.slice(1), [TEAM4[0], TEAM4[2], TEAM4[3]]]; const chain = []; let dr = 0;
+for (let k = 1; k <= 120; k++) { const f = playFight({ players: comps[k % 4], seed: ((k * 2654435761 >>> 0).toString(16).padStart(8, '0')).repeat(8), fightId: k, offline: k % 3 === 0 ? { p2: [2, 3, 4] } : {} }); for (const x of f.rounds) { chain.push(x.res.result_hash); dr++; } }
+run.dungeon_rounds = dr; run.digest = hex(sha256(utf8(run.digest + '|' + chain.join(','))));
 const bad = checks.filter((c) => !c.ok);
 console.log(JSON.stringify({ rt, vectors_ok: bad.length === 0, bad: bad.map((b) => b.n), ...run }));
 if (bad.length) { console.error('Testvektor fehlgeschlagen', bad); (typeof process !== 'undefined' ? process.exit(1) : Deno.exit(1)); }

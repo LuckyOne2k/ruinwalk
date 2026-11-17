@@ -16,7 +16,7 @@ const PB = (process.getuid && process.getuid() === 0) ? ['runuser', '-u', 'postg
 const q = async (sql) => { const r = await cl.psql(sql); if (r.code) throw new Error(r.err + '\n' + sql.slice(0, 300)); return r.out; };
 const J = (s) => JSON.parse(s);
 try {
-  await q(readFileSync(join(here, '../sql/01_proto.sql'), 'utf8'));
+  await q(readFileSync(join(here, '../sql/01_proto.sql'), 'utf8')); await q(readFileSync(join(here, '../sql/02_actions.sql'), 'utf8'));
   // --- Helfer: Testkampf anlegen
   const mk = async ({ ends = null, event = null, n = 1 } = {}) => {
     const ids = [];
@@ -159,6 +159,22 @@ try {
     const a = bench('verteilt (200 Kämpfe)', 200, 16, false), b = bench('heißer Kampf (1 Instanz, 16 Clients)', 1, 16, true);
     ok(a.tps > 0 && a.failed === 0, 'Durchsatz verteilt gemessen, keine fehlgeschlagenen Transaktionen', `${a.tps} Zyklen/s`);
     ok(b.tps > 0 && b.failed === 0, 'Durchsatz auf einer einzigen Instanz (volle Serialisierung über die Instanzsperre), keine Fehler', `${b.tps} Zyklen/s`); }
+
+  // 12) Aktionsabgabe (submit_action) und Watchdog
+  { const [{ fid }] = await mk(); const sub = async (key, rn, a) => J(await q(`select rwi.submit_action(${fid}, '${key}', ${rn}, $j$${JSON.stringify(a)}$j$::jsonb)`));
+    ok((await sub('m0', 1, { ability: 'hieb', target: 'boss' })).status === 'ok' && (await q(`select actions->'m0'->>'ability' from rwi.fights where id=${fid}`)) === 'hieb', 'Aktion in der Planungsphase wird gespeichert');
+    ok((await sub('m0', 1, { ability: 'stoss' })).status === 'ok' && (await q(`select actions->'m0'->>'ability' from rwi.fights where id=${fid}`)) === 'stoss', 'erneute Abgabe überschreibt (letzte Bestätigung zählt)');
+    ok((await sub('nobody', 1, { ability: 'hieb' })).status === 'unknown_member', 'unbekannter Spieler wird abgelehnt');
+    ok((await sub('m0', 2, { ability: 'hieb' })).status === 'stale', 'Aktion für eine zukünftige Runde wird abgelehnt (stale)');
+    ok((await sub('m0', 1, { ability: 'x'.repeat(41) })).status === 'invalid', 'überlanger Fähigkeitsname wird abgelehnt (invalid)');
+    await claim(fid); ok((await sub('m0', 1, { ability: 'hieb' })).status === 'late', 'Aktion nach dem Einfrieren der Runde: late (wirkt nicht mehr)'); }
+  { await q(`update rwi.cfg set v = 1 where k = 'lease_seconds'`); const [{ fid }] = await mk(); const [{ fid: f2, iid }] = await mk({ ends: '300 milliseconds', event: 4242 }); const [{ fid: f3 }] = await mk(); await q(`update rwi.fights set due_at = clock_timestamp() + interval '1 hour' where id=${f3}`);
+    const w1 = J(await q(`select rwi.watchdog_tick()`)); ok(w1.due.includes(fid) && !w1.due.includes(f3) && w1.redispatch.length === 0, 'Watchdog meldet fällige Runden, nicht die noch nicht fälligen');
+    await claim(fid); await sleep(1250); const w2 = J(await q(`select rwi.watchdog_tick()`));
+    ok(w2.redispatch.includes(fid) && !w2.due.includes(fid) && w2.ended === 1, 'Watchdog meldet abgelaufene Lease zur Wiederaufnahme und beendet das abgelaufene Event', `ended=${w2.ended}`);
+    ok(!w2.due.includes(f2) && !w2.redispatch.includes(f2) && (await q(`select status from rwi.instances where id=${iid}`)) === 'event_ended', 'beendete Instanz taucht nicht mehr als fällig auf');
+    const w3 = J(await q(`select rwi.watchdog_tick()`)); ok(w3.ended === 0, 'zweiter Watchdog-Lauf beendet nichts erneut (idempotent)');
+    await q(`update rwi.cfg set v = 30 where k = 'lease_seconds'`); }
 
   // Laufzeit der Engine selbst
   { const inp = makeFight(3); const t0 = process.hrtime.bigint(); const N = 2000; for (let k = 0; k < N; k++) { inp.round_no = (k % 40) + 1; resolveRound(inp); } const us = Number(process.hrtime.bigint() - t0) / 1000 / N; out.push(`Engine: ${us.toFixed(1)} µs je Rundenauflösung (Prototyp, ${process.versions.node ? 'Node' : ''})`); }

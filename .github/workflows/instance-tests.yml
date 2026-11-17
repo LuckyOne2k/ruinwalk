@@ -18,6 +18,8 @@ jobs:
         env:
           REQUIRE_RUNTIMES: node bun deno
         run: bash server/instance/tests/run-determinism.sh
+      - name: Engine-Tests Phase 1 (Node)
+        run: node server/instance/tests/combat.mjs
   database:
     runs-on: ubuntu-latest
     steps:
@@ -31,6 +33,12 @@ jobs:
           sudo systemctl stop postgresql || true
       - name: Phase-0-Tests (isoliertes temporäres Postgres, keine Spielerdaten)
         run: node server/instance/tests/run.mjs
+      - name: K.2-Vergleich (neue Variante muss fehlerfrei sein)
+        run: node server/instance/tests/k2-compare.mjs new 15
+      - name: Dungeon-Kämpfe über die komplette Auftragskette
+        run: |
+          for s in 3 4 5; do node server/instance/sim/run-dungeon.mjs --seed $s --ruhig || exit 1; done
+          node server/instance/sim/run-dungeon.mjs --seed 3 --weltboss-ende --ruhig
   bestehende-tests:
     # Die schon vorhandenen Tests (Spiellogik und Supabase-Schema) laufen hier zusätzlich; pages.yml bleibt unberührt.
     runs-on: ubuntu-latest
