@@ -16,6 +16,10 @@ const q = async (s) => { const r = await cl.psql(s); if (r.code) throw new Error
 const J = (s) => JSON.parse(s);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const CFG = { bossHp: 150, bossAtk: 8 };
+// Wartet, bis eine Bedingung in der Datenbank wahr ist (statt auf feste Zeiten zu vertrauen; CI-Rechner sind langsamer)
+const until = async (cond, ms = 15000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if ((await cl.psql(`select ${cond}`)).out === 't') return true; await sleep(40); } return false; };
+const sleeping = (tag) => `exists (select 1 from pg_stat_activity where query like '%${tag}%' and query not like '%pg_stat_activity%' and state = 'active' and wait_event = 'PgSleep')`;
+const blocked = (tag) => `exists (select 1 from pg_stat_activity where query like '%${tag}%' and query not like '%pg_stat_activity%' and wait_event_type = 'Lock')`;
 try {
   for (const f of ['01_proto', '02_actions', '03_windows', '04_gruppe']) await q(readFileSync(join(here, `../sql/${f}.sql`), 'utf8'));
   const KL = [['krieger', 'ritter'], ['bogenschuetze', 'jaeger'], ['magier', 'feuer'], ['heiler', 'priester'], ['heiler', 'natur'], ['krieger', 'berserker'], ['magier', 'frost'], ['bogenschuetze', 'fallensteller']];
@@ -39,10 +43,11 @@ try {
   { const X = await ts(60000), X2 = await ts(120000); const a = await create(U(1, 2, 3, 4, 5, 6), 4005, X), b = await create(U(7, 8, 9, 10, 11, 12), 4005, X2), c = await create(U(7, 8, 9, 10, 11, 12), 4005, X);
     ok(a.status === 'ok' && b.status === 'event_mismatch' && c.status === 'ok', '4d: die Endzeit eines Events ist unveränderlich: abweichende Endzeit abgelehnt, gleiche akzeptiert'); }
   { // Die Prüfzeit wird erst nach der Sperre genommen: wer auf die Anlagesperre wartet und danach das Ende überschritten hat, bekommt keine Gruppe
-    const X = await ts(700);
-    const hold = cl.psql(`begin; select pg_advisory_xact_lock(7001, hashtext('4300')); select pg_sleep(1.3); commit;`); await sleep(150);
-    const r = await create(U(1, 2, 3, 4, 5, 6), 4300, X);
-    await hold; ok(r.status === 'event_ended' && +(await q(`select count(*) from rwi.instances where event_id=4300`)) === 0, '4d: Anlage, die auf die Sperre wartet und dabei das Eventende erreicht, wird abgelehnt (Zeit erst nach der Sperre)', r.status); }
+    const hold = cl.psql(`begin; select pg_advisory_xact_lock(7001, hashtext('4300')); select pg_sleep(2.0); commit;`); await until(sleeping('pg_sleep(2.0)'));
+    const X = await ts(900); const rp = create(U(1, 2, 3, 4, 5, 6), 4300, X);
+    const waited = await until(blocked('create_group'), 5000);                                    // die Anlage steckt nachweislich in der Sperrwarteschlange
+    const r = await rp; await hold;
+    ok(waited && r.status === 'event_ended' && +(await q(`select count(*) from rwi.instances where event_id=4300`)) === 0, '4d: Anlage, die auf die Sperre wartet und dabei das Eventende erreicht, wird abgelehnt (Zeit erst nach der Sperre)', `${r.status} gewartet=${waited}`); }
   { let bothOk = 0, ended = 0, bad = 0, oneOne = 0;
     for (let k = 0; k < 18; k++) {
       const ev = 4100 + k, X = await ts(1000), d = (k % 9 - 4) * 12;          // Frist −48 … +48 ms um den Aufrufzeitpunkt
@@ -67,13 +72,15 @@ try {
   { const ids = [];
     for (const ev of [5001, 5002, 5001, 5002]) ids.push(+(await q(`insert into rwi.instances(event_id, ends_at) values (${ev}, clock_timestamp() - interval '1 second') returning id`)));
     const [a, b, c, d] = ids;
-    const hold = cl.psql(`begin; select 1 from rwi.instances where id=${c} for update; select pg_sleep(2.2); commit;`);          // Blockierer auf der dritten Instanz
-    await sleep(300); const t0 = Date.now(); const wd = cl.psql(`select rwi.watchdog_tick()`);                  // der echte Watchdog-Einstieg await sleep(900);
+    const hold = cl.psql(`begin; select 1 from rwi.instances where id=${c} for update; select pg_sleep(4.0); commit;`);          // Blockierer auf der dritten Instanz
+    await until(sleeping('pg_sleep(4.0)'));
+    const t0 = Date.now(); const wd = cl.psql(`select rwi.watchdog_tick()`);                                                   // der echte Watchdog-Einstieg
+    const wblocked = await until(blocked('watchdog_tick'), 8000);                                                              // erst prüfen, wenn der Watchdog nachweislich auf c wartet
     const probe = async (x) => (await cl.psql(`select 1 from rwi.instances where id=${x} for update nowait`)).code;
     const pa = await probe(a), pb = await probe(b), pd = await probe(d);
-    ok(pa !== 0 && pb !== 0 && pd === 0, '4a: Sperren global aufsteigend über Events hinweg (a und b gehalten, c blockiert, d noch nicht berührt)', `a=${pa} b=${pb} d=${pd}`);
+    ok(wblocked && pa !== 0 && pb !== 0 && pd === 0, '4a: Sperren global aufsteigend über Events hinweg (a und b gehalten, c blockiert, d noch nicht berührt)', `blockiert=${wblocked} a=${pa} b=${pb} d=${pd}`);
     const r = await wd; const el = Date.now() - t0; await hold;
-    ok(r.code === 0 && J(r.out).ended >= 4 && el > 1000, '4a: Watchdog wartet auf den Blockierer und schließt danach alle vier ab', `${r.out} nach ${el} ms`);
+    ok(r.code === 0 && J(r.out).ended >= 4 && el > 500, '4a: Watchdog wartet auf den Blockierer und schließt danach alle vier ab', `${r.out} nach ${el} ms`);
     const st = J(await q(`select json_agg(row_to_json(i) order by id) from (select id, status, stage, outcome from rwi.instances where id in (${ids.join(',')})) i`));
     ok(st.every((x) => x.status === 'event_ended' && x.stage === 'done' && x.outcome === 'event_ended'), '4a/4c: alle vier im vollständigen Endzustand'); }
   { const c1 = +(await q(`insert into rwi.instances(event_id, ends_at, status, stage, outcome) values (5003, clock_timestamp() - interval '1 second', 'completed', 'done', 'won') returning id`));
@@ -99,9 +106,9 @@ try {
   };
   { const A = await mkPlain(6001, 1), B = await mkPlain(6001, 2);
     await q(`update rwi.instances set ends_at = clock_timestamp() + interval '300 milliseconds' where event_id=6001`); await sleep(450);
-    const hold = cl.psql(`begin; select 1 from rwi.instances where id=${A.iid} for update; select pg_sleep(1.6); commit;`); await sleep(250);
+    const hold = cl.psql(`begin; select 1 from rwi.instances where id=${A.iid} for update; select pg_sleep(3.0); commit;`); await until(sleeping('pg_sleep(3.0)'));
     const t0 = Date.now(); const cB = J(await q(`select rwi.claim_resolution(${B.fid}, 1)`)); const el = Date.now() - t0;
-    ok(cB.status === 'event_ended' && el < 1000, '4b: Claim auf B beendet die eigene Instanz sofort und wartet nicht auf die gesperrte Fremdinstanz A', `${cB.status} nach ${el} ms`);
+    ok(cB.status === 'event_ended' && el < 1500, '4b: Claim auf B beendet die eigene Instanz sofort und wartet nicht auf die gesperrte Fremdinstanz A', `${cB.status} nach ${el} ms`);
     ok((await instOf(B.iid)).status === 'event_ended' && (await instOf(A.iid)).status === 'active', '4b: A bleibt vorübergehend „active“ (übersprungen), B ist beendet');
     await hold;
     const lateA = await q(A.commit()); const resA = +(await q(`select count(*) from rwi.round_results where fight_id=${A.fid}`)), rwA = +(await q(`select count(*) from rwi.rewards where instance_id=${A.iid}`));
@@ -170,6 +177,12 @@ try {
     const bad1 = await cl.psql(`update rwi.instances set outcome = null where id=${g.instance}`), bad2 = await cl.psql(`update rwi.instances set stage = 'ready' where id=${g.instance}`);
     const other = (await create(U(7, 8, 9, 10, 11, 12), 8002, await ts(60000))).instance; const bad3 = await cl.psql(`update rwi.instances set status = 'event_ended' where id=${other}`), bad4 = await cl.psql(`update rwi.instances set outcome = 'event_ended' where id=${other}`);
     ok([bad1, bad2, bad3, bad4].every((b) => b.code !== 0), '4c: Zwischenzustände sind per Tabellenregel unmöglich (status/stage/outcome nur gemeinsam)'); }
+  { // Zweiter Weg: der Watchdog-Sweep (ohne vorherigen Eingriff durch eine Instanzaktion) setzt denselben Endzustand inklusive Warteliste
+    const P = U(7, 8, 9, 10, 11, 12), g = (await create(P, 8003, await ts(60000))).instance; await readyAll(g, P); await startWb(g);
+    await q(`insert into rwi.waitlist(instance_id, player, status) values (${g}, 'u13', 'waiting'), (${g}, 'u14', 'admitted')`);
+    await q(`update rwi.instances set ends_at = clock_timestamp() - interval '1 second' where id=${g}`); await q(`select rwi.sweep_events()`);
+    const i = await instOf(g);
+    ok(i.status === 'event_ended' && i.stage === 'done' && i.outcome === 'event_ended' && (await q(`select string_agg(player || ':' || status, ',' order by player) from rwi.waitlist where instance_id=${g}`)) === 'u13:cancelled,u14:admitted' && (await fightsOf(g)).every((f) => f.status === 'event_ended'), '4c: Watchdog-Sweep setzt denselben vollständigen Endzustand (stage, outcome, Warteliste, Kampf)'); }
   { // Sieg vor dem Eventende bleibt unverändert
     const P = U(13, 14, 15, 16, 17, 18), X = await ts(60000), g = (await create(P, 8101, X)).instance; await readyAll(g, P); const s = await startWb(g);
     for (let r = 0; r < 60; r++) {

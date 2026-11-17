@@ -16,7 +16,7 @@ Alle Inhalte (Klassen, Boss, Zahlen) sind **Testwerte**, keine Spielbalance.
 | Statusliste offener Kampfregeln, an echtem Engine-Verhalten belegt (10 Proben) | `node server/instance/tests/offen.mjs` |
 | Todesfenster, Annahme in Zeit, Wipe-Halt, Niederlage nach Ablauf, Gruppenpause, Eventende je Eingangsfunktion (39) | `node server/instance/tests/fenster.mjs` |
 | Datenbank-Tests: Claim, Commit, Lease, Eventende, Störungsfenster, Aktion, Watchdog (43) | `node server/instance/tests/run.mjs` |
-| K.2 Regel 4a–4d: Watchdog-Sperrreihenfolge, interne Sweeps (SKIP LOCKED), Endzustand nach Eventende, keine Anlage nach Eventende, parallele Rennen (31) | `node server/instance/tests/eventende.mjs` |
+| K.2 Regel 4a–4d: Watchdog-Sperrreihenfolge, interne Sweeps (SKIP LOCKED), Endzustand nach Eventende, keine Anlage nach Eventende, parallele Rennen (32) | `node server/instance/tests/eventende.mjs` |
 | K.2-Vergleich der Eventende-Varianten | `node server/instance/tests/k2-compare.mjs old\|eigene\|skip 30 [nosweep]` |
 | Gleiches Ergebnis in Node, Bun, Deno (Phase-0-Engine und Engine v1 mit echten Teams, Wiederbelebung, Ausfall, Austritt) | `bash server/instance/tests/run-determinism.sh` |
 
