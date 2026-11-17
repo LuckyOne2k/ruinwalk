@@ -59,7 +59,8 @@ try {
 
   // 1) Gruppengröße: feste Größen je Typ, keine frei wählbaren Parameter
   ok((await mk(U(1))).status === 'bad_size', 'normales Dungeon: eine Person unter Mindestgröße 2 abgelehnt');
-  ok((await mk(U(1, 2, 3, 4, 5, 6, 7, 8, 9))).status === 'bad_size', 'neun Personen über Höchstgröße 8 abgelehnt');
+  ok((await mk(U(1, 2, 3, 4, 5))).status === 'bad_size' && (await mk(U(1, 2, 3, 4, 5, 6, 7, 8))).status === 'bad_size', 'normales Dungeon: fünf und mehr Personen über Höchstgröße 4 abgelehnt');
+  ok((await mk(U(1, 2, 3, 4, 5, 6, 7, 8, 9), { kind: 'special' })).status === 'bad_size' && (await mk(U(1, 2, 3, 4, 5, 6, 7, 8, 9), { kind: 'weltboss', fights: 1, event: 1, ends: '1 hour' })).status === 'bad_size', 'besonderes Dungeon und Weltboss: neun Personen über Höchstgröße 8 abgelehnt');
   ok((await mk(U(1, 2, 3, 4, 5), { kind: 'special' })).status === 'bad_size' && (await mk(U(1, 2, 3, 4, 5), { kind: 'weltboss', fights: 1, event: 1, ends: '1 hour' })).status === 'bad_size', 'besonderes Dungeon und Weltboss: unter 6 Spielern abgelehnt');
   ok((await mk(U(1, 2, 3, 4, 5, 6), { kind: 'special' })).status === 'ok' && (await mk(U(1, 2, 3, 4, 5, 6, 7, 8), { kind: 'special', fights: 2 })).status === 'ok', 'besonderes Dungeon mit 6 und mit 8 Spielern wird angelegt');
   ok((await mk(U(1, 2, 3, 4, 5, 6), { kind: 'weltboss', fights: 1, event: 70, ends: '1 hour' })).status === 'ok', 'Weltboss mit 6 Spielern wird angelegt');
@@ -68,48 +69,52 @@ try {
   ok((await mk(U(1, 2, 3, 4, 5, 6), { kind: 'special', event: 5, ends: '1 hour' })).status === 'bad_weltboss' && (await mk(U(1, 2), { kind: 'quatsch' })).status === 'bad_kind', 'nur der Weltboss hat Event und Endzeit, unbekannte Typen abgelehnt');
   { const pr = await q(`select pg_get_function_arguments(oid) from pg_proc where proname='create_group'`); ok(!/min|max/i.test(pr), 'create_group hat keine Parameter für Mindest- oder Höchstgröße', pr); }
   { const bad = [];
-    for (const [k, mn, mx] of [['dungeon', 1, 8], ['dungeon', 3, 8], ['special', 2, 8], ['weltboss', 2, 8], ['weltboss', 6, 9], ['dungeon', 2, 4]]) { const r = await cl.psql(`insert into rwi.instances(kind, min_size, max_size) values ('${k}', ${mn}, ${mx})`); if (!r.code) bad.push(`${k}/${mn}/${mx}`); }
-    ok(bad.length === 0, 'auch ein direkter Eintrag mit freien Größen wird von der Datenbank abgelehnt (Prüfregel instances_size_rule)', bad.join(',')); }
+    for (const [k, mn, mx] of [['dungeon', 1, 4], ['dungeon', 3, 4], ['dungeon', 2, 8], ['dungeon', 2, 5], ['special', 2, 8], ['special', 6, 4], ['weltboss', 2, 8], ['weltboss', 6, 9]]) { const r = await cl.psql(`insert into rwi.instances(kind, min_size, max_size) values ('${k}', ${mn}, ${mx})`); if (!r.code) bad.push(`${k}/${mn}/${mx}`); }
+    ok(bad.length === 0, 'auch ein direkter Eintrag mit freien Größen wird von der Datenbank abgelehnt (Prüfregel instances_size_rule)', bad.join(','));
+    const good = [];
+    for (const [k, mn, mx] of [['dungeon', 2, 4], ['special', 6, 8], ['weltboss', 6, 8]]) { const r = await cl.psql(`insert into rwi.instances(kind, min_size, max_size) values ('${k}', ${mn}, ${mx})`); if (r.code) good.push(k); }
+    ok(good.length === 0, 'die verbindlichen Größen (2–4 / 6–8 / 6–8) werden direkt akzeptiert', good.join(','));
+    const G = (await mk(U(1, 2))).instance; const upd = await cl.psql(`update rwi.instances set max_size = 8 where id=${G}`); ok(upd.code !== 0, 'Höchstgröße eines normalen Dungeons lässt sich nachträglich nicht auf 8 anheben'); }
   ok((await mk(['u1', 'low'])).status === 'not_eligible' && (await mk(['u1', 'nocls'])).status === 'not_eligible', 'Instanzzugang erst ab Level 5 mit Grundklasse');
   ok((await mk(['u1', 'u1'])).status === 'duplicate', 'doppelter Spieler abgelehnt');
-  ok((await mk(U(1, 2, 3, 4, 5, 6, 7, 8))).status === 'ok', 'normales Dungeon mit 8 Spielern wird angelegt');
+  ok((await mk(U(1, 2, 3, 4))).status === 'ok' && (await mk(U(1, 2))).status === 'ok', 'normales Dungeon mit 4 und mit 2 Spielern wird angelegt');
 
   // 2) Beitritt, Warteliste, Nachrücken (normales Mehrkampf-Dungeon, 8 Plätze, 3 Kämpfe)
   const G1 = (await mk(U(1, 2), { fights: 3 })).instance;
-  { let all = true; for (const n of [3, 4, 5, 6, 7, 8]) all = all && (await call('join', G1, 'u' + n)).status === 'joined'; ok(all, 'vor dem ersten Kampf: Beitritt bis zur Höchstgröße 8'); }
-  const w9 = await call('join', G1, 'u9'), w10 = await call('join', G1, 'u10');
+  { let all = true; for (const n of [3, 4]) all = all && (await call('join', G1, 'u' + n)).status === 'joined'; ok(all, 'vor dem ersten Kampf: Beitritt bis zur Höchstgröße 4'); }
+  const w9 = await call('join', G1, 'u5'), w10 = await call('join', G1, 'u6');
   ok(w9.status === 'waitlisted' && w9.position === 1 && w10.position === 2, 'voll: Warteliste in Reihenfolge', JSON.stringify([w9, w10]));
-  ok((await call('join', G1, 'u9')).status === 'already_waiting' && (await call('join', G1, 'u1')).status === 'already_member' && (await call('join', G1, 'low')).status === 'not_eligible', 'doppelte Anmeldung und Unberechtigte werden abgewiesen');
-  ok((await call('set_ready', G1, 'u9')).status === 'not_member', 'Wartende können nicht „Bereit“ sagen');
-  await ready(G1, U(1, 2, 3, 4, 5, 6, 7));
+  ok((await call('join', G1, 'u5')).status === 'already_waiting' && (await call('join', G1, 'u1')).status === 'already_member' && (await call('join', G1, 'low')).status === 'not_eligible', 'doppelte Anmeldung und Unberechtigte werden abgewiesen');
+  ok((await call('set_ready', G1, 'u5')).status === 'not_member', 'Wartende können nicht „Bereit“ sagen');
+  await ready(G1, U(1, 2, 3));
   ok((await start(G1)).status === 'not_all_ready', 'Start nur wenn alle bereit sind');
-  { const roster = J(await q(`select rwi.roster(${G1})`)), S = newFight(roster.slice(0, 7), CFG); S.members[0].legacy = true;
-    await call('set_ready', G1, 'u8');
+  { const roster = J(await q(`select rwi.roster(${G1})`)), S = newFight(roster.slice(0, 3), CFG); S.members[0].legacy = true;
+    await call('set_ready', G1, 'u4');
     ok(J(await q(`select rwi.start_fight(${G1}, $j$${JSON.stringify(S)}$j$::jsonb)`)).status === 'legacy_rejected', 'Referenzprofil (legacy) wird beim Kampfstart abgelehnt');
-    ok(J(await q(`select rwi.start_fight(${G1}, $j$${JSON.stringify(newFight(roster.slice(0, 7), CFG))}$j$::jsonb)`)).status === 'state_mismatch', 'Kampfzustand muss genau die aktiven Mitglieder enthalten'); }
+    ok(J(await q(`select rwi.start_fight(${G1}, $j$${JSON.stringify(newFight(roster.slice(0, 3), CFG))}$j$::jsonb)`)).status === 'state_mismatch', 'Kampfzustand muss genau die aktiven Mitglieder enthalten'); }
   const s1 = await start(G1); ok(s1.status === 'ok' && s1.fight_no === 1 && (await inst(G1)).stage === 'fight', 'Kampf 1 startet');
-  ok((await call('join', G1, 'u11')).status === 'waitlisted', 'während eines Kampfes: nur Warteliste, keine Teilnahme');
+  ok((await call('join', G1, 'u7')).status === 'waitlisted', 'während eines Kampfes: nur Warteliste, keine Teilnahme');
   ok((await call('set_ready', G1, 'u1')).status === 'not_ready_phase', '„Bereit“ nur in der Bereitschaftsphase');
   { const fid = s1.fight, rr = await q(`select round_no from rwi.fights where id=${fid}`);
-    ok(J(await q(`select rwi.submit_action_for('u9', ${fid}, ${rr}, '{"ability":"standard"}'::jsonb)`)).status === 'forbidden', 'Wartende können keine Aktion in einem laufenden Kampf abgeben'); }
-  ok((await call('leave', G1, 'u10')).status === 'left_waitlist', 'Austritt von der Warteliste');
+    ok(J(await q(`select rwi.submit_action_for('u5', ${fid}, ${rr}, '{"ability":"standard"}'::jsonb)`)).status === 'forbidden', 'Wartende können keine Aktion in einem laufenden Kampf abgeben'); }
+  ok((await call('leave', G1, 'u6')).status === 'left_waitlist', 'Austritt von der Warteliste');
   const pl1 = await playOut(G1); ok(pl1.status === 'won', 'Kampf 1 gewonnen', pl1.status);
   ok((await inst(G1)).stage === 'ready', 'nach dem Sieg beginnt die Bereitschaftsphase');
   const e1 = await ent(G1, 'u1'); ok(e1.length === 2 && e1.every((x) => !x.void), 'Teilnehmer erhalten Kampf-EP- und Beute-Berechtigung für Kampf 1');
-  ok((await ent(G1, 'u9')).length === 0 && (await ent(G1, 'u11')).length === 0, 'Wartende erhalten nichts für Kampf 1');
+  ok((await ent(G1, 'u5')).length === 0 && (await ent(G1, 'u7')).length === 0, 'Wartende erhalten nichts für Kampf 1');
   { const m1 = await mem(G1, 'u1'); ok(m1.ready === false && m1.ready_due !== null, 'neue Bereitschaftsfrist (60 s) für alle'); }
   ok((await call('leave', G1, 'u2')).status === 'left', 'freiwilliger Austritt');
   { const e = await ent(G1, 'u2'); ok(e.find((x) => x.k === 'kampf_ep' && !x.void) && e.find((x) => x.k === 'beute' && x.void), 'Austritt: Beute entfällt, bereits gutgeschriebene Kampf-EP bleiben', JSON.stringify(e)); }
-  { const m9 = await mem(G1, 'u9'), m11 = await mem(G1, 'u11'); ok(m9 && m9.mstate === 'active' && m9.potions === 3 && m9.joined_after_fights === 1 && !m11, 'frei gewordener Platz: Nachrücker u9 (erste in der Warteliste) mit 3 eigenen Heiltränken'); }
+  { const m9 = await mem(G1, 'u5'), m11 = await mem(G1, 'u7'); ok(m9 && m9.mstate === 'active' && m9.potions === 3 && m9.joined_after_fights === 1 && !m11, 'frei gewordener Platz: Nachrücker u5 (erste in der Warteliste) mit 3 eigenen Heiltränken'); }
   ok((await call('join', G1, 'u2')).status === 'no_rejoin', 'kein Wiederbeitritt nach freiwilligem Austritt');
-  ok((await ent(G1, 'u9')).length === 0, 'Nachrücker erhält keine rückwirkenden Ansprüche');
-  ok((await call('set_ready', G1, 'u9')).status === 'ok', 'Nachrücker kann Bereitschaft bestätigen');
-  await ready(G1, U(1, 3, 4, 5, 6, 7, 8));
+  ok((await ent(G1, 'u5')).length === 0, 'Nachrücker erhält keine rückwirkenden Ansprüche');
+  ok((await call('set_ready', G1, 'u5')).status === 'ok', 'Nachrücker kann Bereitschaft bestätigen');
+  await ready(G1, U(1, 3, 4));
   ok((await call('set_ready', G1, 'u1')).status === 'ok', 'Bereitschaft ist wiederholbar, aber nicht widerrufbar');
   const s2 = await start(G1); ok(s2.status === 'ok' && s2.fight_no === 2, 'Kampf 2 startet mit den verbliebenen Spielern');
   { const f2 = (await fightsOf(G1)).pop(), f1 = (await fightsOf(G1))[0], by = Object.fromEntries(f2.state.members.map((m) => [m.id, m])), b1 = Object.fromEntries(f1.state.members.map((m) => [m.id, m]));
-    ok(!by.u2 && by.u9 && f1.state.members.every((m) => m.id !== 'u9'), 'Kampfzustand: u2 weg, u9 neu, u9 war nicht im ersten Kampf');
-    ok(by.u9.hp === Math.floor(by.u9.maxhp / 2) && Object.keys(by.u9.cd).length === 0, 'Nachrücker: Platzhalter-Lebensanteil (50 %), keine Abklingzeiten');
+    ok(!by.u2 && by.u5 && f1.state.members.every((m) => m.id !== 'u5'), 'Kampfzustand: u2 weg, u5 neu, u5 war nicht im ersten Kampf');
+    ok(by.u5.hp === Math.floor(by.u5.maxhp / 2) && Object.keys(by.u5.cd).length === 0, 'Nachrücker: Platzhalter-Lebensanteil (50 %), keine Abklingzeiten');
     ok(['u1', 'u3', 'u4'].every((k) => by[k].alive && by[k].st.length === 0 && by[k].revives === 0 && by[k].deaths === 0 && by[k].hp === (b1[k].alive ? b1[k].hp : Math.floor(b1[k].maxhp / 10))), 'Bestehende: HP bleiben, Status weg, Wiederbelebungslimit neu');
     ok(f2.state.monster.hp === 150 && f2.state.monster.maxhp === 150, 'neuer Kampf: Gegner unabhängig konfiguriert'); }
   { const G = (await mk(U(1, 2), { fights: 3 })).instance; await ready(G, U(1, 2)); await start(G);
@@ -117,9 +122,9 @@ try {
     const pl = await playOut(G); const m = await mem(G, 'u13'); ok(pl.status === 'won' && m && m.mstate === 'active' && m.joined_after_fights === 1 && (await ent(G, 'u13')).length === 0, 'nach dem Kampf rückt sie nach, ohne Ansprüche für den abgeschlossenen Kampf'); }
 
   // 3) Austritt/Entfernung im letzten Kampf: Ansprüche und Abschlussbelohnung
-  const G2 = (await mk(U(1, 2, 3, 4, 5), { fights: 2 })).instance;
-  await ready(G2, U(1, 2, 3, 4, 5)); await start(G2); await playOut(G2);
-  await ready(G2, U(1, 2, 3, 4, 5)); const s22 = await start(G2); ok(s22.fight_no === 2, 'G2: letzter Kampf läuft');
+  const G2 = (await mk(U(1, 2, 3, 4), { fights: 2 })).instance;
+  await ready(G2, U(1, 2, 3, 4)); await start(G2); await playOut(G2);
+  await ready(G2, U(1, 2, 3, 4)); const s22 = await start(G2); ok(s22.fight_no === 2, 'G2: letzter Kampf läuft');
   ok((await call('join', G2, 'u9')).status === 'no_join', 'im letzten Kampf kein Nachrücken mehr');
   await call('leave', G2, 'u2'); await q(`update rwi.members set disc_since = clock_timestamp() - interval '301 seconds', connected = false where instance_id=${G2} and player='u3'`);
   const tk = J(await q(`select rwi.group_tick()`)); ok(tk.removed === 1 && (await mem(G2, 'u3')).leave_reason === 'abwesenheit' && (await mem(G2, 'u3')).mstate === 'removed', 'Abwesenheit 5 Minuten: automatisch entfernt, Ursache „abwesenheit“', JSON.stringify(tk));
@@ -132,13 +137,13 @@ try {
     ok(e3.find((x) => x.f === 1 && x.k === 'beute' && !x.void) && e3.find((x) => x.f === 1 && x.k === 'kampf_ep' && !x.void), 'automatisch Entfernter behält verdiente Ansprüche aus Kampf 1');
     ok(e2.find((x) => x.f === 1 && x.k === 'beute' && x.void) && e2.find((x) => x.f === 1 && x.k === 'kampf_ep' && !x.void), 'freiwillig Ausgetretener: Beute aus Kampf 1 entfällt, Kampf-EP bleiben'); }
   ok(+(await q(`select count(*) from rwi.rewards where instance_id=${G1}`)) === 0, 'keine Abschlussbelohnung nach Einzelkämpfen (G1 läuft noch)');
-  { const fin = (await q(`select string_agg(test_member, ',' order by test_member) from rwi.rewards where instance_id=${G2} and reward_id like 'final:%'`)); ok(fin === 'u1,u4,u5', 'Abschlussbelohnung nur für Verbliebene; u2 (freiwillig) und u3 (ohne Beitrag im letzten Kampf) nicht', fin); }
+  { const fin = (await q(`select string_agg(test_member, ',' order by test_member) from rwi.rewards where instance_id=${G2} and reward_id like 'final:%'`)); ok(fin === 'u1,u4', 'Abschlussbelohnung nur für Verbliebene; u2 (freiwillig) und u3 (ohne Beitrag im letzten Kampf) nicht', fin); }
   ok((await inst(G2)).outcome === 'won' && (await inst(G2)).stage === 'done', 'Instanz endet mit Sieg');
   ok((await call('join', G2, 'u3')).status !== 'joined' && (await call('join', G2, 'u9')).status !== 'joined', 'nach Instanzende kein Beitritt');
 
   // 3b) Abschlussbelohnung bei automatischer Entfernung nach Beitrag (Regel: verdiente Ansprüche gehen nicht pauschal verloren)
-  { const BIG = { bossHp: 700, bossAtk: 6 }; const G = (await mk(U(1, 2, 3, 4, 5, 6), { fights: 2 })).instance;
-    await ready(G, U(1, 2, 3, 4, 5, 6)); await start(G); await playOut(G); await ready(G, U(1, 2, 3, 4, 5, 6));
+  { const BIG = { bossHp: 700, bossAtk: 6 }; const G = (await mk(U(1, 2, 3, 4, 5, 6, 7, 8), { kind: 'special', fights: 2 })).instance;
+    await ready(G, U(1, 2, 3, 4, 5, 6, 7, 8)); await start(G); await playOut(G); await ready(G, U(1, 2, 3, 4, 5, 6, 7, 8));
     const roster = J(await q(`select rwi.roster(${G})`)), prev = (await fightsOf(G)).pop(), S = nextFight(prev.state, roster, BIG);
     const sf = J(await q(`select rwi.start_fight(${G}, $j$${JSON.stringify(S)}$j$::jsonb)`)); ok(sf.status === 'ok', '3b: letzter Kampf mit stärkerem Gegner läuft');
     await q(`update rwi.members set disc_since = clock_timestamp() - interval '301 seconds', connected = false where instance_id=${G} and player='u4'`); await q(`select rwi.group_tick()`);   // u4: entfernt, bevor er etwas getan hat
@@ -149,7 +154,7 @@ try {
     await call('leave', G, 'u2');                                                              // u2: nach Beitrag freiwillig ausgetreten
     const pl = await playOut(G); ok(pl.status === 'won', '3b: Kampf gewonnen', pl.status);
     const fin = await q(`select string_agg(test_member, ',' order by test_member) from rwi.rewards where instance_id=${G} and reward_id like 'final:%'`);
-    ok(fin === 'u1,u3,u5,u6', 'Entfernt nach Beitrag (u3): Abschlussbelohnung bleibt. Entfernt ohne Beitrag (u4) und freiwillig Ausgetretene (u2) erhalten sie nicht', fin);
+    ok(fin === 'u1,u3,u5,u6,u7,u8', 'Entfernt nach Beitrag (u3): Abschlussbelohnung bleibt. Entfernt ohne Beitrag (u4) und freiwillig Ausgetretene (u2) erhalten sie nicht', fin);
     const e3 = await ent(G, 'u3'), e4 = await ent(G, 'u4'); ok(e3.filter((x) => x.f === 1).every((x) => !x.void) && e3.filter((x) => x.f === 2).every((x) => x.void), 'u3: Ansprüche aus Kampf 1 bleiben, Kampf 2 (beim Entfernen laufend) nicht abgeschlossen');
     ok((await mem(G, 'u3')).leave_reason === 'abwesenheit' && (await mem(G, 'u2')).leave_reason === 'freiwillig', 'Ursachen bleiben unterscheidbar (abwesenheit / freiwillig)');
     ok(+(await q(`select rwi.contribution(${G}, 'u3')`)) >= 1 && +(await q(`select rwi.contribution(${G}, 'u4')`)) === 0, 'Beitragszählung: u3 mindestens eine Aktion, u4 keine'); }
@@ -269,6 +274,51 @@ try {
     ok(late.status === 'removed' && m2.mstate === 'removed' && m2.last_seen_at.slice(0, 4) !== '' && (await q(`select (last_seen_at < clock_timestamp() - interval '1 second') from rwi.members where instance_id=${G} and player='u2'`)) === 't', 'Heartbeat nach abgelaufener Abwesenheit: Entfernung statt Verbindung, last_seen wird nicht gesetzt');
     ok((await as('u2', `select rwi.heartbeat(${G})`)).status === 'not_member', 'Entfernter kann sich nicht per Heartbeat zurückmelden'); }
 
+  // 4d) Obergrenze 4 gilt auch bei direkten SQL-Aufrufen (nicht nur über join)
+  { const G = (await mk(U(1, 2, 3, 4), { fights: 2 })).instance;
+    const r = await cl.psql(`insert into rwi.members(instance_id, player, key, last_seen_at) values (${G}, 'u5', 'u5', clock_timestamp())`);
+    ok(r.code !== 0 && /Gruppe voll/.test(r.err || r.out || '') && +(await q(`select count(*) from rwi.members where instance_id=${G}`)) === 4, 'direktes Einfügen eines fünften Spielers in ein normales Dungeon scheitert (Tabellenwächter)', r.err || '');
+    const r2 = await cl.psql(`insert into rwi.members(instance_id, player, key, last_seen_at) select ${G}, 'u' || x, 'u' || x, clock_timestamp() from generate_series(5, 9) x`);
+    ok(r2.code !== 0 && +(await q(`select count(*) from rwi.members where instance_id=${G}`)) === 4, 'auch mehrere Zeilen in einer Anweisung werden zusammen abgelehnt');
+    await q(`insert into rwi.waitlist(instance_id, player) values (${G}, 'u5'), (${G}, 'u6')`);
+    ok(J(await q(`select rwi.promote_waitlist(${G})`)) === 0 && +(await q(`select count(*) from rwi.members where instance_id=${G} and mstate='active'`)) === 4, 'direkter Aufruf von promote_waitlist nimmt bei voller Gruppe niemanden auf');
+    await call('leave', G, 'u4'); ok(+(await q(`select count(*) from rwi.members where instance_id=${G} and mstate='active'`)) === 4 && (await mem(G, 'u5')).mstate === 'active' && (await mem(G, 'u6')) === null && J(await q(`select rwi.promote_waitlist(${G})`)) === 0, 'nach einem Austritt rückt genau eine Person nach (4 aktive), ein weiterer Aufruf nimmt niemanden mehr auf');
+    await q(`update rwi.members set mstate='left', leave_reason='freiwillig' where instance_id=${G} and player='u1'`);
+    const back = await cl.psql(`update rwi.members set mstate='active' where instance_id=${G} and player='u1'`);
+    ok(+(await q(`select count(*) from rwi.members where instance_id=${G} and mstate='active'`)) <= 4, 'Reaktivieren über direkte Aktualisierung kann die Obergrenze nicht überschreiten');
+    const W = (await mk(U(1, 2, 3, 4, 5, 6, 7, 8), { kind: 'special', fights: 2 })).instance; const r3 = await cl.psql(`insert into rwi.members(instance_id, player, key, last_seen_at) values (${W}, 'u9', 'u9', clock_timestamp())`);
+    ok(r3.code !== 0 && /Gruppe voll/.test(r3.err || r3.out || ''), 'besonderes Dungeon: neunter Spieler direkt eingefügt scheitert'); }
+  { const G = (await mk(U(1, 2, 3, 4), { fights: 2 })).instance; const w = await call('join', G, 'u5');
+    ok(w.status === 'waitlisted' && (await call('join', G, 'u6')).position === 2, 'normales Dungeon voll mit 4: weitere Spieler landen auf der Warteliste'); }
+
+  // 4e) Nachrücken und Mindestgröße nach automatischer Entfernung, je Aufrufweg
+  { // Workerweg: group_tick entfernt, der Wartende rückt nach
+    const G = (await mk(U(1, 2, 3, 4), { fights: 2 })).instance; await call('join', G, 'u5'); await setMem(G, 'u4', `ready_due = clock_timestamp() - interval '1 second'`);
+    const t = J(await q(`select rwi.group_tick()`)); const m5 = await mem(G, 'u5');
+    ok(t.removed === 1 && (await mem(G, 'u4')).mstate === 'removed' && m5 && m5.mstate === 'active', 'Worker: automatische Entfernung (Ready-Frist) lässt den Wartenden nachrücken'); }
+  { // Clientweg über set_ready
+    const G = (await mk(U(1, 2, 3, 4), { fights: 2 })).instance; await call('join', G, 'u5'); await setMem(G, 'u4', `ready_due = clock_timestamp() - interval '1 second'`);
+    const r = await call('set_ready', G, 'u4'); const m5 = await mem(G, 'u5');
+    ok(r.status === 'removed' && m5 && m5.mstate === 'active', 'Client (set_ready): automatische Entfernung lässt den Wartenden nachrücken'); }
+  { // Clientweg über Wiederverbindung/Heartbeat (Abwesenheit)
+    const G = (await mk(U(1, 2, 3, 4), { fights: 2 })).instance; await call('join', G, 'u5'); await setMem(G, 'u3', `disc_since = clock_timestamp() - interval '301 seconds', connected = false`);
+    const r = await as('u3', `select rwi.heartbeat(${G})`); const m5 = await mem(G, 'u5');
+    ok(r.status === 'removed' && m5 && m5.mstate === 'active', 'Client (Heartbeat nach Abwesenheit): Wartender rückt nach'); }
+  { // Mindestgrößenabbruch, normales Dungeon (2 Spieler), beide Wege
+    const A = (await mk(U(1, 2), { fights: 2 })).instance; await setMem(A, 'u2', `ready_due = clock_timestamp() - interval '1 second'`); const t = J(await q(`select rwi.group_tick()`));
+    ok(t.aborted === 1 && (await inst(A)).status === 'aborted', 'Worker: Entfernung unter Mindestgröße 2 bricht die Instanz ab');
+    const B = (await mk(U(1, 2), { fights: 2 })).instance; await setMem(B, 'u2', `ready_due = clock_timestamp() - interval '1 second'`); const r = await call('set_ready', B, 'u2');
+    ok(r.status === 'removed' && r.instance_aborted === true && (await inst(B)).status === 'aborted', 'Client (set_ready): Entfernung unter Mindestgröße 2 bricht die Instanz ab');
+    const C = (await mk(U(1, 2), { fights: 2 })).instance; await setMem(C, 'u2', `disc_since = clock_timestamp() - interval '301 seconds', connected = false`); const h = await as('u2', `select rwi.heartbeat(${C})`);
+    ok(h.status === 'removed' && (await inst(C)).status === 'aborted', 'Client (Heartbeat): Abwesenheit unter Mindestgröße bricht die Instanz ab'); }
+  { // Störungsfenster auf beiden Wegen
+    const G = (await mk(U(1, 2, 3), { fights: 2 })).instance;
+    await setMem(G, 'u1', `disc_since = clock_timestamp() - interval '400 seconds', connected = false`); await setMem(G, 'u2', `disc_since = clock_timestamp() - interval '400 seconds', connected = false`);
+    await q(`insert into rwi.system_gaps(from_at, to_at) values (clock_timestamp() - interval '390 seconds', clock_timestamp() - interval '20 seconds')`);
+    const t = J(await q(`select rwi.group_tick()`)); const h = await as('u2', `select rwi.heartbeat(${G})`);
+    ok(t.removed === 0 && (await mem(G, 'u1')).mstate === 'active' && h.status !== 'removed' && (await mem(G, 'u2')).mstate === 'active', 'Störungsfenster: weder Worker noch Heartbeat entfernen wegen Abwesenheit im Fenster');
+    await q(`delete from rwi.system_gaps`); }
+
   // 5) Weltboss (Typ) und besondere Dungeons: Beitritt, kein Nachrücken, Eventende
   { const G = (await mk(U(1, 2, 3, 4, 5, 6), { kind: 'weltboss', fights: 1, event: 77, ends: '1 hour' })).instance;
     ok((await call('join', G, 'u9')).status === 'joined' && (await call('join', G, 'u10')).status === 'joined' && (await call('join', G, 'u11')).status === 'full', 'Weltboss: Beitritt vor dem Start bis 8, danach voll, keine Warteliste');
@@ -314,7 +364,7 @@ try {
     ok(v.instance.status === 'event_ended' && v.instance.stage === 'done' && v.instance.outcome === 'event_ended' && v.fight.can_act === false, 'Eventende gilt in der Ansicht sofort, auch bevor der Watchdog gelaufen ist');
     ok(b === a && (await inst(G)).status === 'active', 'Ansicht schreibt das Ende nicht selbst (Datenbankstand bleibt), das tut erst der Watchdog');
     await q(`select rwi.watchdog_tick()`); ok((await inst(G)).status === 'event_ended' && (await V(G, 'u1')).instance.status === 'event_ended', 'danach hält der Watchdog das Ende fest'); }
-  { const G = (await mk(U(1, 2, 3, 4, 5, 6, 7, 8), { fights: 2 })).instance; await call('join', G, 'u9'); const vw = await V(G, 'u9');
+  { const G = (await mk(U(1, 2, 3, 4, 5, 6, 7, 8), { kind: 'special', fights: 2 })).instance; await call('join', G, 'u9'); const vw = await V(G, 'u9');
     ok(vw.me.state === 'waiting' && vw.me.position === 1 && !('group' in vw) && !('fight' in vw), 'Wartende sehen nur Platz und Instanzstatus');
     await call('leave', G, 'u2'); const vl = await V(G, 'u2'), va = await V(G, 'u9');
     ok(vl.me.state === 'left' && vl.me.reason === 'freiwillig' && !('group' in vl) && !('fight' in vl), 'Ausgeschiedene sehen nur ihren eigenen Status');
