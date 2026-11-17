@@ -42,6 +42,8 @@ jobs:
         run: node server/instance/tests/fenster.mjs
       - name: Gruppenverwaltung und instance_view
         run: node server/instance/tests/gruppe.mjs
+      - name: Eventende K.2 Regel 4a-4d (Watchdog, Sweeps, Endzustand, Anlage, Rennen)
+        run: node server/instance/tests/eventende.mjs
       - name: K.2-Vergleich (neue Variante muss fehlerfrei sein)
         run: |
           node server/instance/tests/k2-compare.mjs skip 15

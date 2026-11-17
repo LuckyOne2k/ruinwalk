@@ -23,6 +23,11 @@ begin
   return null;
 end $$;
 create constraint trigger members_size_guard after insert or update of mstate, player on rwi.members for each row execute function rwi.members_size_guard();
+-- Weltboss: genau ein Kampf, Event und absolute Endzeit sind Pflicht. Damit gilt kind = 'weltboss' => fights_total = 1 (Einkampf-Regel in join braucht nur fights_total).
+alter table rwi.instances add constraint instances_weltboss_rule check (kind <> 'weltboss' or (fights_total = 1 and event_id is not null and ends_at is not null));
+-- Endzustand nach Eventende ist unteilbar: status, stage und outcome gehören zusammen (kein Zwischenzustand, auch nicht durch direkte Aktualisierung)
+alter table rwi.instances add constraint instances_event_end_state check ((status = 'event_ended') = coalesce(outcome = 'event_ended', false) and (status <> 'event_ended' or stage = 'done'));
+alter table rwi.instances add column created_at timestamptz;      -- nur von create_group gesetzt (Zeitpunkt der Prüfung gegen das Eventende)
 create unique index members_player_uq on rwi.members (instance_id, player) where player is not null;       -- höchstens eine Mitgliedschaft je Spieler und Instanz (kein Wiederbeitritt)
 insert into rwi.cfg values ('ready_seconds', 60), ('absence_seconds', 300), ('contribution_min', 1);   -- contribution_min: PLATZHALTER (Balance): Mindestzahl ausgeführter Aktionen im letzten Kampf
 
@@ -85,6 +90,7 @@ begin
   select * into m from rwi.members where instance_id = p_instance and player = p_player and mstate = 'active';
   if not found then return null; end if;
   select * into i from rwi.instances where id = p_instance;
+  if i.status <> 'active' or i.stage = 'done' then return null; end if;                                    -- beendete Instanz (Eventende, Abbruch, Abschluss): keine Fristen, keine Entfernungen mehr
   select coalesce(max(to_at), '-infinity') into gap from rwi.system_gaps;
   if m.disc_since is not null and t - greatest(m.disc_since, gap) >= make_interval(secs => rwi.cfg('absence_seconds')) then return 'abwesenheit'; end if;
   if i.stage = 'ready' and not m.ready and m.ready_due is not null and m.ready_due <= t then return 'bereitschaft'; end if;
@@ -143,7 +149,13 @@ begin
   if n < mn or n > mx then return jsonb_build_object('status','bad_size','min',mn,'max',mx); end if;
   if (select count(distinct x) from unnest(p_players) x) <> n then return jsonb_build_object('status','duplicate'); end if;
   foreach pl in array p_players loop if not rwi.eligible(pl) then return jsonb_build_object('status','not_eligible','player',pl); end if; end loop;
-  insert into rwi.instances(kind, stage, min_size, max_size, fights_total, event_id, ends_at) values (p_kind, 'ready', mn, mx, p_fights_total, p_event, p_ends_at) returning id into iid;
+  if p_event is not null then                                                                    -- K.2 Regel 4d: nie eine Instanz für ein abgelaufenes Event
+    perform pg_advisory_xact_lock(7001, hashtext(p_event::text));                                  -- Anlage je Event nacheinander: Prüfung und Einfügen sehen denselben Stand
+    t := clock_timestamp();                                                                      -- Datenbankzeit erst nach der Sperre, unmittelbar vor dem Einfügen
+    if exists (select 1 from rwi.instances where event_id = p_event and (status = 'event_ended' or ends_at <= t)) or t >= p_ends_at then return jsonb_build_object('status','event_ended'); end if;
+    if exists (select 1 from rwi.instances where event_id = p_event and ends_at is distinct from p_ends_at) then return jsonb_build_object('status','event_mismatch'); end if;   -- die Endzeit eines Events ist unveränderlich (K.2 Regel 1)
+  end if;
+  insert into rwi.instances(kind, stage, min_size, max_size, fights_total, event_id, ends_at, created_at) values (p_kind, 'ready', mn, mx, p_fights_total, p_event, p_ends_at, t) returning id into iid;
   insert into rwi.members(instance_id, player, key, last_seen_at, ready_due, potions) select iid, x, x, t, t + make_interval(secs => rwi.cfg('ready_seconds')), 3 from unnest(p_players) x;
   return jsonb_build_object('status','ok','instance',iid);
 end $$;
@@ -160,12 +172,12 @@ begin
   select * into m from rwi.members where instance_id = i.id and player = p_player;
   if found then return jsonb_build_object('status', case when m.mstate = 'active' then 'already_member' else 'no_rejoin' end); end if;      -- kein Wiederbeitritt nach Austritt oder Entfernung
   if exists (select 1 from rwi.waitlist where instance_id = i.id and player = p_player and status = 'waiting') then return jsonb_build_object('status','already_waiting'); end if;
-  if i.kind = 'weltboss' or i.fights_total = 1 then                                          -- Weltboss (Typ) oder Einkampf-Instanz: kein Übergang, also kein Nachrücken; Beitritt nur vor dem Start und nur mit freiem Platz
+  if i.fights_total = 1 then                                                                 -- Einkampf-Instanz (Weltboss ist per Tabellenregel immer eine): kein Übergang, also kein Nachrücken; Beitritt nur vor dem Start und nur mit freiem Platz
     if i.fight_no > 0 or i.stage <> 'ready' then return jsonb_build_object('status','no_join'); end if;
     if rwi.active_count(i.id) >= i.max_size then return jsonb_build_object('status','full'); end if;
   elsif i.fight_no >= i.fights_total then return jsonb_build_object('status','no_join');       -- im letzten Kampf gibt es keinen weiteren Übergang
   end if;
-  if i.kind = 'weltboss' or i.fights_total = 1 then
+  if i.fights_total = 1 then
     insert into rwi.members(instance_id, player, key, last_seen_at, ready_due, joined_after_fights, potions) values (i.id, p_player, p_player, t, t + make_interval(secs => rwi.cfg('ready_seconds')), 0, 3);
     perform rwi.glog(i.id, p_player, 'beigetreten', null); return jsonb_build_object('status','joined');
   end if;
@@ -282,6 +294,7 @@ create function rwi.contribution(p_instance bigint, p_key text) returns int lang
 create function rwi.reward_filter() returns trigger language plpgsql as $$
 declare mb rwi.members; i rwi.instances;
 begin
+  if exists (select 1 from rwi.instances where id = new.instance_id and status = 'event_ended') then return null; end if;   -- nach festgehaltenem Eventende entsteht keine Belohnung mehr (Absicherung zusätzlich zu den Prüfungen in commit_round)
   if new.reward_id like 'final:%' then
     select * into i from rwi.instances where id = new.instance_id;
     if found and i.fight_no >= 1 and not (i.stage = 'done' and i.outcome = 'won') then return null; end if;        -- Gruppeninstanz: Abschlussbelohnung erst beim erfolgreichen Abschluss der gesamten Instanz, nicht nach Einzelkämpfen
@@ -396,6 +409,68 @@ begin
 end $$;
 
 alter function rwi.watchdog_tick() rename to watchdog_core;
+
+-- K.2 Regel 4a-4c: Eventende-Abschluss. Ein Kern, drei Zugänge.
+--  sweep_events():           Watchdog, blockierend, Sperren global aufsteigend nach Instanz-ID über alle Events (kein Deadlock mit anderen Watchdogs; Aufrufe innerhalb von Vorgängen warten nie)
+--  sweep_event(event, true): innerhalb eines Vorgangs (Claim, Commit, Submit, Start, Heartbeat ...): SKIP LOCKED, wartet nie; gesperrte Fremdinstanzen bleiben dem Watchdog oder ihrer eigenen Selbstprüfung
+--  Endzustand (4c): status, stage, outcome, Kämpfe, Aufträge, Fenster und Warteliste in EINER Anweisung bzw. derselben Transaktion; die Tabellenregel instances_event_end_state verbietet Zwischenzustände.
+create or replace function rwi.sweep_core(p_event bigint, p_all boolean, p_skip boolean) returns int language plpgsql as $$
+declare n int; ids bigint[];
+begin
+  if p_skip then
+    select coalesce(array_agg(id), '{}') into ids from (select id from rwi.instances where (p_all or event_id = p_event) and event_id is not null and status in ('active','frozen') and ends_at is not null and clock_timestamp() >= ends_at order by id for update skip locked) x;
+  else
+    select coalesce(array_agg(id), '{}') into ids from (select id from rwi.instances where (p_all or event_id = p_event) and event_id is not null and status in ('active','frozen') and ends_at is not null and clock_timestamp() >= ends_at order by id for update) x;
+  end if;
+  with upd as (update rwi.instances i set status = 'event_ended', stage = 'done', outcome = 'event_ended', engine_stuck = false where i.id = any(ids) and i.status in ('active','frozen') returning i.id),
+  f as (update rwi.fights f set status = 'event_ended', phase = 'done', claim_token = null, lease_until = null where f.instance_id in (select id from upd) and f.status = 'active' returning f.id),
+  j as (update rwi.resolve_jobs j set status = 'cancelled' where j.fight_id in (select id from f) and j.status in ('pending','claimed','stuck') returning 1),
+  w as (update rwi.death_windows w set status = 'closed', closed_reason = 'fight_end' where w.fight_id in (select id from f) and w.status = 'open' returning 1),
+  wl as (update rwi.waitlist wl set status = 'cancelled' where wl.instance_id in (select id from upd) and wl.status = 'waiting' returning 1)
+  select count(*) into n from upd;
+  return n;
+end $$;
+create or replace function rwi.sweep_event(p_event bigint, p_skip boolean default false) returns int language sql as $$ select rwi.sweep_core(p_event, false, p_skip) $$;
+create function rwi.sweep_events() returns int language sql as $$ select rwi.sweep_core(null, true, false) $$;
+
+create or replace function rwi.end_instance(p_instance bigint) returns void language plpgsql as $$
+begin
+  update rwi.instances set status = 'event_ended', stage = 'done', outcome = 'event_ended', engine_stuck = false where id = p_instance and status in ('active','frozen');
+  if not found then return; end if;                                                              -- bereits abgeschlossene Instanz (Sieg, Abbruch, Eventende): nichts mehr verändern
+  with f as (update rwi.fights set status = 'event_ended', phase = 'done', claim_token = null, lease_until = null where instance_id = p_instance and status = 'active' returning id)
+  update rwi.resolve_jobs set status = 'cancelled' where fight_id in (select id from f) and status in ('pending','claimed','stuck');
+  update rwi.death_windows set status = 'closed', closed_reason = 'fight_end' where status = 'open' and fight_id in (select id from rwi.fights where instance_id = p_instance);
+  update rwi.waitlist set status = 'cancelled' where instance_id = p_instance and status = 'waiting';
+end $$;
+
+create or replace function rwi.watchdog_core() returns jsonb language plpgsql as $$
+declare ev bigint; n int := 0; due jsonb; redo jsonb; t timestamptz := clock_timestamp(); fid bigint; iid bigint; lost int := 0; ab int := 0; ex int := 0; r int;
+begin
+  n := rwi.sweep_events();                                                                       -- 4a: alle beendeten Events in einem Durchgang, Sperren global aufsteigend nach Instanz-ID
+  update rwi.death_windows set status = 'closed', closed_reason = 'expired' where status = 'open' and until is not null and until <= t; get diagnostics ex = row_count;
+  for fid, iid in select f.id, f.instance_id from rwi.fights f join rwi.instances i on i.id = f.instance_id where f.status = 'active' and f.phase = 'wipe_wait' and i.status = 'active' order by f.id loop
+    perform 1 from rwi.instances where id = iid for update skip locked; if not found then continue; end if;       -- gesperrte Instanz: nächster Tick
+    if exists (select 1 from rwi.instances where id = iid and ends_at is not null and clock_timestamp() >= ends_at) then perform rwi.end_instance(iid); continue; end if;   -- 4b: nach ends_at kein Ergebnis mehr
+    if (select status from rwi.instances where id = iid) = 'active' and exists (select 1 from rwi.fights where id = fid and status = 'active' and phase = 'wipe_wait') and not rwi.wipe_hold(fid, iid, t) then
+      update rwi.fights set status = 'lost', phase = 'done' where id = fid; perform rwi.sync_windows(fid, iid, '{"members":[]}'::jsonb, true); lost := lost + 1;
+    end if;
+  end loop;
+  for iid in select id from rwi.instances where status = 'active' and paused_at is not null and pause_used_ms + (extract(epoch from (t - paused_at)) * 1000)::bigint >= rwi.cfg('pause_budget_seconds') * 1000 order by id loop
+    perform 1 from rwi.instances where id = iid and status = 'active' for update skip locked; if not found then continue; end if;
+    if exists (select 1 from rwi.instances where id = iid and ends_at is not null and clock_timestamp() >= ends_at) then perform rwi.end_instance(iid); continue; end if;
+    update rwi.instances set status = 'aborted', engine_stuck = false where id = iid;                              -- Budget aufgebraucht und niemand verbunden: Instanzversuch abgebrochen, keine Belohnung
+    with f as (update rwi.fights set status = 'technical_end', phase = 'done', claim_token = null, lease_until = null where instance_id = iid and status = 'active' returning id)
+      update rwi.resolve_jobs set status = 'cancelled' where fight_id in (select id from f) and status in ('pending','claimed','stuck');
+    update rwi.death_windows set status = 'closed', closed_reason = 'fight_end' where status = 'open' and fight_id in (select id from rwi.fights where instance_id = iid);
+    ab := ab + 1;
+  end loop;
+  select coalesce(jsonb_agg(f.id order by f.id), '[]') into due from rwi.fights f join rwi.instances i on i.id = f.instance_id
+    where f.status = 'active' and f.phase = 'planning' and f.due_at <= t and i.status = 'active' and not i.engine_stuck and (i.ends_at is null or i.ends_at > t);
+  select coalesce(jsonb_agg(f.id order by f.id), '[]') into redo from rwi.fights f join rwi.instances i on i.id = f.instance_id
+    where f.status = 'active' and f.phase = 'resolving' and f.lease_until < t and i.status = 'active' and not i.engine_stuck and (i.ends_at is null or i.ends_at > t);
+  return jsonb_build_object('ended', n, 'due', due, 'redispatch', redo, 'windows_expired', ex, 'lost_finalized', lost, 'aborted', ab);
+end $$;
+
 create function rwi.watchdog_tick() returns jsonb language plpgsql as $$
 begin return rwi.watchdog_core() || jsonb_build_object('group', rwi.group_tick()); end $$;
 

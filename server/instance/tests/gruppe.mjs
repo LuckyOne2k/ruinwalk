@@ -69,10 +69,11 @@ try {
   ok((await mk(U(1, 2, 3, 4, 5, 6), { kind: 'special', event: 5, ends: '1 hour' })).status === 'bad_weltboss' && (await mk(U(1, 2), { kind: 'quatsch' })).status === 'bad_kind', 'nur der Weltboss hat Event und Endzeit, unbekannte Typen abgelehnt');
   { const pr = await q(`select pg_get_function_arguments(oid) from pg_proc where proname='create_group'`); ok(!/min|max/i.test(pr), 'create_group hat keine Parameter für Mindest- oder Höchstgröße', pr); }
   { const bad = [];
+    for (const bw of ["(kind, min_size, max_size, fights_total, event_id, ends_at) values ('weltboss', 6, 8, 2, 901, now())", "(kind, min_size, max_size, fights_total) values ('weltboss', 6, 8, 1)"]) { const r = await cl.psql(`insert into rwi.instances${bw}`); if (!r.code) bad.push('weltboss ohne Ein-Kampf/Event/Endzeit'); }
     for (const [k, mn, mx] of [['dungeon', 1, 4], ['dungeon', 3, 4], ['dungeon', 2, 8], ['dungeon', 2, 5], ['special', 2, 8], ['special', 6, 4], ['weltboss', 2, 8], ['weltboss', 6, 9]]) { const r = await cl.psql(`insert into rwi.instances(kind, min_size, max_size) values ('${k}', ${mn}, ${mx})`); if (!r.code) bad.push(`${k}/${mn}/${mx}`); }
     ok(bad.length === 0, 'auch ein direkter Eintrag mit freien Größen wird von der Datenbank abgelehnt (Prüfregel instances_size_rule)', bad.join(','));
     const good = [];
-    for (const [k, mn, mx] of [['dungeon', 2, 4], ['special', 6, 8], ['weltboss', 6, 8]]) { const r = await cl.psql(`insert into rwi.instances(kind, min_size, max_size) values ('${k}', ${mn}, ${mx})`); if (r.code) good.push(k); }
+    for (const [k, mn, mx, ex] of [['dungeon', 2, 4, ''], ['special', 6, 8, ''], ['weltboss', 6, 8, ", fights_total, event_id, ends_at) values ('weltboss', 6, 8, 1, 900, clock_timestamp() + interval '1 hour'"]]) { const r = await cl.psql(ex ? `insert into rwi.instances(kind, min_size, max_size${ex})` : `insert into rwi.instances(kind, min_size, max_size) values ('${k}', ${mn}, ${mx})`); if (r.code) good.push(k); }
     ok(good.length === 0, 'die verbindlichen Größen (2–4 / 6–8 / 6–8) werden direkt akzeptiert', good.join(','));
     const G = (await mk(U(1, 2))).instance; const upd = await cl.psql(`update rwi.instances set max_size = 8 where id=${G}`); ok(upd.code !== 0, 'Höchstgröße eines normalen Dungeons lässt sich nachträglich nicht auf 8 anheben'); }
   ok((await mk(['u1', 'low'])).status === 'not_eligible' && (await mk(['u1', 'nocls'])).status === 'not_eligible', 'Instanzzugang erst ab Level 5 mit Grundklasse');
@@ -288,6 +289,10 @@ try {
     ok(+(await q(`select count(*) from rwi.members where instance_id=${G} and mstate='active'`)) <= 4, 'Reaktivieren über direkte Aktualisierung kann die Obergrenze nicht überschreiten');
     const W = (await mk(U(1, 2, 3, 4, 5, 6, 7, 8), { kind: 'special', fights: 2 })).instance; const r3 = await cl.psql(`insert into rwi.members(instance_id, player, key, last_seen_at) values (${W}, 'u9', 'u9', clock_timestamp())`);
     ok(r3.code !== 0 && /Gruppe voll/.test(r3.err || r3.out || ''), 'besonderes Dungeon: neunter Spieler direkt eingefügt scheitert'); }
+  { // Einkampf-Zweig von join mit Höchstgröße 4 (nur über direkten Eintrag erreichbar: create_group lässt normale Ein-Kampf-Dungeons nicht zu, ältere Testinstanzen haben aber fights_total = 1)
+    const G = +(await q(`insert into rwi.instances(kind, stage, fights_total) values ('dungeon', 'ready', 1) returning id`));
+    await q(`insert into rwi.members(instance_id, player, key, last_seen_at) select ${G}, 'u' || x, 'u' || x, clock_timestamp() from generate_series(1, 4) x`);
+    const j = await call('join', G, 'u5'); ok(j.status === 'full' && +(await q(`select count(*) from rwi.members where instance_id=${G}`)) === 4, 'join im Einkampf-Zweig respektiert die Höchstgröße des Typs (4), nicht eine feste 8', JSON.stringify(j)); }
   { const G = (await mk(U(1, 2, 3, 4), { fights: 2 })).instance; const w = await call('join', G, 'u5');
     ok(w.status === 'waitlisted' && (await call('join', G, 'u6')).position === 2, 'normales Dungeon voll mit 4: weitere Spieler landen auf der Warteliste'); }
 
@@ -328,8 +333,9 @@ try {
     const G2b = (await mk(U(1, 2, 3, 4, 5, 6, 7, 8), { kind: 'special', fights: 2 })).instance; const w = await call('join', G2b, 'u9'); ok(w.status === 'waitlisted', 'besonderes Mehrkampf-Dungeon: Warteliste möglich'); }
   { const G = (await mk(U(1, 2, 3, 4, 5, 6), { kind: 'weltboss', fights: 1, event: 78, ends: '1 hour' })).instance; await q(`update rwi.instances set kind = 'special' where id=${G}`);
     ok(J(await q(`select rwi.join(${G}, 'u9')`)).status === 'joined', 'Einkampf-Verhalten hängt am Typ UND an der Kampfzahl, nicht allein an einem von beiden (special mit 1 Kampf verhält sich wie Einkampf)'); }
+  let evn = 0;
   for (const [name, fn] of [['join', (G) => call('join', G, 'u9')], ['set_ready', (G) => call('set_ready', G, 'u1')], ['start_fight', async (G) => { const S = newFight(J(await q(`select rwi.roster(${G})`)), CFG); return J(await q(`select rwi.start_fight(${G}, $j$${JSON.stringify(S)}$j$::jsonb)`)); }], ['leave', (G) => call('leave', G, 'u1')], ['heartbeat', (G) => as('u1', `select rwi.heartbeat(${G})`)]]) {
-    const G = (await mk(U(1, 2, 3, 4, 5, 6), { kind: 'weltboss', fights: 1, event: 79, ends: '1 hour' })).instance;
+    const G = (await mk(U(1, 2, 3, 4, 5, 6), { kind: 'weltboss', fights: 1, event: 7900 + evn++, ends: '1 hour' })).instance;
     if (name === 'start_fight') await ready(G, U(1, 2, 3, 4, 5, 6));
     await q(`update rwi.instances set ends_at = clock_timestamp() - interval '1 second' where id=${G}`);
     const r = await fn(G); const st = (await inst(G)).status;
