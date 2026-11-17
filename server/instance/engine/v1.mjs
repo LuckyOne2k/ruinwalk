@@ -4,11 +4,11 @@
 // Ausgang: Boss tot -> won; alle Spieler tot -> lost (reason 'wipe'); Rundenlimit erreicht -> lost (reason 'zeit'); sonst continue.
 // Stirbt der Boss durch einen Rundenende-Tick gleichzeitig mit dem letzten Spieler, gewinnt die Gruppe (Boss wird zuerst getickt).
 import { drawInt, hashOf, fromHex } from './rng.mjs';
-import { ABILITIES, CLASSES, BOSS, CONTENT_VERSION } from './content.mjs';
+import { ABILITIES, CLASSES, BOSS, CONTENT_VERSION, REVIVE_LIMIT } from './content.mjs';
 export const ENGINE_VERSION = 'v1-0.1+' + CONTENT_VERSION;
 
 export function newFight(players, cfg = {}) {                 // Ausgangszustand aus Klassen-Wahl; players: [{id, cls}]
-  const members = players.map((p) => { const c = CLASSES[p.cls]; return { id: p.id, name: p.name || p.id, cls: p.cls, hp: c.hp, maxhp: c.hp, atk: c.atk, def: c.def, init: c.init, alive: true, cd: {}, st: [], threat: 0 }; });
+  const members = players.map((p) => { const c = CLASSES[p.cls]; return { id: p.id, name: p.name || p.id, cls: p.cls, hp: c.hp, maxhp: c.hp, atk: c.atk, def: c.def, init: c.init, alive: true, cd: {}, st: [], threat: 0, revives: 0, final: false }; });
   return { members, monster: { id: 'boss', name: BOSS.name, hp: BOSS.hp, maxhp: BOSS.hp, atk: BOSS.atk, def: BOSS.def, init: BOSS.init, alive: true, st: [], phase: 1, cds: { heavy: BOSS.heavy.every, wave: 0 } }, adds: [], telegraph: null };
 }
 export const DEFAULT_CFG = { crit_pct: 15, crit_mult: 200, spread: 4, round_limit: 30, swipe_pct: 25 };
@@ -16,6 +16,7 @@ export const DEFAULT_CFG = { crit_pct: 15, crit_mult: 200, spread: 4, round_limi
 export function resolveRound(input) {
   const cfg = { ...DEFAULT_CFG, ...(input.cfg || {}) }, seed = fromHex(input.seed), fid = input.fight_id, rn = input.round_no;
   const S = JSON.parse(JSON.stringify(input.state)), A = input.actions || {}, boss = S.monster, log = []; let n = 0;
+  const reviveOk = new Set(input.revive_ok || []), revivedNow = new Set();   // reviveOk: Ziele, für die der Server die Wiederbelebung vor Fensterablauf gültig angenommen hat
   const rnd = (stream, max) => drawInt(seed, stream, fid, rn, n++, max);
   const alive = () => S.members.filter((m) => m.alive);
   const foes = () => [boss, ...S.adds.filter((a) => a.alive)];
@@ -47,12 +48,13 @@ export function resolveRound(input) {
     if (rnd('swipe', 100) < cfg.swipe_pct) return al[rnd('swipe_t', al.length)];
     return [...al].sort((a, b) => b.threat - a.threat || (a.id < b.id ? -1 : 1))[0];
   };
+  for (const id of input.left || []) { const m = S.members.find((x) => x.id === id); if (m && !m.gone) { m.gone = true; m.alive = false; m.hp = 0; m.st = []; log.push({ e: 'left', u: id }); } }   // ausgetreten/entfernt: zählt als dauerhaft ausgefallen
   checkPhase();
   // --- Aktionsliste dieser Runde
   const actors = [...alive().map((m) => ({ t: 'm', u: m })), { t: 'b', u: boss }, ...S.adds.filter((a) => a.alive).map((a) => ({ t: 'a', u: a }))];
   actors.sort((a, b) => b.u.init - a.u.init || (a.u.id < b.u.id ? -1 : 1));
   for (const ac of actors) {
-    if (ended()) break; const u = ac.u; if (!u.alive) continue;
+    if (ended()) break; const u = ac.u; if (!u.alive || revivedNow.has(u.id)) continue;   // Wiederbelebte handeln erst ab der nächsten Runde
     const stun = sv(u, 'stun'); if (stun) { log.push({ e: 'stun', a: u.id }); continue; }
     if (ac.t === 'm') memberAct(u); else if (ac.t === 'b') bossAct(); else addAct(u);
   }
@@ -61,6 +63,15 @@ export function resolveRound(input) {
     if (req && cls.abilities.includes(req.ability) && (m.cd[req.ability] || 0) === 0) { abId = req.ability; tgtId = req.target; origin = 'bestätigt'; ok = true; }
     else if (req) origin = 'ungültig→automatisch';
     const ab = ABILITIES[abId];
+    if (ab.revive && ok) { const dead = S.members.find((x) => x.id === tgtId && !x.alive);       // Zielwahl entscheidet über den Modus (Plan 1b)
+      if (dead) {
+        const why = dead.gone ? 'verlassen' : dead.revives >= REVIVE_LIMIT ? 'limit' : !reviveOk.has(dead.id) ? 'fenster' : null;
+        if (why) { log.push({ e: 'verfall', a: m.id, ab: abId, t: dead.id, why }); return; }   // Aktion verfällt, Abklingzeit wird nicht gesetzt (Erstattung)
+        dead.alive = true; dead.hp = Math.max(1, Math.floor(dead.maxhp * ab.revive.pct / 100)); dead.revives++; dead.st = []; dead.final = false; revivedNow.add(dead.id);
+        for (const e of ab.revive.apply) addSt(dead, e);
+        log.push({ e: 'revive', a: m.id, ab: abId, t: dead.id, hp: dead.hp, n: dead.revives }); threatAdd(m, Math.floor(dead.hp / 2));
+        if (ab.cd > 0) m.cd[abId] = ab.cd; return;
+      } }
     let tgt = null;
     if (ab.kind === 'damage') { tgt = byId(tgtId); if (!tgt || !tgt.alive || (tgt.id !== 'boss' && !tgt.id.startsWith('add'))) tgt = boss; }
     else if (ab.kind === 'heal' || ab.kind === 'shield') { tgt = byId(tgtId); if (!tgt || !tgt.alive || !S.members.includes(tgt)) tgt = [...alive()].sort((a, b) => a.hp * b.maxhp - b.hp * a.maxhp || (a.id < b.id ? -1 : 1))[0]; }
@@ -108,6 +119,7 @@ export function resolveRound(input) {
   for (const m of S.members) for (const k of Object.keys(m.cd)) { if (m.cd[k] > 0) m.cd[k]--; if (m.cd[k] === 0) delete m.cd[k]; }
   if (boss.cds.heavy > 0) boss.cds.heavy--; if (boss.cds.wave > 0) boss.cds.wave--;
   S.adds = S.adds.filter((a) => a.alive);
+  for (const m of S.members) m.final = !m.alive && (m.gone === true || m.revives >= REVIVE_LIMIT);
   S.telegraph = boss.alive ? (boss.phase >= 2 && boss.cds.wave === 0 ? 'flammenwelle' : (boss.cds.heavy === 0 ? 'schwerer_schlag' : null)) : null;   // gleiche Rangfolge wie bossAct
   const won = !boss.alive, wipe = alive().length === 0;
   const outcome = won ? 'won' : wipe ? 'lost' : rn >= cfg.round_limit ? 'lost' : 'continue';
@@ -122,5 +134,5 @@ export const inputHash = (input) => hashOf(input);
 export const CFG_VERSIONS = { 1: DEFAULT_CFG };
 export function resolveClaim(claimInput) {
   const cfg = CFG_VERSIONS[claimInput.cfg_version]; if (!cfg) throw new Error('unbekannte cfg_version ' + claimInput.cfg_version);
-  return resolveRound({ fight_id: claimInput.fight_id, round_no: claimInput.round_no, seed: claimInput.seed, cfg, state: claimInput.snapshot.state, actions: claimInput.snapshot.actions || {}, conn: claimInput.snapshot.conn || {} });
+  return resolveRound({ fight_id: claimInput.fight_id, round_no: claimInput.round_no, seed: claimInput.seed, cfg, state: claimInput.snapshot.state, actions: claimInput.snapshot.actions || {}, conn: claimInput.snapshot.conn || {}, revive_ok: claimInput.snapshot.revive_ok || [], left: claimInput.snapshot.left || [] });
 }

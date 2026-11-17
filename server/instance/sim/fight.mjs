@@ -2,13 +2,16 @@
 // offline: { memberId: [Runden] } -> in diesen Runden gibt der Spieler keine Aktion ab (Engine setzt Standardangriff, "automatisch").
 import { resolveRound, newFight, DEFAULT_CFG } from '../engine/v1.mjs';
 import { decide } from './bots.mjs';
-export function playFight({ players, seed, fightId = 1, cfg = {}, offline = {}, maxRounds = 60, decideFn = decide, state = null, startRound = 1 }) {
-  let S = state || newFight(players), rounds = [], outcome = 'continue', reason = null;
+// reviveWindowRounds > 0: Gefallene sind so viele Runden lang für Wiederbelebung freigegeben (Ersatz für das 60-Sekunden-Fenster der Datenbank); left: { memberId: ab Runde }
+export function playFight({ players, seed, fightId = 1, cfg = {}, offline = {}, maxRounds = 60, decideFn = decide, state = null, startRound = 1, reviveWindowRounds = 0, left = {} }) {
+  let S = state || newFight(players), rounds = [], outcome = 'continue', reason = null; const diedAt = {};
   for (let r = startRound; r < startRound + maxRounds; r++) {
     const actions = {};
     for (const m of S.members) if (m.alive && !(offline[m.id] || []).includes(r)) actions[m.id] = decideFn(S, m);
-    const input = { fight_id: fightId, round_no: r, seed, cfg: { ...DEFAULT_CFG, ...cfg }, state: S, actions, conn: {} };
-    const res = resolveRound(input); rounds.push({ input, res }); S = res.state; outcome = res.outcome; reason = res.reason;
+    const revive_ok = reviveWindowRounds > 0 ? S.members.filter((m) => !m.alive && !m.final && diedAt[m.id] !== undefined && r - diedAt[m.id] <= reviveWindowRounds).map((m) => m.id) : [];
+    const lf = Object.keys(left).filter((k) => left[k] <= r);
+    const input = { fight_id: fightId, round_no: r, seed, cfg: { ...DEFAULT_CFG, ...cfg }, state: S, actions, conn: {}, ...(reviveWindowRounds > 0 ? { revive_ok } : {}), ...(lf.length ? { left: lf } : {}) };
+    const res = resolveRound(input); for (const m of res.state.members) { if (!m.alive) { if (diedAt[m.id] === undefined) diedAt[m.id] = r; } else delete diedAt[m.id]; } rounds.push({ input, res }); S = res.state; outcome = res.outcome; reason = res.reason;
     if (outcome !== 'continue') break;
   }
   return { rounds, outcome, reason, state: S };

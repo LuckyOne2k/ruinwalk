@@ -1,0 +1,86 @@
+[
+ {
+  "seed": 1,
+  "ausgang": "won",
+  "grund": "sieg",
+  "runden": 14,
+  "protokoll": "13ff206e1fdb37f42c84bb4603fce59bb227e6293ccd214c93aa023131306008"
+ },
+ {
+  "seed": 2,
+  "ausgang": "lost",
+  "grund": "wipe",
+  "runden": 25,
+  "protokoll": "2be642959fbeaa8ffd511eaf7e05db6e0527a1ebb250960e1c24dbcfda26a2ce"
+ },
+ {
+  "seed": 3,
+  "ausgang": "lost",
+  "grund": "wipe",
+  "runden": 25,
+  "protokoll": "5bd0dbd9aef1aca6ee34180899a17798787d1d029d546f919eaff684a7d5e0f6"
+ },
+ {
+  "seed": 4,
+  "ausgang": "lost",
+  "grund": "wipe",
+  "runden": 23,
+  "protokoll": "aebb8cd67325b91ad2deae6792f769792deefdef43a5cf6235cbb917f6e5299b"
+ },
+ {
+  "seed": 5,
+  "ausgang": "won",
+  "grund": "sieg",
+  "runden": 17,
+  "protokoll": "720b2bedb98c1b7951ff4f25376e694b206d643e9b195c1e16572a505fce956d"
+ },
+ {
+  "seed": 6,
+  "ausgang": "won",
+  "grund": "sieg",
+  "runden": 26,
+  "protokoll": "ee5f2bc9ad1263439b6dc5975e8f8a6fb8c6b61a840b0cb4a6b9e026e7bcb9dc"
+ },
+ {
+  "seed": 7,
+  "ausgang": "won",
+  "grund": "sieg",
+  "runden": 16,
+  "protokoll": "02f8f584089588b9394fd059719759aa966c42ee6956bb9bc6aff4d7bfc6f9da"
+ },
+ {
+  "seed": 8,
+  "ausgang": "lost",
+  "grund": "wipe",
+  "runden": 26,
+  "protokoll": "909cb1a71c6be2eae1732fa327173b7e2bf2f781edfccdb6acac37cd74745082"
+ },
+ {
+  "seed": 9,
+  "ausgang": "won",
+  "grund": "sieg",
+  "runden": 17,
+  "protokoll": "c86d74fc3e62ca0831586711c08586b5d93768a24bdd28d8e04936227e6711ca"
+ },
+ {
+  "seed": 10,
+  "ausgang": "won",
+  "grund": "sieg",
+  "runden": 16,
+  "protokoll": "c59c5ca053060b0fb779c918d27e0490ccb81c28b72eaabd6a69c1b752a1be04"
+ },
+ {
+  "seed": 11,
+  "ausgang": "won",
+  "grund": "sieg",
+  "runden": 15,
+  "protokoll": "280943202ebb842deb0a7de8d9fdea453c2945579365fb86782d4fd7695dcbfa"
+ },
+ {
+  "seed": 12,
+  "ausgang": "lost",
+  "grund": "wipe",
+  "runden": 25,
+  "protokoll": "16d45fded967d62fc066ef3e9f42ead8ed69c8421c2bb0c24544e47a8f2960cf"
+ }
+]

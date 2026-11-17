@@ -29,3 +29,12 @@ export const POLICIES = {
   },
 };
 export const decide = (S, m) => POLICIES[m.cls](S, m);
+
+// Variante mit Wiederbelebung: Heiler holen Gefallene zurück, solange deren Limit reicht; sonst wie decide(). Der Kern-Bot (decide) bleibt unverändert (Referenztest).
+export function decideRevive(S, m) {
+  const ab = m.cls === 'quell' ? 'schutz' : m.cls === 'druide' ? 'balsam' : null;
+  if (ab && !m.cd[ab]) { const dead = S.members.filter((x) => !x.alive && !x.final).sort((a, b) => (a.id < b.id ? -1 : 1))[0]; if (dead) return { ability: ab, target: dead.id }; }
+  return m.cls === 'druide' ? druide(S, m) : decide(S, m);
+}
+const druide = (S, m) => { const al = S.members.filter((x) => x.alive), low = lowest(al); if (!m.cd.balsam && low.hp * 100 < 60 * low.maxhp) return { ability: 'balsam', target: low.id }; if (!m.cd.segen && S.monster.phase >= 2) return { ability: 'segen' }; return { ability: 'licht', target: 'boss' }; };
+POLICIES.druide = druide;
