@@ -15,3 +15,8 @@ Stand: Untersuchung, keine Ursache bewiesen.
 ## Bewertung
 - Nicht reproduzierbar mit `skip`; also kein Beweis, dass der CI-Deadlock harmlos ist. Wahrscheinlich ein seltenes Timing-Fenster (Runner unter Last, gleiche Sperrreihenfolge wie in `old`), aber das ist Vermutung.
 - Nächster Schritt: Der CI-Lauf gibt den vollständigen Deadlock-Text jetzt aus (siehe Workflow-Log), falls er erneut auftritt.
+
+## Nachtrag: CI-Lauf 44282298325 (Commit 4370b84)
+- `k2-compare` (Variante `skip`, 15 Durchläufe) und `k2-compare-nosweep`: auf **PG16 und PG17** jeweils `exit=0`, `deadlocks:0`, `fehler_gesamt:0`.
+- Das ist **keine Behebung**. Der Deadlock aus Lauf 44279099804 trat einmal auf PG16 auf; über seine Häufigkeit ist nichts bekannt, ein einzelner grüner Lauf (und die 210 lokalen Durchläufe ohne Treffer) belegt weder, dass er nicht mehr auftritt, noch, dass er nie mit dem Test zusammenhing. Der Code, den der Test ausführt, hat sich zwischen den beiden Läufen nicht geändert (`01_proto.sql`, `k2-compare.mjs` Testlogik, `pg.mjs`); geändert wurde nur die zusätzliche Diagnoseausgabe des Deadlock-Textes.
+- Status bleibt: **Ursache ungeklärt, nicht reproduziert, nicht als behoben anzusehen.** Tritt er erneut auf, steht der volle PostgreSQL-Text jetzt im Testprotokoll.
