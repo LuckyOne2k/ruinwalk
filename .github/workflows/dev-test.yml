@@ -1,7 +1,8 @@
 name: dev-test
 # Manueller Test echter Client-Aufrufe gegen das Supabase-DEV-Projekt. Läuft NIE automatisch (kein push/pull_request/schedule).
-# Secrets (Environment "dev-test", mit erforderlicher Freigabe durch den Eigentümer): DEV_SUPABASE_URL, DEV_ANON_KEY. KEIN service_role-Schlüssel, nirgends.
-# Variablen (optional, Environment-Variablen): DEV_TEST_INSTANCE, DEV_TEST_FIGHT, DEV_TEST_ROUND für die positiven Gruppenschritte.
+# Secrets (Environment "dev-test", mit erforderlicher Freigabe durch den Eigentümer): DEV_SUPABASE_URL, DEV_ANON_KEY (Anon- ODER Publishable-Key). KEIN service_role-/Secret-Key, nirgends.
+# Variablen (Pflicht für einen VOLLEN Lauf, Environment-Variablen): DEV_TEST_INSTANCE, DEV_TEST_FIGHT, DEV_TEST_ROUND für die positiven Gruppenschritte.
+# Fehlen sie, endet der Lauf ROT (Exit 4, unvollständig). Eine falsche Bestätigungseingabe oder ein falsches Repository ebenfalls ROT (nie ein übersprungener, grüner Lauf).
 on:
   workflow_dispatch:
     inputs:
@@ -15,8 +16,21 @@ concurrency:
   group: dev-test
   cancel-in-progress: false
 jobs:
+  pruefen:
+    # Läuft immer, ohne Environment und ohne Secrets. Scheitert bei falscher Eingabe; der Testjob hängt davon ab und läuft dann nicht (Gesamtlauf: rot).
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Bestätigung und Repository prüfen
+        env:
+          BESTAETIGUNG: ${{ github.event.inputs.bestaetigung }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ "$REPO" != "LuckyOne2k/ruinwalk" ]; then echo "::error::ABBRUCH: falsches Repository (Fork?). Es wurde nichts ausgeführt."; exit 2; fi
+          if [ "$BESTAETIGUNG" != "dev" ]; then echo "::error::ABBRUCH: Bestätigung ist nicht 'dev'. Es wurde nichts ausgeführt."; exit 2; fi
+          echo "Bestätigung ok."
   dev-test:
-    if: ${{ github.event.inputs.bestaetigung == 'dev' && github.repository == 'LuckyOne2k/ruinwalk' }}
+    needs: pruefen
     runs-on: ubuntu-latest
     environment: dev-test
     timeout-minutes: 10
@@ -30,11 +44,11 @@ jobs:
           DEV_ANON_KEY: ${{ secrets.DEV_ANON_KEY }}
         run: |
           for k in DEV_SUPABASE_URL DEV_ANON_KEY; do
-            if [ -z "${!k}" ]; then echo "ABBRUCH: Secret $k fehlt (kein Aufruf gemacht)"; exit 2; fi
+            if [ -z "${!k}" ]; then echo "::error::ABBRUCH: Secret $k fehlt (kein Aufruf gemacht)"; exit 2; fi
             echo "::add-mask::${!k}"
           done
           echo "Secrets vorhanden."
-      - name: Echter Dev-Client-Test
+      - name: Echter Dev-Client-Test (Exit 0 nur, wenn ALLE Pflichtschritte geprüft wurden und kein Testkonto zurückblieb)
         env:
           DEV_SUPABASE_URL: ${{ secrets.DEV_SUPABASE_URL }}
           DEV_ANON_KEY: ${{ secrets.DEV_ANON_KEY }}

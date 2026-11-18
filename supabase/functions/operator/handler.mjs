@@ -38,13 +38,15 @@ export function validate(body) {
 const json = (status, o) => ({ status, body: o });
 // deps: verify(token) -> {id, aal}|null ; rpc(name, args) -> Objekt (nur service_role-Wrapper) ; requireMfa (Standard true) ; log(ereignis) (ohne Token/Geheimnisse)
 export function makeHandler({ verify, rpc, requireMfa = true, log = () => {} }) {
-  return async ({ method, authorization, rawBody }) => {
+  return async ({ method, authorization, rawBody, readBody }) => {
     if (method !== 'POST') return json(405, { error: 'method_not_allowed' });
     const m = /^Bearer (\S+)$/.exec(authorization || '');
     const who = m ? await verify(m[1]) : null;
     if (!who) { log({ ev: 'unauthenticated' }); return json(401, { error: 'unauthenticated' }); }
-    if (typeof rawBody !== 'string' || rawBody.length > MAX_BODY) return json(400, { error: 'invalid_input' });
-    let body; try { body = JSON.parse(rawBody); } catch { return json(400, { error: 'invalid_input' }); }
+    // Body erst NACH der Authentifizierung und mit hartem Byte-Limit lesen: readBody (Stream, bricht bei Überschreitung ab) oder bereits vorliegender rawBody (Tests)
+    let raw = rawBody; if (raw === undefined && typeof readBody === 'function') raw = await readBody(MAX_BODY);
+    if (typeof raw !== 'string' || new TextEncoder().encode(raw).length > MAX_BODY) return json(400, { error: 'invalid_input' });
+    let body; try { body = JSON.parse(raw); } catch { return json(400, { error: 'invalid_input' }); }
     const v = validate(body); if (v.error) return json(400, { error: v.error });
     if (requireMfa && who.aal !== 'aal2') { log({ ev: 'mfa_required', operator: who.id }); return json(403, { error: 'mfa_required' }); }
     const a = v.ok; let r;

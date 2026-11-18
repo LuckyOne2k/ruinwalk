@@ -104,8 +104,8 @@ try {
 
   // ---- Verdrahtung (index.ts) ----
   const idx = readFileSync(new URL('../../../supabase/functions/operator/index.ts', import.meta.url), 'utf8');
-  ok(!/eyJ[A-Za-z0-9_-]{20,}/.test(idx) && /Deno\.env\.get\('SUPABASE_SERVICE_ROLE_KEY'\)/.test(idx) && !/body[^\n]*svc|svc[^\n]*Response/.test(idx), 'index.ts: Schlüssel nur aus der Umgebung, kein Schlüssel im Code, nicht in Antworten');
-  ok(/verify_jwt = true/.test(readFileSync(new URL('../../../supabase/functions/operator/config.toml', import.meta.url), 'utf8')), 'config.toml: verify_jwt = true (Gateway als zweite Schicht)');
+  ok(!/eyJ[A-Za-z0-9_-]{20,}/.test(idx) && /Deno\.env\.get\(n\)/.test(idx) && /pickKey\(get, 'SUPABASE_SECRET_KEYS', 'SUPABASE_SERVICE_ROLE_KEY'\)/.test(idx) && !/body[^\n]*svc|svc[^\n]*Response/.test(idx), 'index.ts: Schlüssel nur aus der Umgebung, kein Schlüssel im Code, nicht in Antworten');
+  ok(/\[functions\.operator\]\s*\nverify_jwt = true/.test(readFileSync(new URL('../../../supabase/config.toml', import.meta.url), 'utf8')), 'supabase/config.toml ([functions.operator]): verify_jwt = true (Gateway als zweite Schicht; Ort laut Supabase-Doku, Korrektur K8)');
   // ---- Data API ----
   for (const role of ['anon', 'authenticated']) ok(await q(`set role ${role}; select count(*) from rwi.operators`).then(() => false, () => true) && await q(`set role ${role}; insert into rwi.operators values ('${PL}','x1',array['resume'])`).then(() => false, () => true), `${role}: rwi.operators weder lesbar noch beschreibbar`);
 } catch (e) { ok(false, 'Lauf ohne Ausnahme', String(e.stack || e.message).split('\n').slice(0, 4).join(' | ')); }

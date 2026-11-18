@@ -18,6 +18,10 @@ jobs:
         env:
           REQUIRE_RUNTIMES: node bun deno
         run: bash server/instance/tests/run-determinism.sh
+      - name: Edge Function operator - Typprüfung unter Deno (deno check)
+        run: deno check supabase/functions/operator/index.ts
+      - name: Edge Function operator - Smoke-Test von index.ts unter Bun mit Deno-Attrappe (SIMULIERT, kein Deno-Lauf)
+        run: bun server/instance/tests/operator-index.bun.mjs
       - name: Engine v1 (Node) - Referenzkämpfe, Kernregeln, Klassenstruktur und Wiederbelebung
         run: |
           node server/instance/tests/golden.mjs

@@ -1,3 +1,0 @@
-# verify_jwt = true: der Gateway lehnt Anfragen ohne gültiges JWT zusätzlich ab (zweite Schicht; die eigentliche Prüfung steht in handler.mjs).
-[functions.operator]
-verify_jwt = true

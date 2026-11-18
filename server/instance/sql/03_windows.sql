@@ -119,13 +119,36 @@ create trigger ops_log_no_change before update or delete on rwi.ops_log for each
 create function rwi.operator_removed() returns trigger language plpgsql as $$
 begin insert into rwi.ops_log(kind, operator_id, operator, note) values ('operator_change', old.account_id, old.label, 'Betreiberzeile entfernt'); return old; end $$;
 create trigger operators_removed after delete on rwi.operators for each row execute function rwi.operator_removed();
+create index ops_log_denied_op_idx on rwi.ops_log (operator_id, at) where kind = 'denied';
+create index ops_log_denied_at_idx on rwi.ops_log (at) where kind = 'denied';
+-- Missbrauchsschutz (HARTES Limit): Registrierung ist offen, jeder angemeldete Nutzer kann abgewiesene Aufrufe auslösen. Je Konto werden höchstens 20 'denied'-Einträge pro Stunde einzeln protokolliert; danach genau ein
+-- Sammeleintrag ("weitere Abweisungen ...") und dann nichts mehr bis zum Ablauf der Stunde. Zusätzlich höchstens 1000 'denied'-Einträge pro Stunde insgesamt (der Sammeleintrag zählt mit).
+-- ATOMAR: Zählen und Einfügen laufen unter EINER transaktionsgebundenen Advisory-Sperre (Klasse 7003). Die nächste Sitzung sieht nach der Freigabe (= Commit der vorigen) deren Einträge, weil die Zählung als
+-- neue Anweisung unter READ COMMITTED einen frischen Snapshot nimmt; unter anderen Isolationsstufen würde sie ihn nicht sehen, dort wird deshalb gar nicht protokolliert (Grenze bleibt hart).
+-- Trennung: Die SICHERHEITSENTSCHEIDUNG fällt vor jeder Protokollierung und ändert sich nie. Jeder Fehler der Protokollierung (auch lock_timeout, Platz, Rechte) wird abgefangen: Rückgabe bleibt null (abgewiesen),
+-- es wird nur eine Warnung ausgegeben; die Protokollzeile dieses Versuchs entfällt dann (nie mehr Zeilen als erlaubt, höchstens weniger).
 create function rwi.check_operator(p_operator uuid, p_scope text, p_fight bigint default null, p_round int default null, p_note text default null) returns text language plpgsql as $$
-declare o rwi.operators;
+declare o rwi.operators; n_op int; n_all int; t timestamptz; had boolean;
 begin
-  select * into o from rwi.operators where account_id = p_operator;
-  if found and o.active and p_scope = any(o.scopes) then return o.label; end if;
-  insert into rwi.ops_log(kind, fight_id, round_no, instance_id, operator_id, operator, note) values ('denied', p_fight, p_round, (select instance_id from rwi.fights where id = p_fight), p_operator, o.label,
-    p_scope || ': ' || case when not found then 'kein Betreiber' when not o.active then 'Betreiber deaktiviert' else 'Berechtigung fehlt' end);
+  select * into o from rwi.operators where account_id = p_operator; had := found;                  -- FOUND wird von späteren Anweisungen überschrieben
+  if had and o.active and p_scope = any(o.scopes) then return o.label; end if;
+  -- ab hier ist der Aufruf ABGEWIESEN; nichts Folgendes darf daran etwas ändern
+  begin
+    if current_setting('transaction_isolation') <> 'read committed' then raise warning 'check_operator: denied-Protokoll übersprungen (Isolationsstufe %)', current_setting('transaction_isolation'); return null; end if;
+    perform pg_advisory_xact_lock(7003, 0);
+    t := clock_timestamp();
+    select count(*) into n_all from rwi.ops_log where kind = 'denied' and at > t - interval '1 hour';
+    if n_all >= 1000 then return null; end if;
+    select count(*) into n_op from rwi.ops_log where kind = 'denied' and operator_id = p_operator and at > t - interval '1 hour';
+    if n_op < 20 then
+      insert into rwi.ops_log(kind, at, fight_id, round_no, instance_id, operator_id, operator, note) values ('denied', t, p_fight, p_round, (select instance_id from rwi.fights where id = p_fight), p_operator, o.label,
+        p_scope || ': ' || case when not had then 'kein Betreiber' when not o.active then 'Betreiber deaktiviert' else 'Berechtigung fehlt' end);
+    elsif n_op = 20 then
+      insert into rwi.ops_log(kind, at, operator_id, operator, note) values ('denied', t, p_operator, o.label, 'weitere Abweisungen dieses Kontos in dieser Stunde werden nicht einzeln protokolliert');
+    end if;
+  exception when others then
+    raise warning 'check_operator: denied-Protokollierung fehlgeschlagen (%): Abweisung bleibt wirksam', sqlstate;
+  end;
   return null;
 end $$;
 create function rwi.set_operator(p_account uuid, p_label text, p_scopes text[], p_active boolean default true) returns void language plpgsql as $$

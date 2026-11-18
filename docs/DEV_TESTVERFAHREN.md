@@ -38,3 +38,6 @@ Jedes Ergebnis wird mit Zeit, Aufruf und Statuscode (ohne Token/Passwörter) in 
 
 ## Weiter offen (nur echt beweisbar)
 Echtes GoTrue/JWT, REST-Verhalten von PostgREST (Rechte, Profile-Header), Betreiber-JWT-Prüfung durch eine Edge Function (nicht gebaut), Last/Parallelität gegen echte Instanz.
+
+## Nachkorrektur des Dev-Testskripts (Stand 18.11.2026)
+Exit-Codes von `supabase/dev/real-test.mjs`: 0 alles geprüft · 1 Fehler · 2 Konfiguration · 3 Vorbedingung (E-Mail-Bestätigung) · **4 unvollständig (Pflichtschritte nicht getestet)** · **5 Testkonten zurückgelassen oder Löschung nicht verifiziert**. „Verweigert“ gilt nur bei gültiger Antwort mit vorgesehenem Status und Fehlerinhalt (nie bei Netzfehler, 404, 5xx). Ohne `DEV_TEST_INSTANCE`/`DEV_TEST_FIGHT`/`DEV_TEST_ROUND` endet der Lauf mit Exit 4 (rot). Offene Konzeptfrage: Mit frischen Testkonten pro Lauf ist die positive Gruppenaktion nicht erreichbar (Kampfstart braucht `service_role`); siehe `docs/DEV_FREIGABE_NACHKORREKTUR.md`.
