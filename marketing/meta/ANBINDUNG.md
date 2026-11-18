@@ -3,6 +3,20 @@
 Für Pascal. Du legst alles selbst an; das KI-Team bekommt nur die Rechte, die es braucht. Kein Passwort wird je an Claude gegeben.
 Stand der Recherche: November 2026 (Meta-Entwicklerdoku). Meta ändert Oberflächen häufig – Menünamen können leicht abweichen.
 
+## Weg A (aktuell gewählt): nur Instagram, ohne Facebook-Seite
+Voraussetzung: Instagram-Konto ist ein Business-Konto (erledigt, 18.11.2026).
+1. **developers.facebook.com** → mit deinem Facebook-Konto anmelden → als Entwickler registrieren (einmalig).
+2. **Meine Apps → App erstellen** → Anwendungsfall „Nachrichten und Inhalte auf Instagram verwalten“ (Instagram API) → Name z. B. „Ruin Walk Team“.
+3. Im Anwendungsfall **„API-Einrichtung mit Instagram-Login“** → Abschnitt „Zugriffsschlüssel generieren“ → **Konto hinzufügen** → mit dem Ruin-Walk-Instagram anmelden und nur diese Rechte erlauben: `instagram_business_basic`, `instagram_business_content_publish`, optional `instagram_business_manage_insights` (Statistiken). **Nicht** erlauben: Nachrichten, Kommentare.
+   Falls Meta das Konto erst als Tester verlangt: App-Rollen → Instagram-Tester hinzufügen → in Instagram unter Einstellungen → Apps und Websites → Tester-Einladungen annehmen.
+4. Der angezeigte **Zugriffsschlüssel** (gilt 60 Tage) **nicht in den Chat kopieren**. Sag Claude „Instagram-Token hinterlegen“ → es öffnet sich ein sicheres Formular für `graph.instagram.com`, dort einfügen.
+5. Claude prüft mit `meta-api.js status` (zeigt Konto, Typ, Tageskontingent) und macht einen ersten Testbeitrag.
+6. Alle ~50 Tage neuen Schlüssel erzeugen und im Formular ersetzen (Claude kann dich per geplanter Erinnerung daran erinnern).
+
+Bilder müssen für Instagram unter einer öffentlichen https-Adresse liegen (siehe offene Entscheidung im Chat: GitHub Pages oder anderer Ort).
+
+## Weg B (Facebook-Seite + Business Suite, nötig sobald auch Facebook bespielt wird)
+
 ## Stufe 1 – Accounts und Business Suite (Pflicht, ca. 30 Minuten)
 1. **Facebook-Seite anlegen** „Ruin Walk“ (Kategorie Videospiel) mit deinem persönlichen Facebook-Konto (du bist Admin).
 2. **Instagram-Konto anlegen** (Wunsch-Handle siehe `04_instagram.md`) und in den Einstellungen auf **Professionelles Konto** umstellen (Kategorie Videospiel, Typ „Unternehmen“ – „Creator“ geht auch, Unternehmen ist für die API am einfachsten).

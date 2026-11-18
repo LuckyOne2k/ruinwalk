@@ -1,0 +1,7 @@
+{
+  "_hinweis": "Nur öffentliche Angaben, NIEMALS Tokens. api_host graph.instagram.com = Instagram-API mit Instagram-Login (ohne Facebook-Seite).",
+  "api_host": "graph.instagram.com",
+  "api_version": "v25.0",
+  "ig_user_id": "",
+  "page_id": ""
+}

@@ -26,7 +26,11 @@ const V = cfg.api_version || 'v25.0';
 const MODUS_PATH = path.join(ROOT, 'marketing/meta/modus.json');
 const LOG_PATH = path.join(ROOT, 'marketing/freigabe/veroeffentlicht/LOG.md');
 const MODUS = fs.existsSync(MODUS_PATH) ? JSON.parse(fs.readFileSync(MODUS_PATH, 'utf8')) : { modus: 'freigabe' };
-const BASE = `https://graph.facebook.com/${V}`;
+// api_host: graph.instagram.com (Instagram-API mit Instagram-Login, ohne Facebook-Seite) oder graph.facebook.com (Facebook-Login/Business)
+const HOST = cfg.api_host || 'graph.facebook.com';
+const IG_LOGIN = HOST === 'graph.instagram.com';
+const BASE = `https://${HOST}/${V}`;
+const IG = cfg.ig_user_id || (IG_LOGIN ? 'me' : '');
 const die = (m, code = 1) => { console.error('✗ ' + m); process.exit(code); };
 
 async function api(method, p, params = {}) {
@@ -85,6 +89,13 @@ function logZaehlen() {
     f.forEach(x => console.log('  ✗ ' + x)); process.exit(f.length ? 1 : 0);
   }
   if (cmd === 'status') {
+    if (IG_LOGIN) {
+      const me = await api('GET', '/me', { fields: 'user_id,username,account_type,media_count' });
+      console.log(`Instagram-Konto: @${me.username} (ID ${me.user_id}, Typ ${me.account_type}, ${me.media_count} Beiträge) über ${HOST}`);
+      const lim = await api('GET', `/${IG}/content_publishing_limit`, { fields: 'quota_usage,config' }).catch(() => null);
+      if (lim && lim.data && lim.data[0]) console.log('API-Veröffentlichungen in den letzten 24 h:', lim.data[0].quota_usage, '/', (lim.data[0].config || {}).quota_total);
+      return;
+    }
     if (!cfg.page_id) console.log('Hinweis: marketing/meta/config.json fehlt oder ohne page_id – siehe marketing/meta/ANBINDUNG.md');
     const me = await api('GET', '/me', { fields: 'id,name' });
     console.log('Token gehört zu:', me.name, me.id);
@@ -95,7 +106,7 @@ function logZaehlen() {
   }
   if (cmd === 'insights') {
     const tage = Number(arg1 || 7);
-    if (cfg.ig_user_id) console.log(JSON.stringify(await api('GET', `/${cfg.ig_user_id}/media`, { fields: 'id,caption,timestamp,like_count,comments_count,permalink', limit: 25 }), null, 1));
+    if (IG) console.log(JSON.stringify(await api('GET', `/${IG}/media`, { fields: 'id,caption,timestamp,like_count,comments_count,permalink', limit: 25 }), null, 1));
     if (cfg.page_id) console.log(JSON.stringify(await api('GET', `/${cfg.page_id}/posts`, { fields: 'id,message,created_time,permalink_url', limit: 25 }), null, 1));
     console.log(`(Für Reichweite/Impressionen je Beitrag: /{media-id}/insights bzw. /{post-id}/insights – Kennzahlen siehe ANBINDUNG.md; Zeitraum ${tage} Tage)`);
     return;
@@ -118,8 +129,8 @@ function logZaehlen() {
     if (!/^https:\/\//.test(e.bild_url)) die('bild_url muss eine öffentliche https-Adresse sein (Instagram lädt das Bild selbst).');
     const plan = [];
     if (/instagram/.test(e.kanal)) {
-      if (!cfg.ig_user_id) die('ig_user_id fehlt in marketing/meta/config.json');
-      plan.push(['POST', `/${cfg.ig_user_id}/media`, { image_url: e.bild_url, caption: e.caption_ig, alt_text: e.alt }], ['POST', `/${cfg.ig_user_id}/media_publish`, { creation_id: '<aus Schritt 1>' }]);
+      if (!IG) die('ig_user_id fehlt in marketing/meta/config.json');
+      plan.push(['POST', `/${IG}/media`, { image_url: e.bild_url, caption: e.caption_ig, alt_text: e.alt }], ['POST', `/${IG}/media_publish`, { creation_id: '<aus Schritt 1>' }]);
     }
     if (/facebook/.test(e.kanal)) { if (!cfg.page_id) die('page_id fehlt'); plan.push(['POST', `/${cfg.page_id}/photos`, { url: e.bild_url, caption: e.text_fb || e.caption_ig }]); }
     if (!plan.length) die('kanal muss instagram und/oder facebook enthalten');
@@ -127,7 +138,9 @@ function logZaehlen() {
     for (const [m, p, b] of plan) console.log(` ${m} ${BASE}${p}\n   ${JSON.stringify(b).slice(0, 300)}`);
     if (!SENDEN) return console.log('\nZum Senden: denselben Befehl mit --senden (nur nach Freigabe; es folgt eine Bestätigungsabfrage).');
     const erg = [];
-    if (/instagram/.test(e.kanal)) { const c = await api(...plan[0]); const pub = await api('POST', `/${cfg.ig_user_id}/media_publish`, { creation_id: c.id }); erg.push('instagram:' + pub.id); }
+    if (/instagram/.test(e.kanal)) { const c = await api(...plan[0]); // Container muss fertig verarbeitet sein (bei Bildern meist sofort, bei Videos länger)
+      for (let i = 0; i < 20; i++) { const st = await api('GET', '/' + c.id, { fields: 'status_code' }).catch(() => ({})); if (!st.status_code || st.status_code === 'FINISHED') break; if (st.status_code === 'ERROR') throw new Error('Container-Fehler bei Instagram'); await new Promise(r => setTimeout(r, 3000)); }
+      const pub = await api('POST', `/${IG}/media_publish`, { creation_id: c.id }); erg.push('instagram:' + pub.id); }
     if (/facebook/.test(e.kanal)) { const fbp = plan.find(x => x[1].endsWith('/photos')); const r = await api(...fbp); erg.push('facebook:' + (r.post_id || r.id)); }
     fs.mkdirSync(path.dirname(LOG_PATH), { recursive: true });
     if (!fs.existsSync(LOG_PATH)) fs.writeFileSync(LOG_PATH, '# Veröffentlichungsprotokoll\n\n| Zeitpunkt (UTC) | Modus | Entwurf | Kanal-IDs |\n|---|---|---|---|\n');
@@ -138,6 +151,6 @@ function logZaehlen() {
   console.log('Befehle: status | insights [tage] | pruefen <entwurf.md> | veroeffentlichen <entwurf.md> [--senden]');
 })().catch(e => {
   const c = String((e.cause && (e.cause.cause || e.cause).message) || '');
-  if (/403/.test(c)) die('Netzwerk: graph.facebook.com ist in dieser Umgebung nicht freigegeben. Zuerst Zugangsschlüssel als Netzwerk-Geheimnis hinterlegen (siehe marketing/meta/ANBINDUNG.md, Stufe 2, Schritt 6).', 2);
+  if (/403/.test(c)) die('Netzwerk: ' + HOST + ' ist in dieser Umgebung nicht freigegeben. Zuerst Zugangsschlüssel als Netzwerk-Geheimnis hinterlegen (siehe marketing/meta/ANBINDUNG.md, Stufe 2, Schritt 6).', 2);
   die(e.message + (c ? ' – ' + c : ''), 2);
 });
