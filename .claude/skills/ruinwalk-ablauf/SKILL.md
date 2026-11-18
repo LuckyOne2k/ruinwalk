@@ -18,6 +18,28 @@ description: Standardabläufe des Ruin-Walk-KI-Teams – welcher Agent wann, in 
 | Oberfläche, CSS, Touch, Layout | `rw-mobile-ux` | `rw-qa` |
 | Tests, CI, Review, Sicherheitsprüfung | `rw-qa` | – (unabhängig) |
 | Marke, Social Media, Community, Marketinganalyse | `rw-marketing` | `rw-architekt` bei Faktenfragen |
+| Ordnung, Doku, Wissensbasis, Archiv, Zweig-Übersicht | `rw-projektpflege` | `rw-architekt` |
+
+## Abgleich (Pflicht für jede Änderung, automatisch durch die Hauptsitzung)
+Bevor eine Änderung committet wird, legt die Hauptsitzung den Diff den fachlich betroffenen Agenten vor (parallel, nur lesend) und gleicht die Antworten ab. Widersprechen sich Agenten oder meldet einer einen Fehler, wird nachgebessert und erneut abgeglichen. Echte Zielkonflikte oder Designfragen gehen an Pascal.
+
+| Geänderter Bereich | Abgleich mit |
+|---|---|
+| `index.html`, `sprites*.js` – Spielregeln/Zahlen | `rw-gamedesign` + `rw-qa` (+ `rw-mobile-ux` bei UI/CSS) |
+| `index.html` – nur UI/CSS, `pxdom.js`, `landingpage.html` | `rw-mobile-ux` + `rw-qa` |
+| `package.json`, `tools/` | `rw-qa` |
+| `supabase/` (Schema, RLS, RPC, Dev-Skripte, Edge Functions) | `rw-backend-security` + `rw-qa` |
+| `server/instance/` | `rw-instanzkampf` + `rw-backend-security` (Rechte) + `rw-qa` |
+| `tests/`, CI-Workflows | `rw-qa` + Fachagent des getesteten Bereichs |
+| Quests/NPC/Welt-Inhalte | `rw-welt-ki` + `rw-gamedesign` (Belohnungen) |
+| `.claude/` (Agenten, Skills, Hooks, Einstellungen), `CLAUDE.md` | `rw-architekt` (Konsistenz, Zuständigkeiten) + `node .claude/tests/team-check.js` |
+| `docs/` (reine Ordnung/Formulierung) | `Abgleich: nicht nötig` erlaubt |
+| `docs/` mit Fakten, Wissensbasis | `rw-projektpflege` + Fachagent des Themas (ist `rw-projektpflege` selbst der Autor: `rw-architekt` statt `rw-projektpflege` – keine Selbstprüfung) |
+| `marketing/` | `rw-marketing` (Fakten gegen `ruinwalk-projektwissen`); kein weiterer Abgleich nötig |
+
+**Commit-Nachricht** endet mit einer Zeile `Abgleich: <Agenten> – <Ergebnis>` (z. B. `Abgleich: rw-qa, rw-backend-security – keine Einwände`) oder `Abgleich: nicht nötig – <Grund>` bei reinen Doku-/Marketing-Änderungen. Der Hook `schutz.js` verweigert Commits, die Code, Schema, Server, Tests oder KI-Team-Dateien enthalten und keine `Abgleich:`-Zeile haben.
+
+Nach größeren Änderungen oder Merges: `rw-projektpflege` für einen Pflegelauf (Inventar, Verweise, Wissensbasis). Meldet er Dateien als „zurückgestellt – in Bearbeitung“, fragt die Hauptsitzung den zuständigen Agenten (bzw. Pascal bei Arbeit aus dem normalen Chat), ob aufgeräumt werden darf.
 
 ## Ablauf „Feature / Spieländerung“
 1. `rw-architekt`: Analyse + Plan (betroffene Dateien, Risiken, Tests, Reihenfolge, offene Entscheidungen).
