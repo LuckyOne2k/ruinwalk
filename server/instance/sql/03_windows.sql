@@ -98,13 +98,16 @@ end $$;
 
 -- ---- stuck-Alarmierung (Folgeauftrag): jeder Übergang nach „stuck“ erzeugt GENAU EINEN eindeutig identifizierbaren Alarm; Wiederholungen erzeugen keinen zweiten. ----
 -- Schlüssel 'stuck:<Kampf>:<Runde>:<Wiederaufnahmen>': nach einer kontrollierten Wiederaufnahme ist ein erneutes stuck derselben Runde ein NEUER Alarm (neue „Episode“).
-alter table rwi.resolve_jobs add column resumes int not null default 0;
+alter table rwi.resolve_jobs add column resumes int not null default 0, add column last_engine text, add column resume_engine text;
+-- Engine-Versionen (Hotfix-Wiederaufnahme, Beschluss): eine neue Engine-Version ist nur nutzbar, wenn sie registriert ist und dasselbe Zustandsschema (state_schema) wie der gespeicherte Zustand hat.
+create table rwi.engine_versions (version text primary key check (length(version) between 1 and 80), state_schema int not null, registered_at timestamptz not null default clock_timestamp(), note text);
+alter table rwi.fights add column state_schema int not null default 1;     -- Schema des gespeicherten Kampfzustands (heute 1)
 alter table rwi.ops_alerts add column fight_id bigint, add column round_no int, add column dedupe_key text,
   add column state text not null default 'open' check (state in ('open','resolved')), add column resolved_at timestamptz, add column resolved_note text;
 create unique index ops_alerts_dedupe_uq on rwi.ops_alerts (dedupe_key) where dedupe_key is not null;
 -- Betriebsprotokoll: jede kontrollierte Wiederaufnahme, technische Beendigung und jeder Hotfix-Commit einer hängenden Runde (nur anhängen, nie ändern)
 create table rwi.ops_log (id bigint generated always as identity primary key, at timestamptz not null default clock_timestamp(), kind text not null check (kind in ('resume','terminate','hotfix_commit')),
-  fight_id bigint, round_no int, operator text, note text);
+  fight_id bigint, round_no int, operator text, note text, old_engine text, new_engine text);
 create function rwi.raise_stuck(p_fight bigint, p_round int) returns void language plpgsql as $$
 declare ep int;
 begin
@@ -113,14 +116,14 @@ begin
     values ('stuck', 'fight ' || p_fight || ' round ' || p_round, p_fight, p_round, 'stuck:' || p_fight || ':' || p_round || ':' || coalesce(ep, 0))
     on conflict (dedupe_key) where dedupe_key is not null do nothing;
 end $$;
-create function rwi.close_stuck(p_fight bigint, p_round int, p_kind text, p_operator text, p_note text) returns void language plpgsql as $$
+create function rwi.close_stuck(p_fight bigint, p_round int, p_kind text, p_operator text, p_note text, p_old_engine text default null, p_new_engine text default null) returns void language plpgsql as $$
 begin
-  insert into rwi.ops_log(kind, fight_id, round_no, operator, note) values (p_kind, p_fight, p_round, p_operator, p_note);
+  insert into rwi.ops_log(kind, fight_id, round_no, operator, note, old_engine, new_engine) values (p_kind, p_fight, p_round, p_operator, p_note, p_old_engine, p_new_engine);
   update rwi.ops_alerts set state = 'resolved', resolved_at = clock_timestamp(), resolved_note = p_kind || coalesce(': ' || p_note, '') where what = 'stuck' and fight_id = p_fight and round_no = p_round and state = 'open';
 end $$;
 
 create or replace function rwi.commit_round(p_fight bigint, p_round int, p_token uuid, p_expected_version int, p_input_hash text, p_engine text, p_result jsonb) returns jsonb language plpgsql as $$
-declare i rwi.instances; f rwi.fights; t timestamptz; bad text; outc text; m jsonb; nxt int; hold boolean := false; ev jsonb; jprev text; jnew text;
+declare i rwi.instances; f rwi.fights; t timestamptz; bad text; outc text; m jsonb; nxt int; hold boolean := false; ev jsonb; jprev text; jnew text; jeng text;
 begin
   select instance_id into strict nxt from rwi.fights where id = p_fight;
   select * into i from rwi.instances where id = nxt for update;
@@ -132,6 +135,9 @@ begin
     perform rwi.end_instance(i.id); perform rwi.sweep_event(i.event_id, true); return jsonb_build_object('status','event_ended'); end if;
   if f.round_no <> p_round or f.claim_token is distinct from p_token or f.round_version <> p_expected_version then return jsonb_build_object('status','superseded'); end if;
   if f.input_hash <> p_input_hash then return jsonb_build_object('status','input_mismatch'); end if;
+  select status, resume_engine into jprev, jeng from rwi.resolve_jobs where fight_id = p_fight and round_no = p_round;
+  if jprev = 'stuck' then return jsonb_build_object('status','stuck_locked'); end if;                      -- „stuck“ bleibt bis zur ausdrücklichen Operatorentscheidung (resume_stuck) gesperrt: kein Commit, kein Zähler, kein Alarm
+  if jeng is not null and jeng is distinct from p_engine then return jsonb_build_object('status','engine_mismatch'); end if;   -- nach resume_stuck nur mit der freigegebenen Engine-Version
   -- Invarianten (E.5): nur ungültige Zustände, keine Logikprüfung
   outc := p_result->>'outcome';
   if outc is null or outc not in ('won','lost','continue') then bad := 'outcome'; end if;
@@ -141,8 +147,8 @@ begin
   end loop;
   if (p_result->'state'->'monster'->>'hp')::int < 0 then bad := 'monster_hp'; end if;
   if bad is not null then
-    select status into jprev from rwi.resolve_jobs where fight_id = p_fight and round_no = p_round;
-    update rwi.resolve_jobs set attempts = attempts + 1, last_error = 'invariant:' || bad,
+    jprev := null;
+    update rwi.resolve_jobs set attempts = attempts + 1, last_error = 'invariant:' || bad, last_engine = left(p_engine, 80),
       status = case when attempts + 1 >= rwi.cfg('max_attempts') then 'stuck' else status end where fight_id = p_fight and round_no = p_round returning status into jnew;
     if jnew = 'stuck' then
       update rwi.instances set engine_stuck = true where id = i.id;
@@ -164,7 +170,7 @@ begin
     phase = case when hold then 'wipe_wait' when outc = 'continue' then 'planning' else 'done' end, status = case when outc = 'continue' or hold then 'active' else outc end,
     due_at = case when i.paused_at is not null then 'infinity'::timestamptz else t + make_interval(secs => rwi.cfg('round_seconds')) end where id = p_fight;
   update rwi.resolve_jobs set status = 'done' where fight_id = p_fight and round_no = p_round;
-  if i.engine_stuck then update rwi.instances set engine_stuck = false where id = i.id; perform rwi.close_stuck(p_fight, p_round, 'hotfix_commit', null, 'Ergebnis mit Engine ' || left(p_engine, 60) || ' committet'); end if;       -- A.6 Schritt 3 (protokolliert, Alarm erledigt)
+  if i.engine_stuck and not exists (select 1 from rwi.resolve_jobs x join rwi.fights ff on ff.id = x.fight_id where ff.instance_id = i.id and x.status = 'stuck') then update rwi.instances set engine_stuck = false where id = i.id; end if;      -- Sicherheitsnetz (normalerweise schon von resume_stuck gesetzt)
   if outc = 'won' then
     insert into rwi.rewards(reward_id, instance_id, test_member, kind, payload)
       select 'final:' || i.id || ':' || (m2->>'id'), i.id, m2->>'id', 'coins', '{"test":true}'::jsonb from jsonb_array_elements(p_result->'state'->'members') m2 on conflict do nothing;

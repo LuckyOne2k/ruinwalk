@@ -53,7 +53,7 @@ async function suite(mode) {
       '|' || coalesce((select bool_or(a.grantee = 0) from aclexplode(p.proacl) a), true)::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'rwi' order by p.proname, p.oid::regprocedure::text`);
     const rows = FN.split('\n').map((l) => l.split('|'));
     const TEST = ['join', 'leave', 'set_ready', 'submit_action', 'submit_action_for', 'instance_view', 'heartbeat', 'heartbeat_for', 'use_revive_item', 'decline_revive_item', 'current_player'];
-    const TRIG = ['members_size_guard', 'on_fight_end', 'reward_filter', 'on_character_deleted', 'account_guard', 'on_profile_deleting', 'on_profile_deleted'];
+    const TRIG = ['profile_snapshot', 'members_size_guard', 'on_fight_end', 'reward_filter', 'on_character_deleted', 'account_guard', 'on_profile_deleting', 'on_profile_deleted'];
     ok(rows.length >= 45, `${tag} Inventar: ${rows.length} Funktionen im Schema rwi gefunden`);
     ok(rows.every((r) => r[2] === 'false' && r[3] === 'false'), `${tag} KEINE rwi-Funktion ist für anon oder authenticated ausführbar`, rows.filter((r) => r[2] !== 'false' || r[3] !== 'false').map((r) => r[0]).join(','));
     ok(rows.every((r) => r[5] === 'false'), `${tag} KEINE rwi-Funktion hat ein PUBLIC-Recht (auch nicht das Standard-EXECUTE)`, rows.filter((r) => r[5] !== 'false').map((r) => r[0]).join(','));

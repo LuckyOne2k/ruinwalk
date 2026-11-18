@@ -117,10 +117,15 @@ try {
 
   // ---- 8. stuck über die Invariantenprüfung (commit_round) ----
   { const K = await mkFight(); const c = await db.claim(K.fid, 1); const good = engine.resolveClaim(c.input); const bad = JSON.parse(JSON.stringify(good)); bad.state.members[0].hp = 99999;
-    let last; for (let k = 0; k < 8; k++) last = await db.commit(K.fid, 1, c.token, c.round_version, c.input_hash, engine.ENGINE_VERSION, bad);
-    ok(last.status === 'invalid' && (await job(K.fid)).startsWith('stuck/') && (await alerts(K.fid)) === '1', 'Invariantenverletzung: stuck, auch bei 8 Fehlversuchen nur EIN Alarm', await job(K.fid));
+    const seen = []; for (let k = 0; k < 8; k++) seen.push((await db.commit(K.fid, 1, c.token, c.round_version, c.input_hash, engine.ENGINE_VERSION, bad)).status);
+    ok(seen.slice(0, 6).every((x) => x === 'invalid') && seen.slice(6).every((x) => x === 'stuck_locked') && (await job(K.fid)).startsWith('stuck/') && (await alerts(K.fid)) === '1', 'Invariantenverletzung: stuck nach max_attempts, weitere Commits sind gesperrt (stuck_locked, kein Zähler), nur EIN Alarm', seen.join(',') + ' ' + await job(K.fid));
     const hf = await db.commit(K.fid, 1, c.token, c.round_version, c.input_hash, 'proto-0.2-hotfix', good);
-    ok(hf.status === 'committed' && (await open(K.fid)) === '0' && (await q(`select count(*) from rwi.ops_log where kind='hotfix_commit' and fight_id=${K.fid}`)) === '1', 'bestehender Hotfix-Weg (Commit mit neuer Engine-Version) funktioniert weiter, wird protokolliert und erledigt den Alarm', hf.status); }
+    ok(hf.status === 'stuck_locked' && (await open(K.fid)) === '1' && (await q(`select count(*) from rwi.round_results where fight_id=${K.fid}`)) === '0', 'Hotfix-Commit mit neuer Engine-Version ohne Operatorentscheidung wird abgewiesen: Sperre und Alarm bleiben', hf.status);
+    ok((await ops.registerEngine('proto-0.2-hotfix', 1, 'Hotfix')).status === 'registered', 'neue Engine-Version registriert');
+    const rs = await ops.resume(K.fid, 1, 'pascal', 'Fehlerursache analysiert, Hotfix eingespielt', 'proto-0.2-hotfix');
+    ok(rs.status === 'resumed' && rs.new_engine === 'proto-0.2-hotfix' && rs.old_engine === engine.ENGINE_VERSION && (await open(K.fid)) === '0', 'kontrollierte Wiederaufnahme mit neuer Engine-Version: alte und neue Version im Ergebnis, Alarm erledigt', JSON.stringify(rs));
+    const c2 = await db.claim(K.fid, 1); const hf2 = await db.commit(K.fid, 1, c2.token, c2.round_version, c2.input_hash, 'proto-0.2-hotfix', engine.resolveClaim(c2.input));
+    ok(hf2.status === 'committed' && (await q(`select count(*) from rwi.ops_log where kind='resume' and fight_id=${K.fid} and old_engine='${engine.ENGINE_VERSION}' and new_engine='proto-0.2-hotfix'`)) === '1', 'nach der Wiederaufnahme wird die Runde mit der freigegebenen Version committet; Betriebsprotokoll enthält alte und neue Version', hf2.status); }
 
   // ---- 9. Instanz endet, während stuck: Alarm wird vom Watchdog geschlossen ----
   { const K = await mkFight(); for (let k = 0; k < 6; k++) { await runTick(db, broken); if (k < 5) await K.expire(); }

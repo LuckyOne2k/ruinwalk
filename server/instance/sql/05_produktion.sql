@@ -15,15 +15,17 @@
 -- Identität (intern, nur von den Wrappern aufgerufen)
 ------------------------------------------------------------------------------------------------
 -- Liefert den Spielerschlüssel des aufrufenden Kontos. Mit p_character: Eigentum prüfen. Ohne: den eigenen Charakter aus der Mitgliedschaft/Warteliste der Instanz ableiten.
-create function rwi.own_character(p_character uuid, p_instance bigint default null) returns text
+create function rwi.own_character(p_character uuid, p_instance bigint default null, p_need_entitlement boolean default false) returns text
 language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare uid uuid := auth.uid(); n int; k text; pass int;
 begin
   if uid is null then raise exception 'not_authenticated' using errcode = 'PT401'; end if;
+  -- F9 (Beschluss): Eigentum wird immer geprüft. Die Berechtigung (Platz 3 nur mit aktiver Berechtigung) nur dort, wo ein Charakter NEU in eine Instanz kommt:
+  -- Eintritt (group_join) und das noch nicht abgegebene Ready (group_ready). Danach bleibt der Charakter in der laufenden Instanz berechtigt, auch wenn Platz 3 später gesperrt wird.
   if p_character is not null then
     if not exists (select 1 from public.characters c where c.character_id = p_character and c.account_id = uid
-                   and (c.slot_number <> 3 or exists (select 1 from public.account_entitlements e where e.account_id = uid and e.entitlement_type = 'third_character_slot' and e.status = 'active')))
-    then raise exception 'forbidden' using errcode = 'PT403'; end if;      -- fremder, unbekannter oder gesperrter Charakter: gleiche Antwort
+                   and (not p_need_entitlement or c.slot_number <> 3 or exists (select 1 from public.account_entitlements e where e.account_id = uid and e.entitlement_type = 'third_character_slot' and e.status = 'active')))
+    then raise exception 'forbidden' using errcode = 'PT403'; end if;      -- fremder, unbekannter oder (beim Eintritt/Ready) gesperrter Charakter: gleiche Antwort
     return p_character::text;
   end if;
   if p_instance is null then raise exception 'character_required' using errcode = 'PT400'; end if;
@@ -33,7 +35,7 @@ begin
       select distinct a.player from (select player from rwi.members where instance_id = p_instance and (pass = 2 or mstate = 'active')
                                      union all select player from rwi.waitlist where instance_id = p_instance and (pass = 2 or status = 'waiting')) a
       where a.player in (select c.character_id::text from public.characters c where c.account_id = uid
-                         and (c.slot_number <> 3 or exists (select 1 from public.account_entitlements e where e.account_id = uid and e.entitlement_type = 'third_character_slot' and e.status = 'active')))
+                         and (not p_need_entitlement or c.slot_number <> 3 or exists (select 1 from public.account_entitlements e where e.account_id = uid and e.entitlement_type = 'third_character_slot' and e.status = 'active')))
     ) x;
     exit when n > 0;
   end loop;
@@ -47,7 +49,7 @@ end $$;
 ------------------------------------------------------------------------------------------------
 create function public.group_join(p_instance bigint, p_character uuid) returns jsonb
 language plpgsql security definer set search_path = public, pg_temp as $$
-begin return rwi.join(p_instance, rwi.own_character(p_character)); end $$;
+begin return rwi.join(p_instance, rwi.own_character(p_character, null, true)); end $$;
 
 create function public.group_leave(p_instance bigint, p_character uuid default null) returns jsonb
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -55,7 +57,14 @@ begin return rwi.leave(p_instance, rwi.own_character(p_character, p_instance)); 
 
 create function public.group_ready(p_instance bigint, p_character uuid default null) returns jsonb
 language plpgsql security definer set search_path = public, pg_temp as $$
-begin return rwi.set_ready(p_instance, rwi.own_character(p_character, p_instance)); end $$;
+declare me text;
+begin
+  me := rwi.own_character(p_character, p_instance);                                                      -- Eigentum
+  if not exists (select 1 from rwi.members where instance_id = p_instance and player = me and ready) then
+    me := rwi.own_character(me::uuid, p_instance, true);                                                 -- noch nicht bereit: Berechtigung jetzt prüfen (Entzug VOR Ready wirkt)
+  end if;
+  return rwi.set_ready(p_instance, me);
+end $$;
 
 -- Herzschlag und Wiederverbindung (Serverzeit, Identität aus der Sitzung)
 create function public.group_heartbeat(p_instance bigint, p_character uuid default null) returns jsonb
@@ -250,11 +259,19 @@ create function public.rw_ops_stuck_list() returns jsonb
 language plpgsql set search_path = pg_catalog, pg_temp as $$
 begin return rwi.stuck_overview(); end $$;
 
-create function public.rw_ops_resume(p_fight bigint, p_round int, p_operator text, p_note text) returns jsonb
+create function public.rw_ops_resume(p_fight bigint, p_round int, p_operator text, p_note text, p_engine text default null) returns jsonb
 language plpgsql set search_path = pg_catalog, pg_temp as $$
 begin
-  if p_fight is null or p_fight < 1 or p_round is null or p_round not between 1 and 100000 or p_operator is null or length(p_operator) > 200 or p_note is null or length(p_note) > 4000 then raise exception 'invalid_input' using errcode = 'PT400'; end if;
-  return rwi.resume_stuck(p_fight, p_round, p_operator, p_note);
+  if p_fight is null or p_fight < 1 or p_round is null or p_round not between 1 and 100000 or p_operator is null or length(p_operator) > 200 or p_note is null or length(p_note) > 4000
+     or (p_engine is not null and length(p_engine) > 200) then raise exception 'invalid_input' using errcode = 'PT400'; end if;
+  return rwi.resume_stuck(p_fight, p_round, p_operator, p_note, p_engine);
+end $$;
+
+create function public.rw_ops_register_engine(p_version text, p_state_schema int, p_note text default null) returns jsonb
+language plpgsql set search_path = pg_catalog, pg_temp as $$
+begin
+  if p_version is null or length(p_version) > 200 or p_state_schema is null or p_state_schema not between 1 and 1000 or length(p_note) > 4000 then raise exception 'invalid_input' using errcode = 'PT400'; end if;
+  return rwi.register_engine(p_version, p_state_schema, p_note);
 end $$;
 
 create function public.rw_ops_terminate(p_fight bigint, p_operator text, p_note text) returns jsonb
@@ -269,11 +286,11 @@ end $$;
 ------------------------------------------------------------------------------------------------
 do $$
 declare
-  server_fns   text[] := array['cfg','sweep_event','end_instance','claim_resolution','commit_round','advance_clock','effective_last_seen','permanently_disconnected','sync_windows','wipe_hold',
+  server_fns   text[] := array['profile_of','register_engine','cfg','sweep_event','end_instance','claim_resolution','commit_round','advance_clock','effective_last_seen','permanently_disconnected','sync_windows','wipe_hold',
                                'watchdog_tick','watchdog_core','eligible','glog','active_count','abort_instance','drop_member','after_auto_removal','deadline_verdict','enforce_deadlines',
                                'enforce_deadlines_quiet','promote_waitlist','create_group','roster','start_fight','contribution','set_connection','set_connection_core','group_tick','sweep_core','sweep_events','report_failure','account_conflict','account_of','raise_stuck','close_stuck','resume_stuck','terminate_stuck','stuck_overview','fight_rounds'];
   test_fns     text[] := array['join','leave','set_ready','submit_action','submit_action_for','instance_view','heartbeat','heartbeat_for','use_revive_item','decline_revive_item','current_player'];
-  trigger_fns  text[] := array['members_size_guard','on_fight_end','reward_filter','on_character_deleted','account_guard','on_profile_deleting','on_profile_deleted'];
+  trigger_fns  text[] := array['profile_snapshot','members_size_guard','on_fight_end','reward_filter','on_character_deleted','account_guard','on_profile_deleting','on_profile_deleted'];
   internal_fns text[] := array['own_character'];
   r record; t record;
 begin
@@ -322,7 +339,7 @@ do $$
 declare r record;
 begin
   for r in select p.oid::regprocedure as sig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-           where n.nspname = 'public' and p.proname in ('rw_worker_tick','rw_worker_rounds','rw_worker_claim','rw_worker_commit','rw_worker_report_failure','rw_worker_roster','rw_worker_start_fight','rw_ops_stuck_list','rw_ops_resume','rw_ops_terminate') loop
+           where n.nspname = 'public' and p.proname in ('rw_worker_tick','rw_worker_rounds','rw_worker_claim','rw_worker_commit','rw_worker_report_failure','rw_worker_roster','rw_worker_start_fight','rw_ops_stuck_list','rw_ops_resume','rw_ops_register_engine','rw_ops_terminate') loop
     execute format('revoke all on function %s from public, anon, authenticated, service_role', r.sig);
     execute format('grant execute on function %s to service_role', r.sig);
   end loop;

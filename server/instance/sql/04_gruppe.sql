@@ -62,6 +62,16 @@ begin
 end $$;
 create trigger members_account_guard  before insert on rwi.members  for each row execute function rwi.account_guard();
 create trigger waitlist_account_guard before insert on rwi.waitlist for each row execute function rwi.account_guard();
+
+-- F9 (Beschluss): Berechtigung und Charakterprofil werden beim Eintritt bzw. beim Ready festgestellt und danach FÜR DIE INSTANZ gespeichert (members.profile).
+-- Eintritt: Profil wird beim Einfügen der Mitgliedszeile festgehalten; Ready: letzte Aktualisierung (set_ready), danach eingefroren. Die Aufstellung (roster) liest ab dann nur noch
+-- das gespeicherte Profil, nie mehr den Live-Stand (rwi.players) oder gar public.characters. Spätere Änderungen/Sperren wirken nur auf NEUE Instanzen.
+alter table rwi.members add column profile jsonb;
+create function rwi.profile_of(p_player text) returns jsonb language sql stable as $$
+  select jsonb_build_object('lv', lv, 'grundklasse', grundklasse, 'pfad', pfad, 'tier', tier) from rwi.players where player = p_player $$;
+create function rwi.profile_snapshot() returns trigger language plpgsql as $$
+begin new.profile := coalesce(new.profile, rwi.profile_of(new.player)); return new; end $$;
+create trigger members_profile_snapshot before insert on rwi.members for each row execute function rwi.profile_snapshot();
 create table rwi.entitlements (instance_id bigint not null, player text not null, fight_no int not null, kind text not null check (kind in ('kampf_ep','beute')),
   void boolean not null default false, reason text, at timestamptz not null default clock_timestamp(), primary key (instance_id, player, fight_no, kind));
 create table rwi.group_log (id bigint generated always as identity primary key, instance_id bigint not null, at timestamptz not null default clock_timestamp(), player text, event text not null, detail text);
@@ -247,16 +257,19 @@ begin
   why := rwi.enforce_deadlines(i.id, p_player, t);                                           -- abgelaufene Frist: nicht annehmen, auch wenn group_tick noch nicht gelaufen ist
   if why is not null then return jsonb_build_object('status','removed','reason',why,'instance_aborted',(select status = 'aborted' from rwi.instances where id = i.id)); end if;
   if i.stage <> 'ready' then return jsonb_build_object('status','not_ready_phase'); end if;
-  if not m.ready then update rwi.members set ready = true, ready_at = t, ready_due = null where id = m.id; end if;          -- bestätigt, nicht widerrufbar, bleibt bei Verbindungsabbruch bestehen
+  if not m.ready then update rwi.members set ready = true, ready_at = t, ready_due = null, profile = coalesce(rwi.profile_of(m.player), profile) where id = m.id; end if;   -- Profil beim Ready festhalten (danach eingefroren)          -- bestätigt, nicht widerrufbar, bleibt bei Verbindungsabbruch bestehen
   select not exists (select 1 from rwi.members where instance_id = i.id and mstate = 'active' and not ready) into allr;
   return jsonb_build_object('status','ok','all_ready', allr);
 end $$;
 
 -- Profile der aktiven Mitglieder, nur aus dem Server-Charakterbestand (nie aus Clientangaben)
 create function rwi.roster(p_instance bigint) returns jsonb language sql stable as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', m.key, 'name', m.player, 'grundklasse', pl.grundklasse, 'pfad', pl.pfad, 'tier', pl.tier) order by m.id), '[]'::jsonb)
-  from rwi.members m join rwi.players pl on pl.player = m.player where m.instance_id = p_instance and m.mstate = 'active' $$;
-
+  select coalesce(jsonb_agg(jsonb_build_object('id', m.key, 'name', m.player,
+           'grundklasse', case when m.profile is not null then m.profile->>'grundklasse' else pl.grundklasse end,
+           'pfad',        case when m.profile is not null then m.profile->>'pfad' else pl.pfad end,
+           'tier',        case when m.profile is not null then (m.profile->>'tier')::int else pl.tier end) order by m.id), '[]'::jsonb)
+  from rwi.members m left join rwi.players pl on pl.player = m.player
+  where m.instance_id = p_instance and m.mstate = 'active' and (m.profile is not null or pl.player is not null) $$;
 -- Kampfstart (Worker bzw. Edge Function liefert den Anfangszustand). Atomar gegen das Eventende geprüft (K.2 Regel 8).
 create function rwi.start_fight(p_instance bigint, p_state jsonb) returns jsonb language plpgsql as $$
 declare i rwi.instances; t timestamptz; n int; fid bigint; keys text[]; skeys text[];
@@ -604,10 +617,18 @@ create function rwi.fight_rounds(p_fights bigint[]) returns jsonb language sql s
 -- Kontrollierte Wiederaufnahme einer hängenden Runde (nur serverseitig, nach Fehleranalyse; Betreiber und Begründung sind Pflicht und werden protokolliert).
 -- Doppelausführung ausgeschlossen: nur für die AKTUELLE Runde, nur solange noch kein Rundenergebnis existiert, nur aus dem Zustand „stuck“; der alte Claim-Token wird ungültig,
 -- die Auflösung läuft mit dem gespeicherten Snapshot erneut (deterministisch, E.1). Eine zweite Wiederaufnahme derselben Episode findet keinen stuck-Auftrag mehr.
-create function rwi.resume_stuck(p_fight bigint, p_round int, p_operator text, p_note text) returns jsonb language plpgsql as $$
-declare i rwi.instances; f rwi.fights; j rwi.resolve_jobs;
+create function rwi.register_engine(p_version text, p_state_schema int, p_note text default null) returns jsonb language plpgsql as $$
 begin
-  if p_fight is null or p_round is null or length(btrim(coalesce(p_operator, ''))) not between 2 and 80 or length(btrim(coalesce(p_note, ''))) not between 10 and 1000 then return jsonb_build_object('status','invalid_input'); end if;
+  if length(btrim(coalesce(p_version, ''))) not between 1 and 80 or p_state_schema is null or p_state_schema < 1 then return jsonb_build_object('status','invalid_input'); end if;
+  insert into rwi.engine_versions(version, state_schema, note) values (btrim(p_version), p_state_schema, left(p_note, 500)) on conflict (version) do nothing;
+  return jsonb_build_object('status', case when found then 'registered' else 'exists' end);      -- eine registrierte Version wird nie umgeschrieben
+end $$;
+
+create function rwi.resume_stuck(p_fight bigint, p_round int, p_operator text, p_note text, p_engine text default null) returns jsonb language plpgsql as $$
+declare i rwi.instances; f rwi.fights; j rwi.resolve_jobs; oldeng text; neweng text; sch int;
+begin
+  if p_fight is null or p_round is null or length(btrim(coalesce(p_operator, ''))) not between 2 and 80 or length(btrim(coalesce(p_note, ''))) not between 10 and 1000
+     or (p_engine is not null and length(btrim(p_engine)) not between 1 and 80) then return jsonb_build_object('status','invalid_input'); end if;
   select * into f from rwi.fights where id = p_fight;
   if not found then return jsonb_build_object('status','unknown_fight'); end if;
   select * into i from rwi.instances where id = f.instance_id for update;
@@ -617,11 +638,19 @@ begin
   if exists (select 1 from rwi.round_results where fight_id = p_fight and round_no = p_round) then return jsonb_build_object('status','already_resolved'); end if;
   select * into j from rwi.resolve_jobs where fight_id = p_fight and round_no = p_round for update;
   if not found or j.status <> 'stuck' or f.phase <> 'resolving' then return jsonb_build_object('status','not_stuck'); end if;
-  update rwi.resolve_jobs set status = 'pending', attempts = 0, resumes = resumes + 1 where fight_id = p_fight and round_no = p_round;
-  update rwi.fights set claim_token = null, lease_until = clock_timestamp() where id = p_fight;               -- sofort wieder verteilbar; der alte Token ist ungültig
+  if f.snapshot is null then return jsonb_build_object('status','no_snapshot'); end if;                      -- ohne eingefrorenen Eingabezustand ist keine deterministische Wiederholung möglich
+  oldeng := coalesce(j.last_engine, (select engine_version from rwi.round_results where fight_id = p_fight order by round_no desc limit 1), 'unbekannt');
+  if p_engine is not null then                                                                                -- neue Engine-Version: registriert UND mit dem gespeicherten Zustand kompatibel
+    select state_schema into sch from rwi.engine_versions where version = btrim(p_engine);
+    if not found then return jsonb_build_object('status','unknown_engine'); end if;
+    if sch <> f.state_schema then return jsonb_build_object('status','incompatible_engine','engine_schema',sch,'state_schema',f.state_schema); end if;
+  end if;
+  neweng := coalesce(btrim(p_engine), case when oldeng = 'unbekannt' then null else oldeng end);
+  update rwi.resolve_jobs set status = 'pending', attempts = 0, resumes = resumes + 1, resume_engine = neweng where fight_id = p_fight and round_no = p_round;
+  update rwi.fights set claim_token = null, lease_until = clock_timestamp() where id = p_fight;               -- sofort wieder verteilbar; der alte Token ist ungültig (ein später eintreffender alter Commit wird abgewiesen)
   if not exists (select 1 from rwi.resolve_jobs x join rwi.fights ff on ff.id = x.fight_id where ff.instance_id = i.id and x.status = 'stuck') then update rwi.instances set engine_stuck = false where id = i.id; end if;
-  perform rwi.close_stuck(p_fight, p_round, 'resume', btrim(p_operator), btrim(p_note));
-  return jsonb_build_object('status','resumed','resumes', j.resumes + 1);
+  perform rwi.close_stuck(p_fight, p_round, 'resume', btrim(p_operator), btrim(p_note), oldeng, neweng);
+  return jsonb_build_object('status','resumed','resumes', j.resumes + 1, 'old_engine', oldeng, 'new_engine', neweng);
 end $$;
 
 -- Technische Beendigung (Alternative zur Wiederaufnahme, wenn die Ursache nicht behebbar ist): Instanzversuch abgebrochen, keine Belohnung (wie jeder technische Abbruch).

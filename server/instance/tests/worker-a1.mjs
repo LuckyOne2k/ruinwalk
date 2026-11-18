@@ -9,15 +9,15 @@ const { ok, done } = counter();
 const E = await setup(54480); const { q, as, rpcAs } = E;
 const svc = rpcAs('service_role');
 const rejects = async (fn, re = /invalid_input/) => { try { await fn(); return false; } catch (e) { return re.test(e.err || e.message); } };
-const W = ['rw_worker_tick', 'rw_worker_rounds', 'rw_worker_claim', 'rw_worker_commit', 'rw_worker_report_failure', 'rw_worker_roster', 'rw_worker_start_fight', 'rw_ops_stuck_list', 'rw_ops_resume', 'rw_ops_terminate'];
+const W = ['rw_worker_tick', 'rw_worker_rounds', 'rw_worker_claim', 'rw_worker_commit', 'rw_worker_report_failure', 'rw_worker_roster', 'rw_worker_start_fight', 'rw_ops_stuck_list', 'rw_ops_resume', 'rw_ops_register_engine', 'rw_ops_terminate'];
 const ARGS = { rw_worker_tick: {}, rw_worker_rounds: { p_fights: [1] }, rw_worker_claim: { p_fight: 1, p_round: 1 }, rw_worker_commit: { p_fight: 1, p_round: 1, p_token: '11111111-1111-4111-8111-111111111111', p_version: 1, p_input_hash: 'a'.repeat(64), p_engine: 'x', p_result: {} },
-  rw_worker_report_failure: { p_fight: 1, p_round: 1, p_token: '11111111-1111-4111-8111-111111111111', p_error: 'x' }, rw_worker_roster: { p_instance: 1 }, rw_worker_start_fight: { p_instance: 1, p_state: {} }, rw_ops_stuck_list: {}, rw_ops_resume: { p_fight: 1, p_round: 1, p_operator: 'op', p_note: 'zehn zeichen' }, rw_ops_terminate: { p_fight: 1, p_operator: 'op', p_note: 'zehn zeichen' } };
+  rw_worker_report_failure: { p_fight: 1, p_round: 1, p_token: '11111111-1111-4111-8111-111111111111', p_error: 'x' }, rw_worker_roster: { p_instance: 1 }, rw_worker_start_fight: { p_instance: 1, p_state: {} }, rw_ops_stuck_list: {}, rw_ops_resume: { p_fight: 1, p_round: 1, p_operator: 'op', p_note: 'zehn zeichen' }, rw_ops_register_engine: { p_version: 'e-1', p_state_schema: 1 }, rw_ops_terminate: { p_fight: 1, p_operator: 'op', p_note: 'zehn zeichen' } };
 try {
   console.log('PostgreSQL', await q('show server_version'));
   // ---- 1. Berechtigungsmatrix aus dem Katalog ----
   const rows = (await q(`select p.proname || '|' || has_function_privilege('anon', p.oid, 'execute') || '|' || has_function_privilege('authenticated', p.oid, 'execute') || '|' || has_function_privilege('service_role', p.oid, 'execute') || '|' || coalesce((select bool_or(a.grantee = 0) from aclexplode(p.proacl) a), true)::text || '|' || p.prosecdef::text || '|' || coalesce(p.proconfig::text, '') || '|' || p.proowner::regrole::text || '|' || pg_get_function_identity_arguments(p.oid)
     from pg_proc p where p.pronamespace = 'public'::regnamespace and (p.proname like 'rw\\_%') order by 1`)).split('\n').map((l) => l.split('|'));
-  ok(rows.map((r) => r[0]).join() === [...W].sort().join(), 'genau die zehn A1-Wrapper existieren (rw_worker_*, rw_ops_*)', rows.map((r) => r[0]).join(','));
+  ok(rows.map((r) => r[0]).join() === [...W].sort().join(), 'genau die elf A1-Wrapper existieren (rw_worker_*, rw_ops_*)', rows.map((r) => r[0]).join(','));
   ok(rows.every((r) => r[1] === 'false' && r[2] === 'false'), 'anon und authenticated dürfen KEINEN Wrapper ausführen (Katalog)');
   ok(rows.every((r) => r[4] === 'false'), 'kein PUBLIC-Recht (auch nicht das PostgreSQL-Standard-EXECUTE)');
   ok(rows.every((r) => r[3] === 'true'), 'service_role darf jeden Wrapper ausführen');
@@ -38,7 +38,7 @@ try {
   for (const role of ['anon', 'authenticated']) {
     let all = true; const bad = [];
     for (const w of W) { try { await rpcAs(role, role === 'authenticated' ? A.id : null)(w, ARGS[w]); all = false; bad.push(w); } catch (e) { if (!/permission denied for function/.test(e.err || '')) { all = false; bad.push(w + ':' + e.message); } } }
-    ok(all, `${role}: alle 10 Wrapper-Aufrufe scheitern mit „permission denied for function“`, bad.join(','));
+    ok(all, `${role}: alle 11 Wrapper-Aufrufe scheitern mit „permission denied for function“`, bad.join(','));
   }
   ok((await as('authenticated', A.id, `select * from rwi.fights`)).err.includes('permission denied') && (await as('anon', null, `select rwi.claim_resolution(1,1)`)).err.includes('permission denied'), 'direkter Zugriff auf rwi bleibt für Clients gesperrt (Tabellen und Funktionen)');
 

@@ -3,7 +3,7 @@
 // Läuft auf lokalem PostgreSQL mit schema.sql + 01–05. NICHT ECHT: auth.* ist die Attrappe (kein GoTrue/PostgREST).
 import { setup, counter, J } from './prod-env.mjs';
 const { ok, done } = counter();
-const E = await setup(54460); const { q, as, parallel, group } = E;
+const E = await setup(54460); const { q, as, parallel, group, rpcAs } = E;
 const st = (r) => { try { return J(r.out).status; } catch { return `FEHLER:${(r.err || '').split('\n')[0]}`; } };
 const rows = (inst, acc) => q(`select (select count(*) from rwi.members where instance_id=${inst} and account='${acc}') + (select count(*) from rwi.waitlist where instance_id=${inst} and account='${acc}' and status='waiting')`);
 try {
@@ -123,6 +123,34 @@ try {
   const gd = await group([del.chars[0], o1.chars[0]]);
   await q(`delete from auth.users where id='${del.id}'`);
   ok((await q(`select count(*) from rwi.members where account='${del.id}'`)) === '0' && (await q(`select mstate from rwi.members where instance_id=${gd.instance} and player='${del.chars[0]}'`)) === 'left', 'Kontolöschung: Kontokennung entfernt, Mitglied ausgetreten, Verlaufszeile bleibt');
+
+  // 14. Beschluss: auch AUTOMATISCH entfernte Mitglieder zählen weiter (drop_member ist der gemeinsame Weg aller automatischen Entfernungen)
+  for (const reason of ['abwesenheit', 'bereitschaft']) {
+    const ac = await E.account('Au' + reason.slice(0, 3), 2), pa = await E.account('Ap' + reason.slice(0, 3)), pb = await E.account('Aq' + reason.slice(0, 3));
+    const ga = await group([ac.chars[0], pa.chars[0], pb.chars[0]]);
+    await q(`select rwi.drop_member(${ga.instance}, '${ac.chars[0]}', '${reason}')`);
+    ok((await q(`select mstate || ':' || leave_reason from rwi.members where instance_id=${ga.instance} and player='${ac.chars[0]}'`)) === `removed:${reason}`, `Vorbereitung: Mitglied automatisch entfernt (${reason})`);
+    ok((await join(ga.instance, ac.chars[1])).status === 'account_in_instance', `automatisch entfernt (${reason}): anderer Charakter desselben Accounts darf NICHT erneut beitreten`);
+    ok((await join(ga.instance, ac.chars[0])).status === 'no_rejoin', `automatisch entfernt (${reason}): derselbe Charakter kein Wiederbeitritt (bestehende Regel)`);
+    const asAcc = rpcAs('authenticated', ac.id);
+    let st = null; try { st = (await asAcc('group_join', { p_instance: ga.instance, p_character: ac.chars[1] })).status; } catch (e) { st = 'fehler:' + e.message; }
+    ok(st === 'account_in_instance', `auch über den Client-Wrapper (${reason}) abgewiesen`, st);
+    ok((await q(`select count(*) from rwi.members where instance_id=${ga.instance} and account='${ac.id}'`)) === '1', `genau eine Zeile des Accounts in der Instanz (${reason})`);
+    const gb = await group([ac.chars[1], pa.chars[0]]);
+    ok(gb.status === 'ok', `in einer ANDEREN Instanz darf derselbe Account einen anderen Charakter stellen (${reason})`, gb.status);
+  }
+  // 15. Warteliste + automatische Entfernung: ein aus der Warteliste nachgerückter und später entfernter Charakter zählt weiter
+  { const w = await E.account('Warte', 2), f = [await E.account('Wf1'), await E.account('Wf2'), await E.account('Wf3'), await E.account('Wf4')];
+    const g = await group(f.map((x) => x.chars[0])); ok((await join(g.instance, w.chars[0])).status === 'waitlisted', 'Warteliste: Charakter 1 wartet');
+    await q(`select rwi.drop_member(${g.instance}, '${f[0].chars[0]}', 'abwesenheit'); select rwi.after_auto_removal(${g.instance})`);
+    ok((await q(`select mstate from rwi.members where instance_id=${g.instance} and player='${w.chars[0]}'`)) === 'active', 'Wartender rückt nach');
+    await q(`select rwi.drop_member(${g.instance}, '${w.chars[0]}', 'abwesenheit')`);
+    ok((await join(g.instance, w.chars[1])).status === 'account_in_instance', 'nachgerückt und automatisch entfernt: zweiter Charakter weiter gesperrt'); }
+  // 16. Kontolöschung: Kennung weg, Verlauf bleibt; der gelöschte Account taucht nicht mehr auf; ein ANDERER Account ist nicht betroffen
+  { const d = await E.account('Del2', 2), o = await E.account('Rest2'), o2 = await E.account('Rest3'), fresh = await E.account('Fresh');
+    const g = await group([d.chars[0], o.chars[0], o2.chars[0]]); await q(`delete from auth.users where id='${d.id}'`);
+    ok((await q(`select count(*) from rwi.members where instance_id=${g.instance} and account is not null and account='${d.id}'`)) === '0', 'Kontolöschung: keine Zeile trägt die Kennung des gelöschten Accounts');
+    ok((await join(g.instance, fresh.chars[0])).status !== 'account_in_instance', 'unbeteiligter Account wird durch die Löschung nicht blockiert', (await q(`select 1`))); }
 } catch (e) { ok(false, 'Lauf ohne Ausnahme', String(e.message).split('\n').slice(0, 3).join(' | ')); }
 finally { E.stop(); }
 process.exit(done());
