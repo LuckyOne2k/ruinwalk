@@ -4,13 +4,13 @@ titel: Teaser – Deine Welt ist das Spielfeld
 kanal: instagram
 format: post
 geplant_fuer: vor Tag 1 (Rasterbeitrag 1)
-status: autonom
+status: veroeffentlicht
 freigegeben_von:
 freigegeben_am:
 bild: marketing/grafiken/entwuerfe/001_teaser.jpg
 bild_url:
-veroeffentlicht_am:
-link:
+veroeffentlicht_am: 2026-11-18 17:36 (Europe/Berlin), Modus autonom, Instagram-ID 18094414742230673
+link: https://www.instagram.com/p/Df48x9TFzFk/
 ---
 
 ## Ziel
