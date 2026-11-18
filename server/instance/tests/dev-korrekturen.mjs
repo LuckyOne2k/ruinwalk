@@ -4,7 +4,7 @@
 import { readFileSync, writeFileSync, mkdtempSync, copyFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { execSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { counter } from './prod-env.mjs';
 import { mkStub, start, capture, ANON, PUBLISHABLE } from './dev-stub.mjs';
 import { run as runOrig, errIs, permDenied, notExposed } from '../../../supabase/dev/real-test.mjs';
@@ -72,7 +72,8 @@ try {
   const x5b = await go(async (a) => m5({ ...a, fetchFn: () => { throw new Error('nie'); } }), {}, FULL, 'sb_secret_GeheimerSchluesselNurFuerStub123'); ok(x5b.r.code !== 2, 'K5 Mutationsprobe: mit lockerer Prüfung würde ein Secret-Key akzeptiert (Test ist wirksam)');
 
   // ---------- K9: Workflow ----------
-  const wf = readFileSync(new URL('../../../.github/workflows/dev-test.yml', import.meta.url), 'utf8'), old = execSync('git show afc5dfb:.github/workflows/dev-test.yml', { cwd: new URL('../../..', import.meta.url).pathname, encoding: 'utf8' });
+  const wf = readFileSync(new URL('../../../.github/workflows/dev-test.yml', import.meta.url), 'utf8'), old = readFileSync(new URL('./fixtures/dev-test.afc5dfb.yml', import.meta.url), 'utf8');   // feste Fixture statt git show: im flachen CI-Checkout gibt es den alten Commit nicht
+  ok(createHash('sha256').update(old).digest('hex') === '357607d3b75981bdbfae5beb037bbbf69339feb5d677d2a94e465220d2d104ed', 'K9: die Fixture des alten Workflows (Stand afc5dfb) ist unverändert (SHA-256 fest hinterlegt, Kopie von git show afc5dfb:.github/workflows/dev-test.yml)');
   const skips = (y) => /^\s{4}if:/m.test(y);                                                              // ein Job-if: überspringt den Job bei falscher Eingabe → Lauf „grün“
   const failsOnWrong = (y) => /BESTAETIGUNG" != "dev"[^\n]*exit [1-9]/.test(y) && /REPO" != "LuckyOne2k\/ruinwalk"[^\n]*exit [1-9]/.test(y) && /needs: pruefen/.test(y);
   ok(skips(old) && !failsOnWrong(old), 'K9 Nachweis des alten Fehlers: der Stand afc5dfb überspringt den Job bei falscher Eingabe (grüner Lauf ohne Ausführung)');

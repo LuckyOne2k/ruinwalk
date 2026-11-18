@@ -37,8 +37,13 @@ export function validate(body) {
 
 const json = (status, o) => ({ status, body: o });
 // deps: verify(token) -> {id, aal}|null ; rpc(name, args) -> Objekt (nur service_role-Wrapper) ; requireMfa (Standard true) ; log(ereignis) (ohne Token/Geheimnisse)
+/**
+ * @typedef {{ method: string, authorization: string | null, rawBody?: string, readBody?: (max: number) => Promise<string | null> }} HandlerRequest
+ * @param {{ verify: (token: string) => Promise<{ id: string, aal: string } | null>, rpc: (name: string, args: Record<string, unknown>) => Promise<any>, requireMfa?: boolean, log?: (event: unknown) => void }} deps
+ */
 export function makeHandler({ verify, rpc, requireMfa = true, log = () => {} }) {
-  return async ({ method, authorization, rawBody, readBody }) => {
+  /** @param {HandlerRequest} req @returns {Promise<{ status: number, body: Record<string, unknown> }>} */
+  async function handle({ method, authorization, rawBody, readBody }) {
     if (method !== 'POST') return json(405, { error: 'method_not_allowed' });
     const m = /^Bearer (\S+)$/.exec(authorization || '');
     const who = m ? await verify(m[1]) : null;
@@ -60,5 +65,6 @@ export function makeHandler({ verify, rpc, requireMfa = true, log = () => {} }) 
     log({ ev: 'done', operator: who.id, action: a.action, fight: a.fight, status: st });
     if (st === 'not_operator') return json(403, { error: 'forbidden' });                                // Grund (kein Betreiber / deaktiviert / Umfang) bleibt intern, steht im ops_log
     return json(200, { status: st, ...(['resumed', 'terminated'].includes(st) ? { old_engine: r.old_engine ?? null, new_engine: r.new_engine ?? null } : {}) });
-  };
+  }
+  return handle;
 }

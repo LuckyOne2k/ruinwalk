@@ -2,6 +2,7 @@
 
 // Wählt einen Schlüssel aus der Umgebung. Neues Format zuerst (JSON-Objekt mit benannten Schlüsseln, Name "default": SUPABASE_PUBLISHABLE_KEYS / SUPABASE_SECRET_KEYS),
 // danach das alte Einzelschlüssel-Format (SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY). Liefert einen String oder null (fehlt/unlesbar: geschlossen im Zweifel).
+/** @param {(name: string) => string | undefined} get @param {string} listName @param {string} legacyName @returns {string | null} */
 export function pickKey(get, listName, legacyName) {
   const raw = get(listName);
   if (typeof raw === 'string' && raw.trim()) {
@@ -12,12 +13,16 @@ export function pickKey(get, listName, legacyName) {
 }
 
 // Header für einen Schlüssel: neue Schlüssel (sb_…) sind KEINE JWTs und gehören nur in "apikey" (nie als Bearer); alte JWT-Schlüssel in apikey UND Authorization.
+/** @param {string} key @returns {Record<string, string>} */
 export function keyHeaders(key) {
-  return String(key).startsWith('sb_') ? { apikey: key } : { apikey: key, authorization: `Bearer ${key}` };
+  /** @type {Record<string, string>} */ const h = { apikey: key };
+  if (!String(key).startsWith('sb_')) h.authorization = `Bearer ${key}`;
+  return h;
 }
 
 // Liest den Body eines Web-Request/Response-ähnlichen Objekts mit hartem Byte-Limit, BEVOR er vollständig im Speicher liegt.
 // Liefert den Text oder null bei Überschreitung (der Stream wird dann sofort abgebrochen). Content-Length wird nur als schnelle Vorprüfung genutzt (nicht vertrauenswürdig).
+/** @param {{ headers?: { get(n: string): string | null }, body?: ReadableStream<Uint8Array> | null }} req @param {number} max @returns {Promise<string | null>} */
 export async function readBodyLimited(req, max) {
   const cl = req.headers && req.headers.get ? req.headers.get('content-length') : null;
   if (cl !== null && /^[0-9]+$/.test(cl) && Number(cl) > max) { try { await req.body?.cancel(); } catch { /* egal */ } return null; }

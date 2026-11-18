@@ -34,6 +34,7 @@ try {
     const w = (NOSWEEP ? cs.slice(0, 3) : cs).map((x) => `select pg_sleep_until('${at}'::timestamp::timestamptz); select rwi.commit_round(${x.fid},1,'${x.c.token}',${x.c.round_version},'${x.c.input_hash}','p',$j$${JSON.stringify(x.res)}$j$::jsonb);`);
     if (!NOSWEEP) for (let k = 0; k < 4; k++) w.push(`select pg_sleep_until('${at}'::timestamp::timestamptz + interval '${k * 8} milliseconds'); select rwi.sweep_event(${ev});`);
     const r = await Promise.all(w.map((s) => cl.psql(s))); runs++;
+    for (const x of r) if (/deadlock/i.test(x.err)) console.error('DEADLOCK Durchlauf', it, '\n' + x.err);   // nur Diagnose-Ausgabe, Zählung unverändert
     dead += r.filter((x) => /deadlock/i.test(x.err)).length; errs += r.filter((x) => x.code).length;
     await new Promise((s) => setTimeout(s, 1700));
     activeBefore += +(await q(`select count(*) from rwi.instances where event_id=${ev} and status='active' and ends_at <= clock_timestamp()`));   // Zustand vor dem Watchdog
