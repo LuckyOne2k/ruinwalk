@@ -1,0 +1,126 @@
+[
+ {
+  "datei": "004_karussell_lebensraeume_1.jpg",
+  "format": "post",
+  "layout": "titel",
+  "hintergrund": "assets/bg_chars.jpg",
+  "kicker": "Fünf Lebensräume",
+  "titel": "Jeder Ort hat seine Kreaturen.",
+  "text": "Echte Kartendaten bestimmen, wer dir begegnet. Wisch dich durch 👉"
+ },
+ {
+  "datei": "004_karussell_lebensraeume_2.jpg",
+  "format": "post",
+  "layout": "klasse",
+  "hintergrund": "assets/bg_chars.jpg",
+  "kicker": "🌲 Wald",
+  "titel": "Im Unterholz",
+  "text": "Waldspinne, Wildkeiler und Eichhörnchen. Mehr Bäume, mehr Holz.",
+  "figuren": [
+   {
+    "bild": "marketing/grafiken/sprites/m_waldspinne.png",
+    "name": "Waldspinne"
+   },
+   {
+    "bild": "marketing/grafiken/sprites/m_keiler.png",
+    "name": "Wildkeiler"
+   },
+   {
+    "bild": "marketing/grafiken/sprites/m_eichhoernchen.png",
+    "name": "Eichhörnchen"
+   }
+  ]
+ },
+ {
+  "datei": "004_karussell_lebensraeume_3.jpg",
+  "format": "post",
+  "layout": "klasse",
+  "hintergrund": "assets/bg_chars.jpg",
+  "kicker": "🌾 Wiese & Feld",
+  "titel": "Auf offenem Land",
+  "text": "Feldhase, Giftschlange und streunende Hunde. Hier wächst viel Heilkraut.",
+  "figuren": [
+   {
+    "bild": "marketing/grafiken/sprites/m_hase.png",
+    "name": "Feldhase"
+   },
+   {
+    "bild": "marketing/grafiken/sprites/m_giftschlange.png",
+    "name": "Giftschlange"
+   },
+   {
+    "bild": "marketing/grafiken/sprites/m_streuner.png",
+    "name": "Streuner"
+   }
+  ]
+ },
+ {
+  "datei": "004_karussell_lebensraeume_4.jpg",
+  "format": "post",
+  "layout": "klasse",
+  "hintergrund": "assets/bg_chars.jpg",
+  "kicker": "💧 Sumpf & Wasser",
+  "titel": "Am Wasser",
+  "text": "Blutegel, Mückenschwärme und Riesenfrösche. Ranken gibt es reichlich.",
+  "figuren": [
+   {
+    "bild": "marketing/grafiken/sprites/m_blutegel.png",
+    "name": "Blutegel"
+   },
+   {
+    "bild": "marketing/grafiken/sprites/m_muecken.png",
+    "name": "Mücken"
+   },
+   {
+    "bild": "marketing/grafiken/sprites/m_frosch.png",
+    "name": "Riesenfrosch"
+   }
+  ]
+ },
+ {
+  "datei": "004_karussell_lebensraeume_5.jpg",
+  "format": "post",
+  "layout": "klasse",
+  "hintergrund": "assets/bg_chars.jpg",
+  "kicker": "⛰️ Fels & Berg",
+  "titel": "Zwischen Steinen",
+  "text": "Bergziegen, Goblins und Steinskorpione. Hier findest du mehr Erz.",
+  "figuren": [
+   {
+    "bild": "marketing/grafiken/sprites/m_bergziege.png",
+    "name": "Bergziege"
+   },
+   {
+    "bild": "marketing/grafiken/sprites/m_goblin.png",
+    "name": "Goblin"
+   },
+   {
+    "bild": "marketing/grafiken/sprites/m_skorpion.png",
+    "name": "Steinskorpion"
+   }
+  ]
+ },
+ {
+  "datei": "004_karussell_lebensraeume_6.jpg",
+  "format": "post",
+  "layout": "klasse",
+  "hintergrund": "assets/bg_chars.jpg",
+  "kicker": "Ruinen & Siedlung",
+  "titel": "Zwischen alten Mauern",
+  "text": "Kanalratten, Irrlichter und Riesenfledermäuse.",
+  "figuren": [
+   {
+    "bild": "marketing/grafiken/sprites/m_ratte.png",
+    "name": "Kanalratte"
+   },
+   {
+    "bild": "marketing/grafiken/sprites/m_irrlicht.png",
+    "name": "Irrlicht"
+   },
+   {
+    "bild": "marketing/grafiken/sprites/m_fledermaus.png",
+    "name": "Fledermaus"
+   }
+  ]
+ }
+]

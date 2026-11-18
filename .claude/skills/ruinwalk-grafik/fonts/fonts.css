@@ -1,0 +1,6 @@
+/* Cinzel und Crimson Text (SIL Open Font License 1.1), Latin-Teilmenge, lokal für Offline-Rendering */
+@font-face{font-family:'Cinzel';font-style:normal;font-weight:600;src:url(Cinzel-normal-600.woff2) format('woff2');}
+@font-face{font-family:'Cinzel';font-style:normal;font-weight:700;src:url(Cinzel-normal-600.woff2) format('woff2');}
+@font-face{font-family:'Crimson Text';font-style:italic;font-weight:400;src:url(CrimsonText-italic-400.woff2) format('woff2');}
+@font-face{font-family:'Crimson Text';font-style:normal;font-weight:400;src:url(CrimsonText-normal-400.woff2) format('woff2');}
+@font-face{font-family:'Crimson Text';font-style:normal;font-weight:600;src:url(CrimsonText-normal-600.woff2) format('woff2');}

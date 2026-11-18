@@ -1,0 +1,7 @@
+{
+  "typ": "quest", "id": "sumpf_egelplage", "gebietsstufe": 2, "lebensraum": "s",
+  "titel": "Die Egelplage", "text": "Am Moorrand kommen die Sammler nicht mehr ans Heilkraut. Vertreibe die Blutegel und bring Kräuter mit.",
+  "ziele": [{ "typ": "besiegen", "ziel": "blutegel", "menge": 5 }, { "typ": "sammeln", "ziel": "kraut", "menge": 6 }],
+  "belohnung": { "xp": 90, "muenzen": 150, "items": { "trank": 2 } },
+  "quelle": "Beispiel, von Hand geschrieben"
+}

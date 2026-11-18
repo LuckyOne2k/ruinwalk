@@ -1,0 +1,6 @@
+node_modules/
+.env
+.env.*
+# Standard-Ausgabeordner der KI-Team-Werkzeuge (nur bei Bedarf gezielt committen)
+docs/mobile-check/
+docs/balancing/export/

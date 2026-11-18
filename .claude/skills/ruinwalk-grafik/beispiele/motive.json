@@ -1,0 +1,15 @@
+[
+  { "datei": "01_teaser_post.png", "format": "post", "layout": "titel", "hintergrund": "assets/bg_login.jpg",
+    "kicker": "Ein GPS-Fantasy-RPG", "titel": "Deine Welt ist das Spielfeld.",
+    "text": "Verlass die bekannten Wege. Jeder Spaziergang wird zum Abenteuer – direkt vor deiner Tür." },
+  { "datei": "02_klasse_krieger.png", "format": "post", "layout": "klasse", "hintergrund": "assets/bg_create.jpg",
+    "kicker": "Klassen von Ruin Walk", "titel": "Der Krieger",
+    "text": "Nahkampf, Widerstandskraft, Durchhaltevermögen. Ab Stufe 15 wählst du deinen Pfad.",
+    "figuren": [ { "bild": "figs/krieger.png", "name": "Krieger" }, { "bild": "figs/ritter.png", "name": "Ritter" }, { "bild": "figs/berserker.png", "name": "Berserker" }, { "bild": "figs/duellant.png", "name": "Duellant" } ],
+    "chips": ["Wuchtschlag", "Schildwall", "Kampfgeist"] },
+  { "datei": "03_devupdate_story.png", "format": "story", "layout": "liste", "hintergrund": "assets/bg_chars.jpg", "logo": true,
+    "kicker": "Entwickler-Update", "titel": "Was gerade entsteht",
+    "punkte": [ { "icon": "✅", "text": "Gebietsstufen: Randland bis Ruinenreich" }, { "icon": "✅", "text": "Cloud-Speicher für deine Charaktere" }, { "icon": "🔧", "text": "Gruppen-Dungeons – in Entwicklung" } ] },
+  { "datei": "04_frage_quadrat.png", "format": "quadrat", "layout": "frage", "hintergrund": "assets/bg_login.jpg",
+    "kicker": "Eure Meinung", "titel": "Welchen Weg gehst du?", "optionen": ["Krieger", "Bogenschütze", "Elementarmagier", "Heiler"] }
+]

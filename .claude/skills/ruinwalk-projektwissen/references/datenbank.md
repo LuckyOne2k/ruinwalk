@@ -1,0 +1,41 @@
+# Datenbank, RLS und Rechte
+
+Quelle: `supabase/schema.sql`, `docs/ACCOUNT_BACKEND.md`, `docs/D3_PRUEFBERICHT.md`, `docs/INSTANZKAMPF_SICHERHEIT_PHASE1.md`.
+
+## Produktiv-Schema `public` (live in Supabase)
+
+| Tabelle | Inhalt | Client-Zugriff |
+|---|---|---|
+| `profiles` | account_id (→ auth.users), username (3–20, `[A-Za-z0-9_]`, eindeutig ohne Groß/Klein), last_login | SELECT eigene Zeile |
+| `account_entitlements` | Berechtigungen, aktuell nur `third_character_slot` (pending/active/refunded/failed) | SELECT eigene |
+| `payment_events` | Zahlungsereignisse, `provider_event_id` als PK (idempotent) | keiner |
+| `characters` | character_id, account_id, slot_number 1–3, name (1–16), class, level 1–50, `character_data` jsonb (< 1 MB), `version` | SELECT eigene; Platz 3 nur mit aktiver Berechtigung |
+| `character_backups` | Sicherungen (reason update/delete), letzte 10, max. 1 „update“ je 10 min (S1), 30 Tage Aufbewahrung | keiner |
+| `audit_log` | Protokoll (Löschen, später Kauf/Migration) | keiner |
+
+**Grundmuster:** RLS überall aktiv · `revoke all … from public, anon, authenticated` · Clients nur SELECT mit Eigentümer-Policy `(select auth.uid())` · Schreiben ausschließlich über `SECURITY DEFINER`-Funktionen mit festem `search_path`, die `auth.uid()` in jeder Anweisung prüfen · `EXECUTE` gezielt vergeben.
+
+**Client-RPCs (authenticated):** `create_character(slot, name, data)`, `save_character(id, expected_version, data)` (Fehler `version_conflict` PT409, `character_locked`), `list_characters()`, `move_character(id, target)`, `delete_character(id)`, `touch_login()`, `delete_account(confirm)` (verlangt frische Passwort-Anmeldung: AMR password, Sitzung ≤ 2 min). Anonym: `username_available(name)`.
+**Nur intern/service_role:** `has_entitlement`, `is_verified`, `safe_class`, `safe_level`, `purge_expired_backups` (service_role), `purge_account_backups` (nur intern), Trigger `handle_new_user`, `guard_profile`, `guard_character`, `backup_character`, `audit_entitlement`.
+
+**Fehlermeldungen verraten nichts:** fremder/unbekannter Charakter → gleiche Antwort.
+
+## Supabase-Besonderheiten im Projekt
+- Seit 2026 vergibt Supabase für neue Tabellen keine Standardrechte mehr (Data API opt-in) → Rechte ausdrücklich vergeben, Tests prüfen beide Modi („neu“ und „legacy“).
+- Neue Funktionen in `public` bekommen standardmäßig EXECUTE für PUBLIC → nach jeder neuen Funktion `revoke … from public` wiederholen. `SECURITY DEFINER` in `public` ist sonst ein öffentlicher Endpunkt.
+- Trigger auf `auth.users` im SQL-Editor als `postgres` anlegen.
+- Echte Konten existieren im Projekt → Live-Prüfungen nur mit Testkonten, Aufräumen nur von Testkonten.
+
+## Prototyp-Schema `rwi` (Instanzkampf, NICHT live)
+- Nur in temporärem lokalem Postgres (Tests). Für anon/authenticated: keine USAGE, keine Tabellenrechte, RLS ohne Policy. service_role: Serverfunktionen (31).
+- Clientweg: `public.group_join|leave|ready|heartbeat|view|action|revive_use|revive_decline` (authenticated). Identität = `auth.uid()`, Spielerschlüssel = `characters.character_id::text`, Eigentum geprüft (`rwi.own_character`), Fehler `forbidden` PT403 / `ambiguous_character` PT409 / `not_authenticated` PT401.
+- Testfunktionen mit Spielerparameter (`join`, `set_ready`, `submit_action_for`, …) sind für keine Rolle ausführbar. Jede neue `rwi`-Funktion muss im Rechteskript (`sql/05_produktion.sql`) einer Klasse zugeordnet werden, sonst scheitert das Skript (Wächter).
+- Nicht auf echter Supabase verifiziert (Annahmen in SICHERHEIT_PHASE1 Abschnitt 6).
+
+## Tests
+- `bash supabase/tests/run.sh` – temporäres PostgreSQL 16 + Supabase-Attrappe (`00_stub.sql`), `10_tests.sql`, beide Rechte-Modi.
+- `supabase/tests/editor_test.sql` – Test für den Supabase-SQL-Editor; `live_rls_test.sql` – Live-Prüfung (nur Testkonten).
+- `server/instance/tests/produktion.mjs` – Rechte mit echten Rollen anon/authenticated/service_role.
+
+## Migrationen (Konvention im Projekt)
+`supabase/migration_<kürzel>_<thema>.sql` + `supabase/rollback_<kürzel>_<thema>.sql` + `schema.sql` nachziehen + Tests + Prüfbericht in `docs/` (Beispiel: D3). Live-Einspielung nur nach ausdrücklicher Freigabe durch Pascal.
