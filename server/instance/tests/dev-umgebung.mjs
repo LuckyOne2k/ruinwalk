@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { startCluster } from './pg.mjs';
+import { charData } from './prod-env.mjs';
 import { newFight, resolveClaim, ENGINE_VERSION } from '../engine/v1.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const SQL = (f) => readFileSync(join(here, '../sql', f + '.sql'), 'utf8');
@@ -38,7 +39,7 @@ async function suite(label, port, devLike) {
     ok((await q(`select count(*) from pg_extension where extname = 'pgcrypto'`)) === (devLike ? '1' : '0'), `${t} die Instanz-Skripte legen keine Erweiterung an oder verändern sie`);
 
     for (const [k, id] of Object.entries(UID)) await q(`insert into auth.users(id,email,raw_user_meta_data) values ('${id}','${k.toLowerCase()}@test.de','{"username":"Spieler_${k}"}')`);
-    for (const [c, uid, nm] of [['A1', UID.A, 'A1'], ['B1', UID.B, 'B1']]) await q(`insert into public.characters(character_id,account_id,slot_number,character_name,character_data) values ('${CH[c]}','${uid}',1,'${nm}','{}')`);
+    for (const [c, uid, nm] of [['A1', UID.A, 'A1'], ['B1', UID.B, 'B1']]) await q(`insert into public.characters(character_id,account_id,slot_number,character_name,character_class,level,character_data) values ('${CH[c]}','${uid}',1,'${nm}','${c === 'A1' ? 'krieger' : 'heiler'}',50,$cd$${c === 'A1' ? charData('krieger', 'ritter') : charData('heiler', 'priester')}$cd$)`);
     await q(`insert into rwi.players values ('${CH.A1}', 10, 'krieger', 'ritter', 3), ('${CH.B1}', 10, 'heiler', 'priester', 3)`);
 
     const svc = async (sql) => { const r = await as('service_role', sql); if (r.code) throw new Error(r.err); return r.out; };

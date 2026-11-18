@@ -57,7 +57,7 @@ try {
 
   // SECURITY DEFINER und search_path
   eq(await lines(`select n.nspname || '.' || p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','rwi') and p.prosecdef and not exists (select 1 from unnest(coalesce(p.proconfig,'{}')) c where c like 'search_path=%') order by 1`), [], 'jede SECURITY-DEFINER-Funktion hat einen festen search_path');
-  eq(await lines(`select p.proname from pg_proc p where p.pronamespace='rwi'::regnamespace and p.prosecdef order by 1`), ['account_guard', 'account_of', 'on_character_deleted', 'on_profile_deleted', 'on_profile_deleting', 'own_character'], 'rwi: genau sechs SECURITY-DEFINER-Funktionen (Identität, Konto-Hook, Triggerfunktionen)');
+  eq(await lines(`select p.proname from pg_proc p where p.pronamespace='rwi'::regnamespace and p.prosecdef order by 1`), ['account_guard', 'account_of', 'derive_profile', 'eligible', 'on_character_deleted', 'on_profile_deleted', 'on_profile_deleting', 'own_character', 'profile_of'], 'rwi: genau neun SECURITY-DEFINER-Funktionen (Identität, Konto-Hook, Profilableitung, Triggerfunktionen)');
   ok((await lines(`select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','rwi') and p.prosecdef and exists (select 1 from unnest(p.proconfig) c where c like 'search_path=%' and c !~ 'pg_temp$')`)).length === 0, 'in jedem festen search_path steht pg_temp zuletzt (kein Vorrang für temporäre Objekte)');
   ok((await q(`select count(*) from pg_proc p where p.pronamespace='rwi'::regnamespace and not p.prosecdef and p.proconfig is not null`)) === '0', 'rwi: übrige Funktionen laufen als Aufrufer ohne eigene Konfiguration (Serverrollen, kein erweiterter Zugriff)');
 

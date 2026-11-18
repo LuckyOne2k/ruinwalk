@@ -7,6 +7,7 @@ import { a1Db, opsA1 } from '../worker/a1.mjs';
 const { ok, done } = counter();
 const E = await setup(54490); const { q, rpcAs, parallel } = E;
 const svc = rpcAs('service_role'); const db = a1Db(svc), ops = opsA1(svc);
+const OP = (await E.account('OpPascal', 0)).id; await q(`select rwi.set_operator('${OP}', 'Pascal', array['resume','terminate','engine'])`);
 const broken = { ...engine, resolveClaim: () => { throw new Error('Engine kaputt (Test)'); } };
 let n = 0;
 const mkFight = async () => {
@@ -69,44 +70,44 @@ try {
   ok(before === await q(`select md5((select string_agg(state::text || actions::text, '|') from rwi.fights where id=${F.fid}) || (select string_agg(player || mstate, ',' order by id) from rwi.members where instance_id=${F.inst}))`), 'Kampfzustand, Aktionen und Mitglieder bleiben durch Alarmierung/Watchdog unverändert');
 
   // ---- 4. kontrollierte Wiederaufnahme ----
-  ok((await ops.resume(F.fid, 1, 'pascal', 'kurz')).status === 'invalid_input', 'Wiederaufnahme ohne Begründung (<10 Zeichen): invalid_input');
-  ok((await ops.resume(F.fid, 1, '', 'Ursache analysiert, Engine behoben')).status === 'invalid_input', 'Wiederaufnahme ohne Betreiberangabe: invalid_input');
-  ok((await ops.resume(F.fid, 2, 'pascal', 'Ursache analysiert, Engine behoben')).status === 'stale', 'falsche (nicht aktuelle) Runde: stale, keine Wirkung');
-  ok((await ops.resume(999999, 1, 'pascal', 'Ursache analysiert, Engine behoben')).status === 'unknown_fight', 'unbekannter Kampf: unknown_fight');
+  ok((await ops.resume(F.fid, 1, OP, 'kurz')).status === 'invalid_input', 'Wiederaufnahme ohne Begründung (<10 Zeichen): invalid_input');
+  ok((await ops.resume(F.fid, 1, '00000000-0000-4000-8000-000000000999', 'Ursache analysiert, Engine behoben')).status === 'not_operator', 'Wiederaufnahme mit unbekannter Betreiberkennung: not_operator (Freitext/fremde ID zählt nicht)');
+  ok((await ops.resume(F.fid, 2, OP, 'Ursache analysiert, Engine behoben')).status === 'stale', 'falsche (nicht aktuelle) Runde: stale, keine Wirkung');
+  ok((await ops.resume(999999, 1, OP, 'Ursache analysiert, Engine behoben')).status === 'unknown_fight', 'unbekannter Kampf: unknown_fight');
   const H = await mkFight();
-  ok((await ops.resume(H.fid, 1, 'pascal', 'Ursache analysiert, Engine behoben')).status === 'not_stuck' && (await ops.terminate(H.fid, 'pascal', 'darf einen gesunden Kampf nie beenden')).status === 'not_stuck', 'gesunder Kampf: weder Wiederaufnahme noch Beendigung möglich (not_stuck)');
+  ok((await ops.resume(H.fid, 1, OP, 'Ursache analysiert, Engine behoben')).status === 'not_stuck' && (await ops.terminate(H.fid, OP, 'darf einen gesunden Kampf nie beenden')).status === 'not_stuck', 'gesunder Kampf: weder Wiederaufnahme noch Beendigung möglich (not_stuck)');
   const oldTok = await q(`select claim_token from rwi.fights where id=${F.fid}`);
-  const rs = await ops.resume(F.fid, 1, 'pascal', 'Ursache: Engine-Fehler im Test behoben');
+  const rs = await ops.resume(F.fid, 1, OP, 'Ursache: Engine-Fehler im Test behoben');
   ok(rs.status === 'resumed' && rs.resumes === 1, 'kontrollierte Wiederaufnahme: resumed (Episode 1)', JSON.stringify(rs));
   ok((await job(F.fid)) === 'pending/0/1' && (await stuckInst(F.inst)) === 'false' && (await open(F.fid)) === '0', 'Auftrag pending (Versuche 0, Wiederaufnahmen 1), engine_stuck zurückgesetzt, Alarm erledigt');
   const lg = J(await q(`select row_to_json(l) from rwi.ops_log l where fight_id=${F.fid} and kind='resume'`));
-  ok(lg.operator === 'pascal' && /behoben/.test(lg.note) && lg.round_no === 1, 'Wiederaufnahme ist protokolliert (Betreiber, Begründung, Zeit, Kampf, Runde)');
-  ok((await ops.resume(F.fid, 1, 'pascal', 'Ursache: Engine-Fehler im Test behoben')).status === 'not_stuck', 'zweite Wiederaufnahme derselben Episode: not_stuck (keine Doppelausführung)');
+  ok(lg.operator_id === OP && lg.operator === 'Pascal' && /behoben/.test(lg.note) && lg.round_no === 1, 'Wiederaufnahme ist protokolliert (Betreiber, Begründung, Zeit, Kampf, Runde)');
+  ok((await ops.resume(F.fid, 1, OP, 'Ursache: Engine-Fehler im Test behoben')).status === 'not_stuck', 'zweite Wiederaufnahme derselben Episode: not_stuck (keine Doppelausführung)');
   ok((await q(`select count(*) from rwi.ops_log where kind='resume' and fight_id=${F.fid}`)) === '1', 'genau ein Protokolleintrag');
   const sup = await db.commit(F.fid, 1, oldTok, 99, 'a'.repeat(64), engine.ENGINE_VERSION, { outcome: 'continue', state: { members: [], monster: { hp: 1 } } });
   ok(sup.status === 'superseded', 'Commit mit dem alten Token nach der Wiederaufnahme: superseded', sup.status);
   const w2 = await db.watchdog(); ok(w2.redispatch.includes(F.fid), 'nach der Wiederaufnahme wird der Kampf wieder verteilt (redispatch)');
   const t2 = await runTick(db, engine); const r2 = t2.results.find((x) => x.fight === F.fid);
   ok(r2 && r2.status === 'committed' && (await q(`select count(*) from rwi.round_results where fight_id=${F.fid} and round_no=1`)) === '1', 'behobene Engine: Runde wird genau einmal aufgelöst und committet', JSON.stringify(r2));
-  ok((await ops.resume(F.fid, 1, 'pascal', 'Ursache: Engine-Fehler im Test behoben')).status === 'stale', 'bereits abgeschlossene Runde kann nie erneut aufgenommen werden (stale/already_resolved)');
+  ok((await ops.resume(F.fid, 1, OP, 'Ursache: Engine-Fehler im Test behoben')).status === 'stale', 'bereits abgeschlossene Runde kann nie erneut aufgenommen werden (stale/already_resolved)');
   ok((await q(`select count(*) from rwi.round_results where fight_id=${F.fid}`)) === '1', 'weiterhin genau ein Rundenergebnis');
 
   // ---- 5. erneutes stuck nach Wiederaufnahme = neue Episode, neuer Alarm ----
   { const K = await mkFight(); for (let k = 0; k < 6; k++) { await runTick(db, broken); if (k < 5) await K.expire(); }
     ok((await job(K.fid)) === 'stuck/6/0' && (await alerts(K.fid)) === '1', 'Episode 0: stuck, ein Alarm');
-    await ops.resume(K.fid, 1, 'pascal', 'erster Versuch nach Analyse (Test)');
+    await ops.resume(K.fid, 1, OP, 'erster Versuch nach Analyse (Test)');
     for (let k = 0; k < 6; k++) { await K.expire(); await runTick(db, broken); }
     ok((await job(K.fid)) === 'stuck/6/1' && (await alerts(K.fid)) === '2' && (await open(K.fid)) === '1', 'Episode 1: erneut stuck -> NEUER Alarm (insgesamt 2, einer offen, einer erledigt)', `${await job(K.fid)} alarme=${await alerts(K.fid)}`);
     ok(new Set((await q(`select dedupe_key from rwi.ops_alerts where fight_id=${K.fid} order by id`)).split('\n')).size === 2, 'beide Alarme haben verschiedene Schlüssel');
     // ---- 6. technische Beendigung ----
-    const tm = await ops.terminate(K.fid, 'pascal', 'Ursache nicht behebbar, Instanz technisch beenden');
+    const tm = await ops.terminate(K.fid, OP, 'Ursache nicht behebbar, Instanz technisch beenden');
     ok(tm.status === 'terminated' && (await q(`select status from rwi.instances where id=${K.inst}`)) === 'aborted' && (await q(`select status from rwi.fights where id=${K.fid}`)) === 'technical_end', 'technische Beendigung: Instanz aborted, Kampf technical_end');
     ok((await q(`select count(*) from rwi.rewards where instance_id=${K.inst}`)) === '0' && (await open(K.fid)) === '0' && (await q(`select count(*) from rwi.ops_log where kind='terminate' and fight_id=${K.fid}`)) === '1', 'keine Belohnung, Alarm erledigt, Beendigung protokolliert');
-    ok((await ops.terminate(K.fid, 'pascal', 'zweiter Versuch darf nichts mehr tun')).status === 'not_active', 'zweite Beendigung: not_active'); }
+    ok((await ops.terminate(K.fid, OP, 'zweiter Versuch darf nichts mehr tun')).status === 'not_active', 'zweite Beendigung: not_active'); }
 
   // ---- 7. gleichzeitig: zwei Wiederaufnahmen; mehrere Fehlermeldungen am Übergang ----
   { const K = await mkFight(); for (let k = 0; k < 6; k++) { await runTick(db, broken); if (k < 5) await K.expire(); }
-    const res = (await parallel([1, 2, 3].map((i) => `select public.rw_ops_resume(${K.fid}, 1, 'op${i}', 'gleichzeitige Wiederaufnahme Nummer ${i}')`))).map((r) => J(r.out).status).sort();
+    const res = (await parallel([1, 2, 3].map((i) => `select public.rw_ops_resume(${K.fid}, 1, '${OP}', 'gleichzeitige Wiederaufnahme Nummer ${i}')`))).map((r) => J(r.out).status).sort();
     ok(res.filter((x) => x === 'resumed').length === 1 && res.filter((x) => x === 'not_stuck').length === 2, 'drei gleichzeitige Wiederaufnahmen: genau eine wirkt, zwei not_stuck', res.join(','));
     ok((await q(`select count(*) from rwi.ops_log where kind='resume' and fight_id=${K.fid}`)) === '1', 'genau ein Protokolleintrag');
     const M = await mkFight(); await q(`update rwi.cfg set v = 1 where k = 'max_attempts'`);
@@ -121,8 +122,8 @@ try {
     ok(seen.slice(0, 6).every((x) => x === 'invalid') && seen.slice(6).every((x) => x === 'stuck_locked') && (await job(K.fid)).startsWith('stuck/') && (await alerts(K.fid)) === '1', 'Invariantenverletzung: stuck nach max_attempts, weitere Commits sind gesperrt (stuck_locked, kein Zähler), nur EIN Alarm', seen.join(',') + ' ' + await job(K.fid));
     const hf = await db.commit(K.fid, 1, c.token, c.round_version, c.input_hash, 'proto-0.2-hotfix', good);
     ok(hf.status === 'stuck_locked' && (await open(K.fid)) === '1' && (await q(`select count(*) from rwi.round_results where fight_id=${K.fid}`)) === '0', 'Hotfix-Commit mit neuer Engine-Version ohne Operatorentscheidung wird abgewiesen: Sperre und Alarm bleiben', hf.status);
-    ok((await ops.registerEngine('proto-0.2-hotfix', 1, 'Hotfix')).status === 'registered', 'neue Engine-Version registriert');
-    const rs = await ops.resume(K.fid, 1, 'pascal', 'Fehlerursache analysiert, Hotfix eingespielt', 'proto-0.2-hotfix');
+    ok((await ops.registerEngine(OP, 'proto-0.2-hotfix', 1, 'Hotfix')).status === 'registered', 'neue Engine-Version registriert');
+    const rs = await ops.resume(K.fid, 1, OP, 'Fehlerursache analysiert, Hotfix eingespielt', 'proto-0.2-hotfix');
     ok(rs.status === 'resumed' && rs.new_engine === 'proto-0.2-hotfix' && rs.old_engine === engine.ENGINE_VERSION && (await open(K.fid)) === '0', 'kontrollierte Wiederaufnahme mit neuer Engine-Version: alte und neue Version im Ergebnis, Alarm erledigt', JSON.stringify(rs));
     const c2 = await db.claim(K.fid, 1); const hf2 = await db.commit(K.fid, 1, c2.token, c2.round_version, c2.input_hash, 'proto-0.2-hotfix', engine.resolveClaim(c2.input));
     ok(hf2.status === 'committed' && (await q(`select count(*) from rwi.ops_log where kind='resume' and fight_id=${K.fid} and old_engine='${engine.ENGINE_VERSION}' and new_engine='proto-0.2-hotfix'`)) === '1', 'nach der Wiederaufnahme wird die Runde mit der freigegebenen Version committet; Betriebsprotokoll enthält alte und neue Version', hf2.status); }

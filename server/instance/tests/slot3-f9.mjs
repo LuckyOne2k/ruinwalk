@@ -1,7 +1,7 @@
 // F9: nachträglich gesperrter Platz 3 (Beschluss 4): node server/instance/tests/slot3-f9.mjs
 // Berechtigung wird bei Eintritt bzw. noch nicht abgegebenem Ready geprüft; das Charakterprofil wird danach FÜR DIE INSTANZ gespeichert. Entzug danach ändert nichts an der laufenden Instanz;
 // neue Instanzen prüfen die aktuelle Berechtigung wieder. Lokal (Attrappe der Supabase-Rollen, kein echtes JWT).
-import { setup, counter, J } from './prod-env.mjs';
+import { setup, counter, J, charData } from './prod-env.mjs';
 import * as engine from '../engine/v1.mjs';
 import { hashOf } from '../engine/rng.mjs';
 import { a1Db } from '../worker/a1.mjs';
@@ -11,6 +11,7 @@ const svc = rpcAs('service_role'); const db = a1Db(svc);
 const grant = (id) => q(`insert into public.account_entitlements(account_id,entitlement_type,status,granted_at) values ('${id}','third_character_slot','active',now()) on conflict do nothing; update public.account_entitlements set status='active' where account_id='${id}' and entitlement_type='third_character_slot'`);
 const revoke = (id) => q(`update public.account_entitlements set status='refunded' where account_id='${id}' and entitlement_type='third_character_slot'`);
 const deny = async (p) => { try { await p; return null; } catch (e) { return /forbidden|403/.test(e.err || e.message) ? 'forbidden' : (e.err || e.message).split('\n')[0]; } };
+const setChar = (id, g, pa, tier, lv = 50) => q(`update public.characters set character_class=(($cd$${charData(g, pa, tier, lv)}$cd$)::jsonb->>'cls'), level=${lv}, character_data=$cd$${charData(g, pa, tier, lv)}$cd$ where character_id='${id}'`);
 const prof = (inst, ch) => q(`select profile::text from rwi.members where instance_id=${inst} and player='${ch}'`);
 // Gruppe mit zwei Fremdkonten in der Bereitschaftsphase (Platz 3 des Testkontos tritt per Client-Wrapper bei)
 const mk = async (tag) => { const b = await E.account(tag + 'b'), c = await E.account(tag + 'c'); const g = await E.group([b.chars[0], c.chars[0]], 2); return { ...g, b, c }; };
@@ -47,7 +48,7 @@ try {
   ok(!(await deny(asA('group_heartbeat', { p_instance: G2.instance }))) && !(await deny(asA('group_view', { p_instance: G2.instance }))), 'Ansicht und Herzschlag ohne Zeichenangabe funktionieren weiter (Zuordnung über die Mitgliedschaft)');
   ok((await q(`select mstate || ':' || ready from rwi.members where instance_id=${G2.instance} and player='${c3}'`)) === 'active:true', 'Mitglied bleibt aktiv und bereit');
   // Profil/Ausrüstung/Kampfwerte: Live-Daten ändern sich nach dem Ready, die Instanz sieht davon nichts
-  await q(`update rwi.players set lv = 40, grundklasse = 'magier', pfad = 'frost', tier = 0 where player = '${c3}'`);
+  await setChar(c3, 'magier', 'frost', 2, 40);                       // Charakter wird nach dem Ready umgebaut (Klasse, Pfad, Stufe, Level)
   await q(`update public.characters set character_data = '{"equipment":"geaendert"}' where character_id = '${c3}'`);
   ok((await prof(G2.instance, c3)) === p2, 'gespeichertes Instanzprofil nach Änderung von Profil und Ausrüstung unverändert');
   for (const m of [G2.b, G2.c]) await q(`select rwi.set_ready(${G2.instance}, '${m.chars[0]}')`);
@@ -77,13 +78,13 @@ try {
 
   // ---- 7. Katalog: nur diese Funktionen lesen public.characters ----
   const rd2 = (await q(`select string_agg(proname, ',' order by proname) from pg_proc where pronamespace='rwi'::regnamespace and prosrc ~* 'public\\.(characters|account_entitlements)'`));
-  ok(rd2 === 'account_of,own_character', 'im Schema rwi lesen nur own_character und account_of aus public.characters/account_entitlements', rd2);
+  ok(rd2 === 'account_of,derive_profile,own_character,profile_of', 'im Schema rwi lesen nur own_character, account_of und die Profilableitung aus public.characters/account_entitlements', rd2);
   // ---- 8. Profil wird nicht still verändert: nur beim Ready aktualisiert ----
   const G4 = await mk('g4'); await asA('group_join', { p_instance: G4.instance, p_character: c1 }).catch(() => null);
-  await q(`update rwi.players set tier = 1 where player='${c1}'`); const pj = await prof(G4.instance, c1);
+  await setChar(c1, 'bogenschuetze', 'jaeger', 1, 20); const pj = await prof(G4.instance, c1);
   await asA('group_ready', { p_instance: G4.instance, p_character: c1 }); const pr = await prof(G4.instance, c1);
-  await q(`update rwi.players set tier = 2 where player='${c1}'`);
-  ok(J(pj).tier !== 1 && J(pr).tier === 1 && (await prof(G4.instance, c1)) === pr, 'vor Ready: Aktualisierung bis zum Ready; ab Ready eingefroren (spätere Änderung wirkt nicht)', `${pj} -> ${pr}`);
+  await setChar(c1, 'bogenschuetze', 'jaeger', 2, 35);
+  ok(J(pj).tier === 3 && J(pr).tier === 1 && (await prof(G4.instance, c1)) === pr, 'vor Ready: Aktualisierung bis zum Ready; ab Ready eingefroren (spätere Änderung wirkt nicht)', `${pj} -> ${pr}`);
 } catch (e) { ok(false, 'Lauf ohne Ausnahme', String(e.stack || e.message).split('\n').slice(0, 4).join(' | ')); }
 finally { E.stop(); }
 process.exit(done());

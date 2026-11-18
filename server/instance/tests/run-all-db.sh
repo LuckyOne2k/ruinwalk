@@ -9,7 +9,7 @@ V="${PG_MAJOR:-$(ls /usr/lib/postgresql | sort -n | tail -1)}"
 echo "PostgreSQL-Hauptversion der Testläufe: ${V}" | tee -a "$R/summary.txt"
 run() { local name="$1"; shift; "$@" > "$R/$name.log" 2>&1; local rc=$?; local ok nok; ok=$(grep -c '^ok' "$R/$name.log"); nok=$(grep -c 'NICHT OK' "$R/$name.log")
   printf '%-22s exit=%s  ok=%s  nicht_ok=%s  | %s\n' "$name" "$rc" "$ok" "$nok" "$(grep -v '^ *$' "$R/$name.log" | tail -1 | cut -c1-70)" | tee -a "$R/summary.txt"; [ "$rc" -eq 0 ] || bad=1; }
-for t in run fenster gruppe eventende semantik produktion dev-umgebung konto-integration konto-regel loesch-trigger installation rechte-audit worker worker-a1 stuck hotfix-resume slot3-f9 sa-untersuchung; do run "$t" node server/instance/tests/$t.mjs; done
+for t in run fenster gruppe eventende semantik produktion dev-umgebung konto-integration konto-regel loesch-trigger installation rechte-audit worker worker-a1 stuck hotfix-resume slot3-f9 profil-ableitung operatoren sa-untersuchung; do run "$t" node server/instance/tests/$t.mjs; done
 run k2-compare node server/instance/tests/k2-compare.mjs skip 15
 run k2-compare-nosweep node server/instance/tests/k2-compare.mjs skip 15 nosweep
 run dungeon-3 node server/instance/sim/run-dungeon.mjs --seed 3 --ruhig

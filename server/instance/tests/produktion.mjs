@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { startCluster } from './pg.mjs';
+import { charData } from './prod-env.mjs';
 import { newFight, nextFight, resolveClaim, ENGINE_VERSION } from '../engine/v1.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const SQL = (f) => readFileSync(join(here, '../sql', f + '.sql'), 'utf8');
@@ -38,12 +39,16 @@ async function suite(mode) {
 
     // Testdaten: 5 Konten, Charaktere über das echte Schema; A hat zwei freie Plätze und einen gesperrten dritten Platz
     for (const [k, id] of Object.entries(UID)) await q(`insert into auth.users(id,email,raw_user_meta_data) values ('${id}','${k.toLowerCase()}@test.de','{"username":"Spieler_${k}"}')`);
-    const mkChar = (id, uid, slot, name) => `insert into public.characters(character_id,account_id,slot_number,character_name,character_data) values ('${id}','${uid}',${slot},'${name}','{}')`;
+    const NAMES = ['A1', 'A2', 'A3', 'B1', 'C1', 'D1', 'E1', 'F1'];
+    // F5: das Kampfprofil wird aus dem gespeicherten Charakter abgeleitet; die Testcharaktere tragen deshalb dieselben Klassen wie früher die rwi.players-Zeilen
+    const mkChar = (id, uid, slot, name) => { const i = NAMES.indexOf(name); const [g, p] = i >= 0 ? CLASSES[i % CLASSES.length] : ['krieger', 'ritter']; const lv = name === 'Low' ? 4 : 50;
+      const d = name === 'Low' ? charData('krieger', null, 0, 4) : charData(g, p); const cc = JSON.parse(d).cls;
+      return `insert into public.characters(character_id,account_id,slot_number,character_name,character_class,level,character_data) values ('${id}','${uid}',${slot},'${name}','${cc}',${lv},$cd$${d}$cd$)`; };
     await q(mkChar(CH.A1, UID.A, 1, 'A1') + ';' + mkChar(CH.A2, UID.A, 2, 'A2') + ';' + mkChar(CH.B1, UID.B, 1, 'B1') + ';' + mkChar(CH.C1, UID.C, 1, 'C1') + ';' + mkChar(CH.D1, UID.D, 1, 'D1') + ';' + mkChar(CH.E1, UID.E, 1, 'E1') + ';' + mkChar(CH.LOW, UID.E, 2, 'Low') + ';' + mkChar(CH.F1, UID.F, 1, 'F1'));
     await q(`insert into public.account_entitlements(account_id,entitlement_type,status,granted_at) values ('${UID.A}','third_character_slot','active',now())`);
     await q(mkChar(CH.A3, UID.A, 3, 'A3'));
     await q(`update public.account_entitlements set status='refunded' where account_id='${UID.A}'`);          // Platz 3 ist nun gesperrt
-    let n = 0; for (const c of ['A1', 'A2', 'A3', 'B1', 'C1', 'D1', 'E1', 'F1']) { const [g, p] = CLASSES[n++ % CLASSES.length]; await q(`insert into rwi.players values ('${CH[c]}', 10, '${g}', '${p}', 3)`); }
+    let n = 0; for (const c of ['A1', 'A2', 'A3', 'B1', 'C1', 'D1', 'E1', 'F1']) { const [g, p] = CLASSES[n++ % CLASSES.length]; await q(`insert into rwi.players values ('${CH[c]}', 50, '${g}', '${p}', 3)`); }
     await q(`insert into rwi.players values ('${CH.LOW}', 4, 'krieger', 'ritter', 3)`);
     const svc = async (sql) => { const r = await as('service_role', null, sql); if (r.code) throw new Error(r.err + '\n' + sql.slice(0, 200)); return r.out; };
     const mkG = async (chars, fights = 2) => J(await svc(`select rwi.create_group('dungeon', array[${chars.map((c) => `'${CH[c]}'`).join(',')}]::text[], ${fights})`));
@@ -53,12 +58,12 @@ async function suite(mode) {
       '|' || coalesce((select bool_or(a.grantee = 0) from aclexplode(p.proacl) a), true)::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'rwi' order by p.proname, p.oid::regprocedure::text`);
     const rows = FN.split('\n').map((l) => l.split('|'));
     const TEST = ['join', 'leave', 'set_ready', 'submit_action', 'submit_action_for', 'instance_view', 'heartbeat', 'heartbeat_for', 'use_revive_item', 'decline_revive_item', 'current_player'];
-    const TRIG = ['profile_snapshot', 'members_size_guard', 'on_fight_end', 'reward_filter', 'on_character_deleted', 'account_guard', 'on_profile_deleting', 'on_profile_deleted'];
+    const TRIG = ['ops_log_append_only', 'operator_removed', 'profile_snapshot', 'members_size_guard', 'on_fight_end', 'reward_filter', 'on_character_deleted', 'account_guard', 'on_profile_deleting', 'on_profile_deleted'];
     ok(rows.length >= 45, `${tag} Inventar: ${rows.length} Funktionen im Schema rwi gefunden`);
     ok(rows.every((r) => r[2] === 'false' && r[3] === 'false'), `${tag} KEINE rwi-Funktion ist für anon oder authenticated ausführbar`, rows.filter((r) => r[2] !== 'false' || r[3] !== 'false').map((r) => r[0]).join(','));
     ok(rows.every((r) => r[5] === 'false'), `${tag} KEINE rwi-Funktion hat ein PUBLIC-Recht (auch nicht das Standard-EXECUTE)`, rows.filter((r) => r[5] !== 'false').map((r) => r[0]).join(','));
-    ok(rows.filter((r) => TEST.includes(r[0]) || TRIG.includes(r[0]) || r[0] === 'own_character').every((r) => r[4] === 'false'), `${tag} Testfunktionen mit Spielerparameter, Triggerfunktionen und own_character sind auch für service_role gesperrt`);
-    ok(rows.filter((r) => !TEST.includes(r[0]) && !TRIG.includes(r[0]) && r[0] !== 'own_character').every((r) => r[4] === 'true'), `${tag} Serverfunktionen sind für service_role ausführbar`);
+    ok(rows.filter((r) => TEST.includes(r[0]) || TRIG.includes(r[0]) || ['own_character', 'set_operator'].includes(r[0])).every((r) => r[4] === 'false'), `${tag} Testfunktionen mit Spielerparameter, Triggerfunktionen und own_character sind auch für service_role gesperrt`);
+    ok(rows.filter((r) => !TEST.includes(r[0]) && !TRIG.includes(r[0]) && !['own_character', 'set_operator'].includes(r[0])).every((r) => r[4] === 'true'), `${tag} Serverfunktionen sind für service_role ausführbar`);
     ok((await q(`select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='rwi'`)) === String(rows.length), `${tag} Inventar vollständig (Anzahl stimmt mit Systemkatalog überein)`);
     const SCH = (await q(`select has_schema_privilege('anon','rwi','usage') || '|' || has_schema_privilege('authenticated','rwi','usage') || '|' || has_schema_privilege('service_role','rwi','usage') || '|' || has_schema_privilege('public','rwi','usage')`)).split('|');
     ok(SCH.join() === 'false,false,true,false', `${tag} Schema rwi: kein USAGE für anon/authenticated/PUBLIC, USAGE für service_role`, SCH.join());
@@ -74,8 +79,8 @@ async function suite(mode) {
     ok(wr.map((r) => r[0]).join() === [...WR].sort().join(), `${tag} genau die acht Client-Wrapper existieren in public`, wr.map((r) => r[0]).join(','));
     ok(wr.every((r) => r[1] === 'false' && r[2] === 'true' && r[3] === 'false' && r[4] === 'false'), `${tag} Wrapper: nur authenticated darf ausführen (kein anon, kein PUBLIC, kein service_role)`);
     ok(wr.every((r) => r[5] === 'true' && /search_path=public, pg_temp/.test(r[6])), `${tag} Wrapper: SECURITY DEFINER mit festem search_path`);
-    const SD = await q(`select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='rwi' and p.prosecdef and p.proname not in ('own_character', 'on_character_deleted', 'account_guard', 'account_of', 'on_profile_deleting', 'on_profile_deleted')`);
-    ok(SD === '0', `${tag} im Schema rwi sind nur own_character, account_of, die Lösch-/Konto-Trigger und account_guard SECURITY DEFINER (kein verstecktes Definer-Recht)`);
+    const SD = await q(`select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='rwi' and p.prosecdef and p.proname not in ('own_character', 'on_character_deleted', 'account_guard', 'account_of', 'on_profile_deleting', 'on_profile_deleted', 'derive_profile', 'profile_of', 'eligible')`);
+    ok(SD === '0', `${tag} im Schema rwi sind nur own_character, account_of, die Profilableitung (derive_profile, profile_of, eligible), die Lösch-/Konto-Trigger und account_guard SECURITY DEFINER (kein verstecktes Definer-Recht)`);
     ok((await q(`select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and (p.proname ~* 'reward|claim|belohn') and has_function_privilege('authenticated', p.oid, 'execute')`)) === '0',
       `${tag} es gibt (noch) keine für Clients ausführbare Belohnungs-Abruf- oder Einlösefunktion – Belohnungstabellen sind unerreichbar`);
     // Wächter: eine neue, nicht eingeordnete rwi-Funktion bricht die Rechte-Skript-Ausführung ab

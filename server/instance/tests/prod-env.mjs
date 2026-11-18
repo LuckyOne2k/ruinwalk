@@ -10,6 +10,9 @@ export const STUB = readFileSync(join(here, '../../../supabase/tests/00_stub.sql
 export const SCHEMA = readFileSync(join(here, '../../../supabase/schema.sql'), 'utf8');
 export const J = (s) => JSON.parse(s);
 const CLASSES = [['krieger', 'ritter'], ['bogenschuetze', 'jaeger'], ['magier', 'feuer'], ['heiler', 'priester'], ['heiler', 'natur'], ['krieger', 'berserker'], ['magier', 'frost'], ['bogenschuetze', 'fallensteller']];
+// Spielstand-JSON wie ihn der Client speichert (cls/path/tier/lv) zu einem Engine-Profil (Grundklasse, Pfad, Stufe, Level). Nur Testhilfe.
+const CLS = { bogenschuetze: 'bogen' }, PTH = { scharfschuetze: 'scharf', fallensteller: 'falle' };
+export const charData = (g, p, tier = 3, lv = 50) => JSON.stringify({ cls: CLS[g] || g, path: p ? (PTH[p] || p) : '', tier: p ? tier : 0, lv });
 export function counter() {
   let pass = 0, fail = 0;
   const ok = (c, n, i = '') => { (c ? pass++ : fail++); console.log(`${c ? 'ok' : 'NICHT OK'} - ${n}${i ? '  [' + i + ']' : ''}`); };
@@ -29,7 +32,7 @@ export async function setup(port) {
     if (n >= 3) await q(`insert into public.account_entitlements(account_id,entitlement_type,status,granted_at) values ('${id}','third_character_slot','active',now())`);
     const chars = [];
     for (let s = 1; s <= n; s++) { const c = cid(++nc); chars.push(c); const [g, p] = CLASSES[nc % CLASSES.length];
-      await q(`insert into public.characters(character_id,account_id,slot_number,character_name,character_data) values ('${c}','${id}',${s},'${name}${s}','{}'); insert into rwi.players values ('${c}', 10, '${g}', '${p}', 3)`); }
+      await q(`insert into public.characters(character_id,account_id,slot_number,character_name,character_class,level,character_data) values ('${c}','${id}',${s},'${name}${s}','${CLS[g] || g}',50,$cd$${charData(g, p)}$cd$); insert into rwi.players values ('${c}', 50, '${g}', '${p}', 3)`); }
     return { id, chars, name };
   };
   const as = (role, uidv, sql) => cl.psql(`set role ${role}; set search_path = "$user", public; ${uidv ? `set request.jwt.claims = '${JSON.stringify({ sub: uidv, role })}';` : ''} ${sql}`);

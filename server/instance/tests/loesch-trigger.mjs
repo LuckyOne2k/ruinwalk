@@ -120,7 +120,7 @@ try {
     ok((await consistent()) === 'ok', 'Konsistenz über alle Instanzen', await consistent()); }
   // Welche rwi-Funktionen lesen public.characters? Nur Identität/Konto-Hook (Beweis, dass rwi.leave den Bestand nicht braucht)
   { const dep = await q(`select string_agg(proname, ',' order by proname) from pg_proc where pronamespace='rwi'::regnamespace and prosrc ilike '%public.characters%'`);
-    ok(dep === 'account_of,own_character', 'nur own_character und account_of lesen public.characters; weder rwi.leave noch der Lösch-Trigger brauchen den Charakterbestand (nur OLD)', dep); }
+    ok(dep === 'account_of,derive_profile,own_character,profile_of', 'nur own_character, account_of und die Profilableitung (derive_profile, profile_of) lesen public.characters; weder rwi.leave noch der Lösch-Trigger brauchen den Charakterbestand (nur OLD)', dep); }
 
   // ===== 7. Gleichzeitig: Löschung und Rundenauflösung =====
   { let bad = 0, errs = [], both = 0; const N = 6;

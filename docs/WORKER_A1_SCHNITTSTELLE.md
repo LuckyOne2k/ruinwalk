@@ -23,9 +23,9 @@ Es gibt keine externe Anbindung und keine Secrets in diesem Stand.
 | `rw_worker_roster(bigint)` | `rwi.roster` | nein | nein | **ja** | nein | nein |
 | `rw_worker_start_fight(bigint, jsonb)` | `rwi.start_fight` | nein | nein | **ja** | nein | nein |
 | `rw_ops_stuck_list()` | `rwi.stuck_overview` | nein | nein | **ja** | nein | nein |
-| `rw_ops_resume(bigint, int, text, text, text default null)` | `rwi.resume_stuck` | nein | nein | **ja** | nein | nein |
-| `rw_ops_register_engine(text, int, text default null)` | `rwi.register_engine` | nein | nein | **ja** | nein | nein |
-| `rw_ops_terminate(bigint, text, text)` | `rwi.terminate_stuck` | nein | nein | **ja** | nein | nein |
+| `rw_ops_resume(bigint, int, uuid, text, text default null)` | `rwi.resume_stuck` | nein | nein | **ja** | nein | nein |
+| `rw_ops_register_engine(uuid, text, int, text default null)` | `rwi.register_engine` | nein | nein | **ja** | nein | nein |
+| `rw_ops_terminate(bigint, uuid, text)` | `rwi.terminate_stuck` | nein | nein | **ja** | nein | nein |
 
 ## Eingabeprüfung und Rückgabe je Wrapper
 | Wrapper | Prüfung (sonst `invalid_input`) | Rückgabe |
@@ -38,9 +38,9 @@ Es gibt keine externe Anbindung und keine Secrets in diesem Stand.
 | `rw_worker_roster` | Instanz ≥ 1 | `[{id, name, grundklasse, pfad, tier}]` |
 | `rw_worker_start_fight` | Instanz ≥ 1, Zustand ein JSON-Objekt ≤ 256 KiB | `status`, `fight`, `fight_no` |
 | `rw_ops_stuck_list` | keine Eingabe | offene stuck-Alarme mit Kampf, Runde, Instanz, Versuchen, letzter Fehlermeldung |
-| `rw_ops_resume` | Kampf ≥ 1, Runde 1–100000, Betreiber ≤ 200, Begründung ≤ 4000 (die Funktion verlangt zusätzlich Betreiber 2–80 und Begründung 10–1000 Zeichen → sonst `{status: invalid_input}`), optionale Engine-Version ≤ 200 | `status` (`resumed`, `stale`, `not_stuck`, `unknown_engine`, `incompatible_engine`, …), bei `resumed` alte und neue Engine-Version |
-| `rw_ops_register_engine` | Version 1–200 Zeichen (Funktion: 1–80), Zustandsschema 1–1000, Notiz ≤ 4000 | `status` (`registered`, `exists`, `invalid_input`) |
-| `rw_ops_terminate` | wie oben | `status` (`terminated`, `not_stuck`, `not_active`, …) |
+| `rw_ops_resume` | Kampf ≥ 1, Runde 1–100000, Betreiber = Konto-UUID (Pflicht, kein Freitext), Begründung ≤ 4000 (die Funktion verlangt zusätzlich 10–1000 Zeichen → sonst `{status: invalid_input}`), optionale Engine-Version ≤ 200 | `status` (`resumed`, `not_operator`, `stale`, `not_stuck`, `unknown_engine`, `incompatible_engine`, …), bei `resumed` alte und neue Engine-Version |
+| `rw_ops_register_engine` | Betreiber-UUID (Umfang `engine`), Version 1–200 Zeichen (Funktion: 1–80), Zustandsschema 1–1000, Notiz ≤ 4000 | `status` (`registered`, `exists`, `not_operator`, `invalid_input`) |
+| `rw_ops_terminate` | wie resume, Umfang `terminate` | `status` (`terminated`, `not_operator`, `not_stuck`, `not_active`, …) |
 
 Fachliche Ablehnung (z. B. unbekannter Kampf, falscher Token) kommt als normale Antwort mit `status`, **nicht** als Fehler. Ein Fehler bedeutet immer einen Programmierfehler des Aufrufers.
 
@@ -52,3 +52,7 @@ Fachliche Ablehnung (z. B. unbekannter Kampf, falscher Token) kommt als normale 
 - **Offen:** Ob `rwi` in den „Exposed schemas“ der Data API des Dev-Projekts steht, ist nur im Dashboard sichtbar. Vor einer Installation muss dort gelten: nur `public` (und was schon exponiert ist), **nicht** `rwi`. Selbst wenn `rwi` versehentlich exponiert wäre, hätten `anon` und `authenticated` kein `USAGE` auf das Schema (Katalogtest).
 - **Offen:** Der `service_role`-Schlüssel darf nur in der Laufzeit des Workers liegen. Er umgeht RLS und hat Rechte auf alle `public`-Tabellen. Ein Leck des Schlüssels ist durch die Wrapper nicht abgedeckt.
 - **Offen:** Ratenbegrenzung und Aufruf-Authentisierung der Edge Function (`x-rw-secret`-Entwurf in `docs/INSTANZKAMPF_WORKER_ARCHITEKTUR.md`) sind nicht gebaut.
+
+
+## Betreiberidentität (Änderung 18.11.2026)
+Alle drei `rw_ops_*`-Wrapper, die etwas ändern, verlangen eine **Betreiber-Konto-UUID** (`rwi.operators`, Umfang `resume`/`terminate`/`engine`). Unbekannt, deaktiviert oder ohne Umfang → `{status:'not_operator'}`, keine Wirkung, Eintrag `denied` im `rwi.ops_log`. Die Wrapper bleiben nur für `service_role`; die Prüfung, dass die UUID zum eingeloggten Betreiber gehört, muss die aufrufende Schicht leisten (Edge Function, nicht gebaut). Details: `docs/OPERATOREN.md`.

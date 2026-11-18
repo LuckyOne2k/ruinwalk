@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { startCluster } from './pg.mjs';
+import { charData } from './prod-env.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const SQL = (f) => readFileSync(join(here, '../sql', f + '.sql'), 'utf8');
 const STUB = readFileSync(join(here, '../../../supabase/tests/00_stub.sql'), 'utf8');
@@ -44,7 +45,7 @@ try {
   // ---------- 2. Testdaten: Charaktere und Berechtigung ----------
   await q(`insert into auth.users(id,email,raw_user_meta_data,email_confirmed_at) values ('${U.B}','b@t.de','{"username":"Spieler_B"}', now()), ('${U.C}','c@t.de','{"username":"Spieler_C"}', now())`);
   await q(`insert into public.account_entitlements(account_id,entitlement_type,status,granted_at) values ('${U.A}','third_character_slot','active',now())`);
-  const mk = (id, uid, slot, nm) => `insert into public.characters(character_id,account_id,slot_number,character_name,character_data) values ('${id}','${uid}',${slot},'${nm}','{}')`;
+  const mk = (id, uid, slot, nm) => `insert into public.characters(character_id,account_id,slot_number,character_name,character_class,level,character_data) values ('${id}','${uid}',${slot},'${nm}','krieger',50,$cd$${charData('krieger', 'ritter')}$cd$)`;
   await q([mk(C.A1, U.A, 1, 'A1'), mk(C.A2, U.A, 2, 'A2'), mk(C.A3, U.A, 3, 'A3'), mk(C.B1, U.B, 1, 'B1'), mk(C.C1, U.C, 1, 'C1')].join(';'));
   ok((await q(`select count(*) from public.characters where account_id='${U.A}'`)) === '3', 'mehrere Charaktere eines Accounts (3 Plätze mit Berechtigung)');
   ok(fails(await cl.psql(mk(C.A3.replace('a3', 'f3'), U.B, 3, 'B3')), /slot_locked/), 'Platz 3 ohne Berechtigung wird abgelehnt (Trigger, jeder Schreibweg)');
@@ -62,6 +63,8 @@ try {
   ok(fails(await as('authenticated', jwt(U.A), `select count(*) from public.character_backups`), /permission denied/), 'authenticated hat keinen Zugriff auf character_backups');
 
   // ---------- 4. Account -> Charakter -> Instanz ----------
+  // die Speichertests oben haben die Spielstanddaten absichtlich überschrieben (Client schreibt beliebiges JSON); für den Instanzteil gültige Daten wiederherstellen
+  await q(`update public.characters set character_class='krieger', level=50, character_data=$cd$${charData('krieger', 'ritter')}$cd$`);
   for (const c of [C.A1, C.A3, C.B1, C.C1]) await q(`insert into rwi.players values ('${c}', 10, 'krieger', 'ritter', 3)`);
   const g = J(await q(`select rwi.create_group('dungeon', array['${C.A1}','${C.B1}']::text[], 2)`)); const I = g.instance;
   const wr = (uid, sql) => as('authenticated', jwt(uid), sql);

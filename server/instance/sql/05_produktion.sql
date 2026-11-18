@@ -117,6 +117,72 @@ language sql stable security definer set search_path = public, pg_temp as $$
   select c.account_id from public.characters c
    where c.character_id = (case when p_player ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then p_player::uuid end) $$;
 
+-- Betreiber sind echte Konten: Fremdschlüssel auf auth.users (Konto gelöscht -> Betreiberzeile entfällt, das Protokoll behält die Konto-ID).
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'operators_account_fk') then
+    alter table rwi.operators add constraint operators_account_fk foreign key (account_id) references auth.users(id) on delete cascade;
+  end if;
+end $$;
+
+------------------------------------------------------------------------------------------------
+-- F5: Kampfprofil serverseitig aus public.characters ableiten (nie aus Clientangaben)
+------------------------------------------------------------------------------------------------
+-- Quelle: die gespeicherte Zeile in public.characters (Spalten character_class, level, version und character_data aus dem Spielstand des Clients: cls, path, tier, lv).
+-- Abgeleitet wird GENAU das, was die Instanzkampf-Engine (server/instance/engine) als Eingabe kennt: Grundklasse, Pfad (Spezialisierung), Stufe (tier), Level. Die Engine berechnet
+-- Leben/Angriff/Verteidigung/Initiative/Fähigkeiten selbst aus Grundklasse + Pfad + Stufe (engine/content.mjs). Es gibt hier KEINE zweite Formelwelt: Ausrüstung, Waffen, Rüstungen, Setboni,
+-- Runen, Energie und aktuelles Leben existieren in der Instanz-Engine nicht (siehe docs/PROFILABLEITUNG.md, „Lücken“).
+-- Ungültige oder widersprüchliche Daten: Ausnahme PT422 'profile_invalid:<Grund>', nie ein Rückgriff auf andere Werte.
+-- Namensabbildung Client -> Engine: bogen -> bogenschuetze, scharf -> scharfschuetze, falle -> fallensteller (alle anderen gleich).
+create or replace function rwi.derive_profile(p_character uuid) returns jsonb
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+declare c public.characters; d jsonb; cls text; pth text; tr int; lv int; gk text; pf text; pgk text;
+begin
+  select * into c from public.characters where character_id = p_character;
+  if not found then raise exception 'profile_invalid:unknown_character' using errcode = 'PT422'; end if;
+  d := c.character_data;
+  if jsonb_typeof(d) is distinct from 'object' then raise exception 'profile_invalid:data' using errcode = 'PT422'; end if;
+  if jsonb_typeof(d->'cls') is distinct from 'string' or d->>'cls' is distinct from c.character_class then raise exception 'profile_invalid:class' using errcode = 'PT422'; end if;
+  if jsonb_typeof(d->'lv') is distinct from 'number' or d->>'lv' !~ '^[0-9]{1,2}$' or (d->>'lv')::int is distinct from c.level then raise exception 'profile_invalid:level' using errcode = 'PT422'; end if;
+  lv := c.level; cls := d->>'cls';
+  tr := case when d->'tier' is null then 0 when jsonb_typeof(d->'tier') = 'number' and d->>'tier' ~ '^[0-3]$' then (d->>'tier')::int else null end;
+  if tr is null then raise exception 'profile_invalid:tier' using errcode = 'PT422'; end if;
+  pth := case when d->'path' is null or d->'path' = '""'::jsonb then '' when jsonb_typeof(d->'path') = 'string' then d->>'path' else null end;
+  if pth is null then raise exception 'profile_invalid:path' using errcode = 'PT422'; end if;
+  if cls = 'wanderer' then                                                                   -- gültig, aber ohne Klasse: nicht instanzfähig (rwi.eligible = false)
+    if tr <> 0 or pth <> '' then raise exception 'profile_invalid:wanderer_with_path' using errcode = 'PT422'; end if;
+    return jsonb_build_object('lv', lv, 'grundklasse', null, 'pfad', null, 'tier', 0, 'char_version', c.version, 'src', 'derived');
+  end if;
+  gk := case cls when 'krieger' then 'krieger' when 'bogen' then 'bogenschuetze' when 'magier' then 'magier' when 'heiler' then 'heiler' end;
+  if gk is null then raise exception 'profile_invalid:class' using errcode = 'PT422'; end if;
+  if tr = 0 then
+    if pth <> '' then raise exception 'profile_invalid:path_without_tier' using errcode = 'PT422'; end if;
+    pf := null;
+  else
+    pf := case pth when 'scharf' then 'scharfschuetze' when 'falle' then 'fallensteller'
+                   when 'ritter' then 'ritter' when 'berserker' then 'berserker' when 'duellant' then 'duellant' when 'jaeger' then 'jaeger'
+                   when 'feuer' then 'feuer' when 'frost' then 'frost' when 'sturm' then 'sturm' when 'priester' then 'priester' when 'moench' then 'moench' when 'natur' then 'natur' end;
+    if pf is null then raise exception 'profile_invalid:path' using errcode = 'PT422'; end if;
+    pgk := case when pf in ('ritter','berserker','duellant') then 'krieger' when pf in ('scharfschuetze','jaeger','fallensteller') then 'bogenschuetze'
+                when pf in ('feuer','frost','sturm') then 'magier' else 'heiler' end;
+    if pgk <> gk then raise exception 'profile_invalid:path_class_mismatch' using errcode = 'PT422'; end if;
+    if lv < (array[15, 30, 50])[tr] then raise exception 'profile_invalid:tier_level' using errcode = 'PT422'; end if;      -- Stufe 1/2/3 ab Level 15/30/50 (UP_LV)
+  end if;
+  return jsonb_build_object('lv', lv, 'grundklasse', gk, 'pfad', pf, 'tier', tr, 'char_version', c.version, 'src', 'derived');
+end $$;
+
+-- Profilquelle der Instanz: echte Charaktere (Zeile in public.characters) werden IMMER abgeleitet; rwi.players wird für sie nie gelesen. Schlüssel ohne Charakter (nur Prototypdaten, nur
+-- serverseitig anlegbar) lesen weiter rwi.players. Aufrufer: Mitgliedszeile beim Einfügen (Eintritt, Gruppenanlage, Nachrücken), set_ready (abschließende Aktualisierung), eligible.
+create or replace function rwi.profile_of(p_player text) returns jsonb
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+begin
+  if p_player ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' and exists (select 1 from public.characters where character_id = p_player::uuid) then
+    return rwi.derive_profile(p_player::uuid);
+  end if;
+  return (select jsonb_build_object('lv', lv, 'grundklasse', grundklasse, 'pfad', pfad, 'tier', tier, 'src', 'prototype') from rwi.players where player = p_player);
+end $$;
+create or replace function rwi.eligible(p_player text) returns boolean language sql stable security definer set search_path = public, pg_temp as $$
+  select coalesce((rwi.profile_of(p_player)->>'lv')::int >= 5 and rwi.profile_of(p_player)->>'grundklasse' is not null, false) $$;       -- Instanzzugang erst ab Level 5 mit Grundklasse
+
 ------------------------------------------------------------------------------------------------
 -- Charakter oder Konto gelöscht: Instanzdaten bereinigen (Integration mit public.characters)
 ------------------------------------------------------------------------------------------------
@@ -255,25 +321,27 @@ create function public.rw_ops_stuck_list() returns jsonb
 language plpgsql set search_path = pg_catalog, pg_temp as $$
 begin return rwi.stuck_overview(); end $$;
 
-create function public.rw_ops_resume(p_fight bigint, p_round int, p_operator text, p_note text, p_engine text default null) returns jsonb
+-- Betreiberfunktionen: die Betreiberkennung ist die UUID eines Supabase-Kontos (auth.users.id), die ein VERTRAUENSWÜRDIGER Server (Edge Function nach Prüfung des Betreiber-JWT durch GoTrue)
+-- einsetzt. Die Datenbank prüft Berechtigung (rwi.operators: aktiv + Bereich) und protokolliert die Konto-ID. Freitext zählt nie als Identität. Nur service_role kann aufrufen.
+create function public.rw_ops_resume(p_fight bigint, p_round int, p_operator uuid, p_note text, p_engine text default null) returns jsonb
 language plpgsql set search_path = pg_catalog, pg_temp as $$
 begin
-  if p_fight is null or p_fight < 1 or p_round is null or p_round not between 1 and 100000 or p_operator is null or length(p_operator) > 200 or p_note is null or length(p_note) > 4000
+  if p_fight is null or p_fight < 1 or p_round is null or p_round not between 1 and 100000 or p_operator is null or p_note is null or length(p_note) > 4000
      or (p_engine is not null and length(p_engine) > 200) then raise exception 'invalid_input' using errcode = 'PT400'; end if;
   return rwi.resume_stuck(p_fight, p_round, p_operator, p_note, p_engine);
 end $$;
 
-create function public.rw_ops_register_engine(p_version text, p_state_schema int, p_note text default null) returns jsonb
+create function public.rw_ops_register_engine(p_operator uuid, p_version text, p_state_schema int, p_note text default null) returns jsonb
 language plpgsql set search_path = pg_catalog, pg_temp as $$
 begin
-  if p_version is null or length(p_version) > 200 or p_state_schema is null or p_state_schema not between 1 and 1000 or length(p_note) > 4000 then raise exception 'invalid_input' using errcode = 'PT400'; end if;
-  return rwi.register_engine(p_version, p_state_schema, p_note);
+  if p_operator is null or p_version is null or length(p_version) > 200 or p_state_schema is null or p_state_schema not between 1 and 1000 or length(p_note) > 4000 then raise exception 'invalid_input' using errcode = 'PT400'; end if;
+  return rwi.register_engine(p_operator, p_version, p_state_schema, p_note);
 end $$;
 
-create function public.rw_ops_terminate(p_fight bigint, p_operator text, p_note text) returns jsonb
+create function public.rw_ops_terminate(p_fight bigint, p_operator uuid, p_note text) returns jsonb
 language plpgsql set search_path = pg_catalog, pg_temp as $$
 begin
-  if p_fight is null or p_fight < 1 or p_operator is null or length(p_operator) > 200 or p_note is null or length(p_note) > 4000 then raise exception 'invalid_input' using errcode = 'PT400'; end if;
+  if p_fight is null or p_fight < 1 or p_operator is null or p_note is null or length(p_note) > 4000 then raise exception 'invalid_input' using errcode = 'PT400'; end if;
   return rwi.terminate_stuck(p_fight, p_operator, p_note);
 end $$;
 
@@ -282,12 +350,12 @@ end $$;
 ------------------------------------------------------------------------------------------------
 do $$
 declare
-  server_fns   text[] := array['profile_of','register_engine','cfg','sweep_event','end_instance','claim_resolution','commit_round','advance_clock','effective_last_seen','permanently_disconnected','sync_windows','wipe_hold',
+  server_fns   text[] := array['derive_profile','profile_of','register_engine','check_operator','cfg','sweep_event','end_instance','claim_resolution','commit_round','advance_clock','effective_last_seen','permanently_disconnected','sync_windows','wipe_hold',
                                'watchdog_tick','watchdog_core','eligible','glog','active_count','abort_instance','drop_member','after_auto_removal','deadline_verdict','enforce_deadlines',
                                'enforce_deadlines_quiet','promote_waitlist','create_group','roster','start_fight','contribution','set_connection','set_connection_core','group_tick','sweep_core','sweep_events','report_failure','account_conflict','account_of','raise_stuck','close_stuck','resume_stuck','terminate_stuck','stuck_overview','fight_rounds'];
   test_fns     text[] := array['join','leave','set_ready','submit_action','submit_action_for','instance_view','heartbeat','heartbeat_for','use_revive_item','decline_revive_item','current_player'];
-  trigger_fns  text[] := array['profile_snapshot','members_size_guard','on_fight_end','reward_filter','on_character_deleted','account_guard','on_profile_deleting','on_profile_deleted'];
-  internal_fns text[] := array['own_character'];
+  trigger_fns  text[] := array['ops_log_append_only','operator_removed','profile_snapshot','members_size_guard','on_fight_end','reward_filter','on_character_deleted','account_guard','on_profile_deleting','on_profile_deleted'];
+  internal_fns text[] := array['own_character','set_operator'];
   r record; t record;
 begin
   for r in select p.oid, p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'rwi' loop

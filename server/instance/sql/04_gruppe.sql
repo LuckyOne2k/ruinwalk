@@ -617,18 +617,25 @@ create function rwi.fight_rounds(p_fights bigint[]) returns jsonb language sql s
 -- Kontrollierte Wiederaufnahme einer hängenden Runde (nur serverseitig, nach Fehleranalyse; Betreiber und Begründung sind Pflicht und werden protokolliert).
 -- Doppelausführung ausgeschlossen: nur für die AKTUELLE Runde, nur solange noch kein Rundenergebnis existiert, nur aus dem Zustand „stuck“; der alte Claim-Token wird ungültig,
 -- die Auflösung läuft mit dem gespeicherten Snapshot erneut (deterministisch, E.1). Eine zweite Wiederaufnahme derselben Episode findet keinen stuck-Auftrag mehr.
-create function rwi.register_engine(p_version text, p_state_schema int, p_note text default null) returns jsonb language plpgsql as $$
+create function rwi.register_engine(p_operator uuid, p_version text, p_state_schema int, p_note text default null) returns jsonb language plpgsql as $$
+declare lbl text; ins int;
 begin
-  if length(btrim(coalesce(p_version, ''))) not between 1 and 80 or p_state_schema is null or p_state_schema < 1 then return jsonb_build_object('status','invalid_input'); end if;
+  if p_operator is null or length(btrim(coalesce(p_version, ''))) not between 1 and 80 or p_state_schema is null or p_state_schema < 1 then return jsonb_build_object('status','invalid_input'); end if;
+  lbl := rwi.check_operator(p_operator, 'engine', null, null, 'register_engine ' || left(p_version, 80));
+  if lbl is null then return jsonb_build_object('status','not_operator'); end if;
   insert into rwi.engine_versions(version, state_schema, note) values (btrim(p_version), p_state_schema, left(p_note, 500)) on conflict (version) do nothing;
-  return jsonb_build_object('status', case when found then 'registered' else 'exists' end);      -- eine registrierte Version wird nie umgeschrieben
+  get diagnostics ins = row_count;
+  if ins = 1 then insert into rwi.ops_log(kind, operator_id, operator, note, new_engine) values ('register_engine', p_operator, lbl, 'Zustandsschema ' || p_state_schema || coalesce(': ' || left(p_note, 200), ''), btrim(p_version)); end if;
+  return jsonb_build_object('status', case when ins = 1 then 'registered' else 'exists' end);      -- eine registrierte Version wird nie umgeschrieben
 end $$;
 
-create function rwi.resume_stuck(p_fight bigint, p_round int, p_operator text, p_note text, p_engine text default null) returns jsonb language plpgsql as $$
-declare i rwi.instances; f rwi.fights; j rwi.resolve_jobs; oldeng text; neweng text; sch int;
+create function rwi.resume_stuck(p_fight bigint, p_round int, p_operator uuid, p_note text, p_engine text default null) returns jsonb language plpgsql as $$
+declare i rwi.instances; f rwi.fights; j rwi.resolve_jobs; oldeng text; neweng text; sch int; lbl text;
 begin
-  if p_fight is null or p_round is null or length(btrim(coalesce(p_operator, ''))) not between 2 and 80 or length(btrim(coalesce(p_note, ''))) not between 10 and 1000
+  if p_fight is null or p_round is null or p_operator is null or length(btrim(coalesce(p_note, ''))) not between 10 and 1000
      or (p_engine is not null and length(btrim(p_engine)) not between 1 and 80) then return jsonb_build_object('status','invalid_input'); end if;
+  lbl := rwi.check_operator(p_operator, 'resume', p_fight, p_round, 'resume_stuck');                                -- Berechtigung zuerst: Unberechtigte erfahren nichts über den Zustand
+  if lbl is null then return jsonb_build_object('status','not_operator'); end if;
   select * into f from rwi.fights where id = p_fight;
   if not found then return jsonb_build_object('status','unknown_fight'); end if;
   select * into i from rwi.instances where id = f.instance_id for update;
@@ -649,15 +656,17 @@ begin
   update rwi.resolve_jobs set status = 'pending', attempts = 0, resumes = resumes + 1, resume_engine = neweng where fight_id = p_fight and round_no = p_round;
   update rwi.fights set claim_token = null, lease_until = clock_timestamp() where id = p_fight;               -- sofort wieder verteilbar; der alte Token ist ungültig (ein später eintreffender alter Commit wird abgewiesen)
   if not exists (select 1 from rwi.resolve_jobs x join rwi.fights ff on ff.id = x.fight_id where ff.instance_id = i.id and x.status = 'stuck') then update rwi.instances set engine_stuck = false where id = i.id; end if;
-  perform rwi.close_stuck(p_fight, p_round, 'resume', btrim(p_operator), btrim(p_note), oldeng, neweng);
+  perform rwi.close_stuck(p_fight, p_round, 'resume', p_operator, btrim(p_note), oldeng, neweng);
   return jsonb_build_object('status','resumed','resumes', j.resumes + 1, 'old_engine', oldeng, 'new_engine', neweng);
 end $$;
 
 -- Technische Beendigung (Alternative zur Wiederaufnahme, wenn die Ursache nicht behebbar ist): Instanzversuch abgebrochen, keine Belohnung (wie jeder technische Abbruch).
-create function rwi.terminate_stuck(p_fight bigint, p_operator text, p_note text) returns jsonb language plpgsql as $$
-declare i rwi.instances; f rwi.fights; j rwi.resolve_jobs;
+create function rwi.terminate_stuck(p_fight bigint, p_operator uuid, p_note text) returns jsonb language plpgsql as $$
+declare i rwi.instances; f rwi.fights; j rwi.resolve_jobs; lbl text;
 begin
-  if p_fight is null or length(btrim(coalesce(p_operator, ''))) not between 2 and 80 or length(btrim(coalesce(p_note, ''))) not between 10 and 1000 then return jsonb_build_object('status','invalid_input'); end if;
+  if p_fight is null or p_operator is null or length(btrim(coalesce(p_note, ''))) not between 10 and 1000 then return jsonb_build_object('status','invalid_input'); end if;
+  lbl := rwi.check_operator(p_operator, 'terminate', p_fight, null, 'terminate_stuck');
+  if lbl is null then return jsonb_build_object('status','not_operator'); end if;
   select * into f from rwi.fights where id = p_fight;
   if not found then return jsonb_build_object('status','unknown_fight'); end if;
   select * into i from rwi.instances where id = f.instance_id for update;
@@ -666,7 +675,7 @@ begin
   select * into j from rwi.resolve_jobs where fight_id = p_fight and round_no = f.round_no for update;
   if not found or j.status <> 'stuck' then return jsonb_build_object('status','not_stuck'); end if;           -- nur hängende Kämpfe, nie ein gesunder Kampf
   perform rwi.abort_instance(i.id, 'technisch beendet (stuck)');
-  perform rwi.close_stuck(p_fight, f.round_no, 'terminate', btrim(p_operator), btrim(p_note));
+  perform rwi.close_stuck(p_fight, f.round_no, 'terminate', p_operator, btrim(p_note), j.last_engine, null);
   return jsonb_build_object('status','terminated');
 end $$;
 

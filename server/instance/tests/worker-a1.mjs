@@ -11,7 +11,7 @@ const svc = rpcAs('service_role');
 const rejects = async (fn, re = /invalid_input/) => { try { await fn(); return false; } catch (e) { return re.test(e.err || e.message); } };
 const W = ['rw_worker_tick', 'rw_worker_rounds', 'rw_worker_claim', 'rw_worker_commit', 'rw_worker_report_failure', 'rw_worker_roster', 'rw_worker_start_fight', 'rw_ops_stuck_list', 'rw_ops_resume', 'rw_ops_register_engine', 'rw_ops_terminate'];
 const ARGS = { rw_worker_tick: {}, rw_worker_rounds: { p_fights: [1] }, rw_worker_claim: { p_fight: 1, p_round: 1 }, rw_worker_commit: { p_fight: 1, p_round: 1, p_token: '11111111-1111-4111-8111-111111111111', p_version: 1, p_input_hash: 'a'.repeat(64), p_engine: 'x', p_result: {} },
-  rw_worker_report_failure: { p_fight: 1, p_round: 1, p_token: '11111111-1111-4111-8111-111111111111', p_error: 'x' }, rw_worker_roster: { p_instance: 1 }, rw_worker_start_fight: { p_instance: 1, p_state: {} }, rw_ops_stuck_list: {}, rw_ops_resume: { p_fight: 1, p_round: 1, p_operator: 'op', p_note: 'zehn zeichen' }, rw_ops_register_engine: { p_version: 'e-1', p_state_schema: 1 }, rw_ops_terminate: { p_fight: 1, p_operator: 'op', p_note: 'zehn zeichen' } };
+  rw_worker_report_failure: { p_fight: 1, p_round: 1, p_token: '11111111-1111-4111-8111-111111111111', p_error: 'x' }, rw_worker_roster: { p_instance: 1 }, rw_worker_start_fight: { p_instance: 1, p_state: {} }, rw_ops_stuck_list: {}, rw_ops_resume: { p_fight: 1, p_round: 1, p_operator: '00000000-0000-4000-8000-000000000001', p_note: 'zehn zeichen' }, rw_ops_register_engine: { p_operator: '00000000-0000-4000-8000-000000000001', p_version: 'e-1', p_state_schema: 1 }, rw_ops_terminate: { p_fight: 1, p_operator: '00000000-0000-4000-8000-000000000001', p_note: 'zehn zeichen' } };
 try {
   console.log('PostgreSQL', await q('show server_version'));
   // ---- 1. Berechtigungsmatrix aus dem Katalog ----
@@ -52,14 +52,14 @@ try {
     ['rw_worker_commit', { ...G.rw_worker_commit, p_result: null }], ['rw_worker_commit', { ...G.rw_worker_commit, p_result: ['x'] }], ['rw_worker_commit', { ...G.rw_worker_commit, p_result: { pad: 'x'.repeat(262200) } }], ['rw_worker_commit', { ...G.rw_worker_commit, p_token: null }], ['rw_worker_commit', { ...G.rw_worker_commit, p_version: -1 }],
     ['rw_worker_report_failure', { ...G.rw_worker_report_failure, p_error: 'x'.repeat(2001) }], ['rw_worker_report_failure', { ...G.rw_worker_report_failure, p_error: null }], ['rw_worker_report_failure', { ...G.rw_worker_report_failure, p_token: null }],
     ['rw_worker_roster', { p_instance: 0 }], ['rw_worker_roster', { p_instance: null }], ['rw_worker_start_fight', { p_instance: 1, p_state: ['x'] }], ['rw_worker_start_fight', { p_instance: 1, p_state: null }], ['rw_worker_start_fight', { p_instance: -3, p_state: {} }],
-    ['rw_ops_resume', { ...G.rw_ops_resume, p_operator: null }], ['rw_ops_resume', { ...G.rw_ops_resume, p_note: 'x'.repeat(4001) }], ['rw_ops_resume', { ...G.rw_ops_resume, p_round: 0 }], ['rw_ops_terminate', { ...G.rw_ops_terminate, p_operator: 'x'.repeat(201) }], ['rw_ops_terminate', { ...G.rw_ops_terminate, p_fight: 0 }]];
+    ['rw_ops_resume', { ...G.rw_ops_resume, p_operator: null }], ['rw_ops_resume', { ...G.rw_ops_resume, p_note: 'x'.repeat(4001) }], ['rw_ops_resume', { ...G.rw_ops_resume, p_round: 0 }], ['rw_ops_terminate', { ...G.rw_ops_terminate, p_operator: null }], ['rw_ops_register_engine', { ...G.rw_ops_register_engine, p_operator: null }], ['rw_ops_register_engine', { ...G.rw_ops_register_engine, p_version: 'x'.repeat(201) }], ['rw_ops_register_engine', { ...G.rw_ops_register_engine, p_state_schema: 0 }], ['rw_ops_terminate', { ...G.rw_ops_terminate, p_fight: 0 }]];
   let nbad = 0; const miss = [];
   for (const [w, a] of bads) { if (!(await rejects(() => svc(w, a)))) { nbad++; miss.push(w + JSON.stringify(a).slice(0, 50)); } }
   ok(nbad === 0, `${bads.length} ungültige Eingaben werden mit invalid_input (PT400) abgewiesen`, miss.join(' ; '));
   ok((await snap()) === s0, 'abgewiesene Eingaben haben nichts in der Datenbank verändert');
   ok((await svc('rw_worker_claim', { p_fight: 999999, p_round: 1 })).status === 'unknown_fight', 'unbekannter Kampf: nur {status: unknown_fight}');
   ok(JSON.stringify(Object.keys(await svc('rw_worker_claim', { p_fight: 999999, p_round: 1 }))) === '["status"]', 'ohne Zuteilung enthält die Antwort ausschließlich das Feld status');
-  ok((await svc('rw_ops_resume', { p_fight: 999999, p_round: 1, p_operator: 'op', p_note: 'zu kurz' })).status === 'invalid_input', 'Wiederaufnahme ohne ausreichende Begründung (<10 Zeichen): invalid_input, keine Wirkung');
+  ok((await svc('rw_ops_resume', { p_fight: 999999, p_round: 1, p_operator: '00000000-0000-4000-8000-000000000001', p_note: 'zu kurz' })).status === 'invalid_input', 'Wiederaufnahme ohne ausreichende Begründung (<10 Zeichen): invalid_input, keine Wirkung');
 
   // ---- 4. kompletter Worker-Lauf nur über die Wrapper ----
   const X = await E.account('A1x'), Y = await E.account('A1y'), Z = await E.account('A1z');

@@ -15,6 +15,6 @@ export function a1Db(rpc) {
 export const opsA1 = (rpc) => ({
   stuckList: () => rpc('rw_ops_stuck_list', {}),
   resume: (fight, round, operator, note, engine = null) => rpc('rw_ops_resume', { p_fight: fight, p_round: round, p_operator: operator, p_note: note, ...(engine ? { p_engine: engine } : {}) }),
-  registerEngine: (version, stateSchema, note = null) => rpc('rw_ops_register_engine', { p_version: version, p_state_schema: stateSchema, ...(note ? { p_note: note } : {}) }),
+  registerEngine: (operator, version, stateSchema, note = null) => rpc('rw_ops_register_engine', { p_operator: operator, p_version: version, p_state_schema: stateSchema, ...(note ? { p_note: note } : {}) }),
   terminate: (fight, operator, note) => rpc('rw_ops_terminate', { p_fight: fight, p_operator: operator, p_note: note }),
 });

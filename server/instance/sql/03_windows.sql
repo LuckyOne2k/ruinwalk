@@ -105,9 +105,35 @@ alter table rwi.fights add column state_schema int not null default 1;     -- Sc
 alter table rwi.ops_alerts add column fight_id bigint, add column round_no int, add column dedupe_key text,
   add column state text not null default 'open' check (state in ('open','resolved')), add column resolved_at timestamptz, add column resolved_note text;
 create unique index ops_alerts_dedupe_uq on rwi.ops_alerts (dedupe_key) where dedupe_key is not null;
--- Betriebsprotokoll: jede kontrollierte Wiederaufnahme, technische Beendigung und jeder Hotfix-Commit einer hängenden Runde (nur anhängen, nie ändern)
-create table rwi.ops_log (id bigint generated always as identity primary key, at timestamptz not null default clock_timestamp(), kind text not null check (kind in ('resume','terminate','hotfix_commit')),
-  fight_id bigint, round_no int, operator text, note text, old_engine text, new_engine text);
+-- Betreiber (Operatoren): Konten, die Wiederaufnahme, technische Beendigung und Engine-Registrierung auslösen dürfen. Identität = Supabase-Konto (auth.uid(), von GoTrue geprüft), NIE ein Freitext.
+-- Verwaltung ausschließlich serverseitig (SQL/Migration, kein Client- und kein Wrapper-Zugriff): rwi.set_operator. Jede Änderung wird in rwi.ops_log festgehalten.
+create table rwi.operators (account_id uuid primary key, label text not null check (length(btrim(label)) between 2 and 80), scopes text[] not null check (scopes <> '{}' and scopes <@ array['resume','terminate','engine']),
+  active boolean not null default true, created_at timestamptz not null default clock_timestamp(), updated_at timestamptz not null default clock_timestamp());
+-- Betriebsprotokoll: jede kontrollierte Wiederaufnahme, technische Beendigung, Engine-Registrierung, abgewiesene Operatoraufrufe und Betreiberänderung (nur anhängen, nie ändern oder löschen)
+create table rwi.ops_log (id bigint generated always as identity primary key, at timestamptz not null default clock_timestamp(),
+  kind text not null check (kind in ('resume','terminate','hotfix_commit','register_engine','denied','operator_change')),
+  fight_id bigint, round_no int, instance_id bigint, operator_id uuid, operator text, note text, old_engine text, new_engine text);
+create function rwi.ops_log_append_only() returns trigger language plpgsql as $$ begin raise exception 'ops_log ist nur zum Anhängen' using errcode = '42501'; end $$;
+create trigger ops_log_no_change before update or delete on rwi.ops_log for each row execute function rwi.ops_log_append_only();
+-- Prüft einen Betreiber (aktiv, Berechtigung); liefert die Bezeichnung oder null. Abgewiesene Versuche werden protokolliert.
+create function rwi.operator_removed() returns trigger language plpgsql as $$
+begin insert into rwi.ops_log(kind, operator_id, operator, note) values ('operator_change', old.account_id, old.label, 'Betreiberzeile entfernt'); return old; end $$;
+create trigger operators_removed after delete on rwi.operators for each row execute function rwi.operator_removed();
+create function rwi.check_operator(p_operator uuid, p_scope text, p_fight bigint default null, p_round int default null, p_note text default null) returns text language plpgsql as $$
+declare o rwi.operators;
+begin
+  select * into o from rwi.operators where account_id = p_operator;
+  if found and o.active and p_scope = any(o.scopes) then return o.label; end if;
+  insert into rwi.ops_log(kind, fight_id, round_no, instance_id, operator_id, operator, note) values ('denied', p_fight, p_round, (select instance_id from rwi.fights where id = p_fight), p_operator, o.label,
+    p_scope || ': ' || case when not found then 'kein Betreiber' when not o.active then 'Betreiber deaktiviert' else 'Berechtigung fehlt' end);
+  return null;
+end $$;
+create function rwi.set_operator(p_account uuid, p_label text, p_scopes text[], p_active boolean default true) returns void language plpgsql as $$
+begin
+  insert into rwi.operators(account_id, label, scopes, active) values (p_account, btrim(p_label), p_scopes, p_active)
+    on conflict (account_id) do update set label = excluded.label, scopes = excluded.scopes, active = excluded.active, updated_at = clock_timestamp();
+  insert into rwi.ops_log(kind, operator_id, operator, note) values ('operator_change', p_account, btrim(p_label), 'scopes=' || array_to_string(p_scopes, ',') || ' active=' || p_active);
+end $$;
 create function rwi.raise_stuck(p_fight bigint, p_round int) returns void language plpgsql as $$
 declare ep int;
 begin
@@ -116,9 +142,10 @@ begin
     values ('stuck', 'fight ' || p_fight || ' round ' || p_round, p_fight, p_round, 'stuck:' || p_fight || ':' || p_round || ':' || coalesce(ep, 0))
     on conflict (dedupe_key) where dedupe_key is not null do nothing;
 end $$;
-create function rwi.close_stuck(p_fight bigint, p_round int, p_kind text, p_operator text, p_note text, p_old_engine text default null, p_new_engine text default null) returns void language plpgsql as $$
+create function rwi.close_stuck(p_fight bigint, p_round int, p_kind text, p_operator uuid, p_note text, p_old_engine text default null, p_new_engine text default null) returns void language plpgsql as $$
 begin
-  insert into rwi.ops_log(kind, fight_id, round_no, operator, note, old_engine, new_engine) values (p_kind, p_fight, p_round, p_operator, p_note, p_old_engine, p_new_engine);
+  insert into rwi.ops_log(kind, fight_id, round_no, instance_id, operator_id, operator, note, old_engine, new_engine)
+    values (p_kind, p_fight, p_round, (select instance_id from rwi.fights where id = p_fight), p_operator, (select label from rwi.operators where account_id = p_operator), p_note, p_old_engine, p_new_engine);
   update rwi.ops_alerts set state = 'resolved', resolved_at = clock_timestamp(), resolved_note = p_kind || coalesce(': ' || p_note, '') where what = 'stuck' and fight_id = p_fight and round_no = p_round and state = 'open';
 end $$;
 

@@ -11,7 +11,9 @@ Weiter offen:
 - ⬜ Zustellung des stuck-Alarms später (Vorschlag in `docs/STUCK_ABLAUF.md`).
 - ⬜ S-A: erst nach Prüfung gegen echtes GoTrue umsetzen? (`docs/SUPABASE_S-A_UNTERSUCHUNG.md`)
 - ⬜ Änderungen an `supabase/schema.sql` (F6, F10, S-A) betreffen die Produktion.
-- ⬜ Wer darf Wiederaufnahmen/Engine-Registrierungen auslösen (Betreiberidentität, Vier-Augen-Prinzip)?
+- 🟡 Betreiberidentität: DB-seitig umgesetzt (Konto-UUID, Umfänge, Protokoll; `docs/OPERATOREN.md`); die JWT-Prüfung (Edge Function) ist **nicht gebaut**. Vier-Augen-Prinzip weiter offen.
+- 🧑 Soll Ausrüstung/Runen/Set-Boni später ins Instanzprofil (ändert Kampfregeln, braucht Server-Fortschritt)? (`docs/PROFILABLEITUNG.md`, Lücken)
+- 🧑 Betreiber-Edge-Function bauen (JWT/MFA-Prüfung) und GitHub-Dev-Test (nur `workflow_dispatch`)? (`docs/DEV_TESTVERFAHREN.md`)
 
 ## B. Technisch bereit (lokal und CI)
 - ✅ Kombinierte Installation `schema.sql` + `01`–`05` in einer Transaktion, Preflight, zweiter Versuch blockiert, Rollback, Neuinstallation (`installation.mjs`).
@@ -24,6 +26,10 @@ Weiter offen:
 - ✅ Hotfix-Wiederaufnahme mit Engine-Register, Kompatibilitätsprüfung, Protokoll alt/neu, keine Doppelverarbeitung (`hotfix-resume.mjs`).
 - ✅ F9: Slot-3-Entzug vor/nach Ready, während des Kampfes, neue Instanz, erneute Freischaltung (`slot3-f9.mjs`).
 - ✅ PostgreSQL 16 und 17 mit identischen Ergebnissen; Determinismus Node/Bun (Deno in der CI); `npm test`.
+
+- ✅ F5 Profilableitung serverseitig aus `public.characters`, Einfrieren nach Ready (`profil-ableitung.mjs`, `docs/PROFILABLEITUNG.md`).
+- ✅ Betreiberidentität (`operatoren.mjs`, `docs/OPERATOREN.md`); abgewiesene Aufrufe werden protokolliert.
+- ✅ Prüfleitfaden Exposed Schemas (`docs/EXPOSED_SCHEMAS.md`) und Dev-Testverfahren (`docs/DEV_TESTVERFAHREN.md`) vorbereitet, nicht ausgeführt.
 
 ## C. Vor der Installation auf Dev prüfen (🟡/⬜)
 - ⬜ Dashboard: **Data API → Exposed schemas** enthält **nicht** `rwi` (nur im Dashboard sichtbar).
