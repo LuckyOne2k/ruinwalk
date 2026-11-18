@@ -37,5 +37,8 @@ Quelle: `supabase/schema.sql`, `docs/ACCOUNT_BACKEND.md`, `docs/D3_PRUEFBERICHT.
 - `supabase/tests/editor_test.sql` – Test für den Supabase-SQL-Editor; `live_rls_test.sql` – Live-Prüfung (nur Testkonten).
 - `server/instance/tests/produktion.mjs` – Rechte mit echten Rollen anon/authenticated/service_role.
 
+## Dev-Projekt
+`ruinwalk-dev` (`jlkqktmvqxibqdcobbhf`): lesen erlaubt; Installation, Rollback, Cleanup nur über `supabase/dev/`-Skripte und nur mit Freigabe. Stand und Befunde: `supabase-integration.md`.
+
 ## Migrationen (Konvention im Projekt)
 `supabase/migration_<kürzel>_<thema>.sql` + `supabase/rollback_<kürzel>_<thema>.sql` + `schema.sql` nachziehen + Tests + Prüfbericht in `docs/` (Beispiel: D3). Live-Einspielung nur nach ausdrücklicher Freigabe durch Pascal.

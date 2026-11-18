@@ -32,9 +32,11 @@ marketing/            Marketing-Wissensbasis, Kalender, Vorlagen, Meta-Anbindung
 
 ## Backend (Supabase)
 
-- Projekt `ruinwalk` (`malbiahllucctiafzydv`), Region eu-central-1, Postgres 17. Genutzt: Auth (E-Mail/Passwort) + PostgREST-RPCs. Keine Edge Functions, kein Realtime.
+- Produktion `ruinwalk` (`malbiahllucctiafzydv`), Region eu-central-1, Postgres 17. Genutzt: Auth (E-Mail/Passwort) + PostgREST-RPCs. Keine Edge Functions bereitgestellt, kein Realtime.
+- Entwicklung `ruinwalk-dev` (`jlkqktmvqxibqdcobbhf`), Postgres 17.12 – für die Dev-Installation des Instanzkampfs (noch nicht installiert).
 - Erweiterungen installiert: pgcrypto, supabase_vault, pg_stat_statements, uuid-ossp. Verfügbar, nicht installiert: pg_cron, pg_net (in D3 entfernt), pgmq, pg_jsonschema.
-- Kein Supabase-CLI-Projekt (`supabase/config.toml` fehlt). Schema als `schema.sql`, Änderungen als handgeschriebene `migration_*.sql` + `rollback_*.sql`.
+- Auf `main` kein Supabase-CLI-Projekt. Schema als `schema.sql`, Änderungen als handgeschriebene `migration_*.sql` + `rollback_*.sql`.
+- Auf dem Zweig `nacht/operator-edge-function`: Dev-Projekt `ruinwalk-dev`, Dev-Installation (`supabase/dev/`), Worker, Edge Function `operator`, `supabase/config.toml` nur für Edge Functions – siehe `supabase-integration.md`.
 
 ## Instanzkampf-Prototyp (`server/instance/`)
 

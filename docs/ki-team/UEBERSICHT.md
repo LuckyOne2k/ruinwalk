@@ -58,6 +58,9 @@ Global (in Claude eingebaut, nicht im Repo): `skill-creator`, `code-review`, `se
 
 Selbsttest des ganzen Systems: `node .claude/tests/team-check.js`
 
+## Ständige Erlaubnis (18.11.2026)
+Claude darf ohne Rückfrage Agenten anlegen/verbessern und Skills erstellen oder (nach Prüfung) herunterladen. Jede solche Änderung wird hier und in `SKILL_BEWERTUNG.md` nachgetragen.
+
 ## Freigaben, die nur du erteilst
 1. Den Veröffentlichungsmodus (`marketing/meta/modus.json`: `autonom` | `freigabe` | `pause`). Aktuell `autonom` für Instagram; Facebook, Kommentare und Nachrichten weiter nur mit deiner Freigabe.
 2. Änderungen an der Live-Datenbank.

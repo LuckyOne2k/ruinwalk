@@ -49,7 +49,7 @@ for (const a of agents) {
   check(/Deutsch/.test(f._body), `${a}: Antwortsprache festgelegt`);
   descs.push(f.name);
 }
-check(agents.length === 8, `8 Agenten (${agents.length})`);
+check(agents.length >= 8, `mindestens 8 Agenten (${agents.length})`);
 const marketing = frontmatter(path.join(C, 'agents/rw-marketing.md'));
 check(marketing && !/mcp__Supabase/.test(marketing.tools) && /modus\.json/.test(marketing._body), 'rw-marketing: keine DB-Werkzeuge, Veröffentlichungsmodus geregelt');
 const arch = frontmatter(path.join(C, 'agents/rw-architekt.md'));
