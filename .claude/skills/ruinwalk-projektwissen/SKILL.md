@@ -16,6 +16,7 @@ Gemeinsame Wissensbasis für alle Ruin-Walk-Agenten. Alles hier ist aus Code und
 | Was gibt es im Spiel wirklich (Klassen, Monster, Items, Zahlen)? | `references/spielsysteme.md` |
 | Tabellen, RPCs, RLS, Rollen, Migrationen | `references/datenbank.md` |
 | Phasen, Roadmap, offene Entscheidungen D1–D5 | `references/roadmap.md` |
+| Supabase-Integration (ruinwalk-dev, Dev-Installation, Worker, Edge Function) – Zweig `nacht/operator-edge-function` | `references/supabase-integration.md` |
 | Welches Dokument in `docs/` beantwortet was? | `references/docs-index.md` |
 
 ## Die fünf wichtigsten Fakten

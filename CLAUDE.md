@@ -45,3 +45,7 @@ können selbst keine weiteren Subagenten starten – die Koordination liegt dahe
 | `rw-marketing` | Marke, Instagram/Facebook, Content, Redaktionsplan, Community, Marketinganalyse |
 
 Standardabläufe (Feature, Bugfix, DB-Änderung, Marketing-Beitrag, Release): Skill `ruinwalk-ablauf`.
+
+## Ständige Erlaubnis: Agenten und Skills (Pascal, 18.11.2026)
+Ohne Rückfrage erlaubt: neue Experten-Agenten anlegen, bestehende Agenten verbessern, Skills selbst erstellen oder aus seriösen Quellen herunterladen – immer dann, wenn es das Projekt verbessert.
+Dabei gilt weiterhin: fremde Skills vor der Übernahme vollständig lesen (Skripte, Netzaufrufe, Datenabfluss) und in `docs/ki-team/SKILL_BEWERTUNG.md` bewerten; keine doppelten Zuständigkeiten; `docs/ki-team/UEBERSICHT.md` und `node .claude/tests/team-check.js` aktuell halten. Die Erlaubnis gilt **nicht** für die übrigen Grenzen (Live-Datenbank, Installation/Deployment, Push auf `main`, Secrets, Veröffentlichungsmodus, eingefrorene Instanzkampf-Architektur) – dort bleiben Pascals Freigaben nötig.

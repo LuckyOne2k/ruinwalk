@@ -9,6 +9,7 @@ Ergänzend: `supabase-postgres-best-practices` (allgemeine Regeln) und `supabase
 
 ## Harte Regeln
 - **Kein Schreibzugriff auf das Live-Projekt** (`malbiahllucctiafzydv`) ohne ausdrücklichen Auftrag von Pascal in dieser Sitzung. Das betrifft `apply_migration`, `execute_sql` mit DDL/DML, Edge Functions, Branches. Lesen (Tabellen, Advisors, Logs) ist erlaubt.
+- **Dev-Projekt `ruinwalk-dev` (`jlkqktmvqxibqdcobbhf`)**: lesende Prüfungen erlaubt. Installation/Rollback/Cleanup nur mit Freigabe und nur über die Skripte in `supabase/dev/` (Zweig `nacht/operator-edge-function`): `install_dev.sh <sha256>` mit Direktverbindung oder Session-Pooler (Port 5432), Rollback mit `psql -X -v ON_ERROR_STOP=1`, ohne `-1`. Vorher Projektwissen `references/supabase-integration.md` lesen.
 - Echte Spielerkonten existieren: Live-Prüfungen nur mit Testkonten; nie Daten echter Konten lesen, ändern oder exportieren.
 - Erst lokal testen (temporäres Postgres mit Attrappe), dann berichten, dann auf Freigabe live.
 
