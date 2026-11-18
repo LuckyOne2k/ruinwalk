@@ -112,6 +112,8 @@ for (let [inp, soll] of FAELLE) {
   check(h('git add -A && git commit -m "alles"'), 'Abgleich: git add -A && git commit ohne Abgleich verweigert');
   check(h('git commit -m "pfad" server/x.sql'), 'Abgleich: Pfadangabe nach git commit wird erkannt');
   check(!h('git add marketing/b.md && git commit -m "Instagram"'), 'Abgleich: Instagram-Lauf (nur marketing/) bleibt frei, obwohl Code-Dateien ungetrackt herumliegen');
+  fs.mkdirSync(path.join(tmp, 'figs')); fs.writeFileSync(path.join(tmp, 'figs/neu.png'), 'x');
+  check(h('git add figs/neu.png && git commit -m "Grafik"'), 'Abgleich: Spielgrafik (figs/) ohne Abgleich-Zeile verweigert');
   check(!h('git log --grep=commit') && !h('git config commit.gpgsign false'), 'Abgleich: lesende Befehle mit dem Wort commit lösen keinen Fehlalarm aus');
   sh('git add server/neu.sql');
   check(!h('git log --oneline && git status'), 'Abgleich: kein Fehlalarm ohne Commit, auch wenn Code vorgemerkt ist');
@@ -167,6 +169,40 @@ check(fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8').includes('.claude/a
   const ac = (j.hookSpecificOutput || {}).additionalContext || '';
   check(j.hookSpecificOutput && j.hookSpecificOutput.hookEventName === 'SessionStart' && ac.includes('MARKE-123') && ac.includes('Schnappschuss'), 'kontext-sicherung nachher: gültiges JSON mit Übergabe + Schnappschuss');
   let leer = ''; try { leer = cp.execFileSync('node', [path.join(C, 'hooks/kontext-sicherung.js'), 'nachher'], { input: 'kein json', env: { ...process.env, CLAUDE_PROJECT_DIR: path.join(tmp, 'gibtsnicht') } }).toString(); check(true, 'kontext-sicherung: blockiert nie (Exit 0 bei Fehleingaben)'); } catch { check(false, 'kontext-sicherung: blockiert nie (Exit 0 bei Fehleingaben)'); }
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
+
+console.log('Pixel-Art-Werkzeug');
+{
+  const os = require('os'), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rw-px-')), PX = path.join(C, 'skills/ruinwalk-pixelart/scripts/pixel.py');
+  const py = (args) => cp.spawnSync('python3', [PX, ...args], { encoding: 'utf8' });
+  // sauberes 32x32-Symbol: Raute mit Hauskontur, 3 Farben
+  const N = 32, rows = [];
+  for (let y = 0; y < N; y++) { let r = ''; for (let x = 0; x < N; x++) { const d = Math.abs(x - 15.5) + Math.abs(y - 15.5); r += d < 11 ? (x + y < 28 ? 'y' : 'Y') : d < 12.5 ? 'k' : '.'; } rows.push(r); }
+  fs.writeFileSync(path.join(tmp, 'gut.txt'), 'palette:\n. transparent\nk #29190e\ny #f4d03f\nY #b8902a\n---\n' + rows.join('\n') + '\n');
+  const r1 = py(['render', path.join(tmp, 'gut.txt'), path.join(tmp, 'gut.png')]);
+  check(r1.status === 0 && fs.existsSync(path.join(tmp, 'gut.png')), 'pixel.py render: Raster → PNG');
+  const p1 = py(['pruefen', path.join(tmp, 'gut.png'), '--typ', 'status']);
+  check(p1.status === 0 && /Außenkontur dunkel: 100 %/.test(p1.stdout), 'pixel.py pruefen: sauberes Symbol besteht (Kontur 100 %)', p1.stdout.slice(0, 80));
+  check(py(['pruefen', path.join(tmp, 'gut.png'), '--typ', 'item']).status === 1, 'pixel.py pruefen: falsche Größe für den Typ ist ein Fehler');
+  // Streupixel + falsche Zeilenlänge
+  fs.writeFileSync(path.join(tmp, 'streu.txt'), 'palette:\nk #29190e\ny #f4d03f\nY #b8902a\n---\n' + rows.map((r, i) => i === 0 ? 'y' + r.slice(1) : r).join('\n') + '\n');
+  py(['render', path.join(tmp, 'streu.txt'), path.join(tmp, 'streu.png')]);
+  const p2 = py(['pruefen', path.join(tmp, 'streu.png'), '--typ', 'status']);
+  check(p2.status === 1 && /Streupixel/.test(p2.stdout), 'pixel.py pruefen: Streupixel wird als Fehler erkannt');
+  fs.writeFileSync(path.join(tmp, 'kaputt.txt'), 'palette:\nk #29190e\n---\nkk\nk\n');
+  check(py(['render', path.join(tmp, 'kaputt.txt'), path.join(tmp, 'k.png')]).status !== 0, 'pixel.py render: ungleiche Zeilenlängen werden abgelehnt');
+  fs.writeFileSync(path.join(tmp, 'unbekannt.txt'), 'palette:\nk #29190e\n---\nkq\n');
+  check(py(['render', path.join(tmp, 'unbekannt.txt'), path.join(tmp, 'u.png')]).status !== 0, 'pixel.py render: Zeichen ohne Palette wird abgelehnt');
+  // verlustfreier Import eines echten Spielbilds
+  const st = path.join(ROOT, 'status/feuer.png');
+  if (fs.existsSync(st)) {
+    py(['import', st, path.join(tmp, 'feuer.txt')]); py(['render', path.join(tmp, 'feuer.txt'), path.join(tmp, 'feuer.png')]);
+    const gleich = cp.spawnSync('python3', ['-c', 'import sys;from PIL import Image\na,b=[Image.open(f).convert("RGBA") for f in sys.argv[1:]]\nprint(a.size==b.size and a.tobytes()==b.tobytes())', st, path.join(tmp, 'feuer.png')], { encoding: 'utf8' }).stdout.trim();
+    check(gleich === 'True', 'pixel.py import → render: echtes Spielbild verlustfrei');
+  }
+  const v = py(['vergleich', path.join(tmp, 'v.png'), '--alt', path.join(tmp, 'gut.png'), '--neu', path.join(tmp, 'gut.png')]);
+  check(v.status === 0 && fs.existsSync(path.join(tmp, 'v.png')), 'pixel.py vergleich: Vorher/Nachher-Bogen wird erzeugt');
   fs.rmSync(tmp, { recursive: true, force: true });
 }
 

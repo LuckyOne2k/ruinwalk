@@ -43,6 +43,7 @@ können selbst keine weiteren Subagenten starten – die Koordination liegt dahe
 | `rw-qa` | Tests, Regression, Sicherheitsprüfung, CI, Codequalität – prüft kritisch und unabhängig |
 | `rw-mobile-ux` | Mobile Bedienung, Hochformat, Touch, Responsive, Performance im Browser |
 | `rw-marketing` | Marke, Instagram/Facebook, Content, Redaktionsplan, Community, Marketinganalyse |
+| `rw-pixelart` | Pixel-Art: Spielfiguren, Items, Status-Symbole, Monster – zeichnen, überarbeiten, Stil einheitlich halten (Entwürfe, Einbau nach Freigabe) |
 | `rw-projektpflege` | Ordnung und Kompaktheit: Doku, Wissensbasis, Archiv, Verweise, Zweig-Übersicht (kein Spielcode) |
 
 Standardabläufe (Feature, Bugfix, DB-Änderung, Marketing-Beitrag, Release): Skill `ruinwalk-ablauf`.

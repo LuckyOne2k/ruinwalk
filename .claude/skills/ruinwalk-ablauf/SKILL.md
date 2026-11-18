@@ -16,6 +16,7 @@ description: Standardabläufe des Ruin-Walk-KI-Teams – welcher Agent wann, in 
 | Spielregeln, Zahlen, Loot, Wirtschaft, Klassen (Client `index.html`) | `rw-gamedesign` | `rw-qa`, bei UI `rw-mobile-ux` |
 | Quests, NPCs, Welt, KI-Inhalte | `rw-welt-ki` | `rw-gamedesign` (Belohnungen), `rw-qa` |
 | Oberfläche, CSS, Touch, Layout | `rw-mobile-ux` | `rw-qa` |
+| Spielgrafiken (Pixel-Art: Figuren, Items, Status, Monster) | `rw-pixelart` | `rw-mobile-ux` (Lesbarkeit), `rw-qa`; bei neuen Inhalten `rw-gamedesign` |
 | Tests, CI, Review, Sicherheitsprüfung | `rw-qa` | – (unabhängig) |
 | Marke, Social Media, Community, Marketinganalyse | `rw-marketing` | `rw-architekt` bei Faktenfragen |
 | Ordnung, Doku, Wissensbasis, Archiv, Zweig-Übersicht | `rw-projektpflege` | `rw-architekt` |
@@ -28,6 +29,7 @@ Bevor eine Änderung committet wird, legt die Hauptsitzung den Diff den fachlich
 | `index.html`, `sprites*.js` – Spielregeln/Zahlen | `rw-gamedesign` + `rw-qa` (+ `rw-mobile-ux` bei UI/CSS) |
 | `index.html` – nur UI/CSS, `pxdom.js`, `landingpage.html` | `rw-mobile-ux` + `rw-qa` |
 | `package.json`, `tools/` | `rw-qa` |
+| `figs/`, `items/`, `status/`, `assets/` (Spielgrafiken) | `rw-mobile-ux` + `rw-qa` (+ `rw-gamedesign` bei neuen Inhalten); Freigabe Pascal vor Einbau |
 | `supabase/` (Schema, RLS, RPC, Dev-Skripte, Edge Functions) | `rw-backend-security` + `rw-qa` |
 | `server/instance/` | `rw-instanzkampf` + `rw-backend-security` (Rechte) + `rw-qa` |
 | `tests/`, CI-Workflows | `rw-qa` + Fachagent des getesteten Bereichs |
@@ -66,6 +68,9 @@ Skill `ruinwalk-instanzkampf` (Prüfliste) → `rw-instanzkampf` → Rechte durc
 
 ## Ablauf „Marketing-Beitrag“
 `rw-marketing` nach Skill `ruinwalk-social-content`: Fakten prüfen → Text + Grafik → Entwurf in `marketing/freigabe/entwuerfe/` → **Pascal gibt frei** → Veröffentlichung (manuell oder API mit Bestätigung) → Auswertung nach 7 Tagen. Für Gameplay-Material liefert `rw-mobile-ux` echte Screenshots.
+
+## Ablauf „Spielgrafik“
+`rw-pixelart` nach Skill `ruinwalk-pixelart` (Bestand ansehen → Raster zeichnen → `pixel.py pruefen` ohne Fehler → Vorher/Nachher-Bogen, ≥ 2 Überarbeitungsrunden) → Entwurf in `kunst/entwuerfe/` → **Pascal gibt frei** → Einbau (gleiche Datei/Größe) → `npm test` + Mobile-Prüfung → Abgleich `rw-mobile-ux` + `rw-qa`.
 
 ## Ablauf „Release“ (Deploy = Push auf `main` → GitHub Pages, ohne CI-Gate)
 1. `npm test` + betroffene Suites grün (`rw-qa`).

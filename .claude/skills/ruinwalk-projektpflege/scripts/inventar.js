@@ -54,6 +54,7 @@ for (const b of remotes.filter((x) => !/\/(main|HEAD)$/.test(x) && x !== eigener
 for (const f2 of git('log --all --since=72.hours --name-only --format=').split('\n').filter(Boolean)) mark(f2, 'Commit in den letzten 72 h');
 // (d) bekannte laufende Arbeitsablagen
 for (const f2 of files.filter((x) => x.startsWith('marketing/freigabe/entwuerfe/'))) mark(f2, 'laufender Entwurf (marketing/freigabe/entwuerfe)');
+for (const f2 of files.filter((x) => x.startsWith('kunst/entwuerfe/'))) mark(f2, 'laufender Grafik-Entwurf (kunst/entwuerfe, rw-pixelart)');
 const big = rows.filter((r) => r.zeilen > 400).map((r) => `${r.f} (${r.zeilen} Zeilen)`);
 const unref = rows.filter((r) => r.refs === 0 && !/^(README|CLAUDE)\.md$/.test(path.basename(r.f)) && !r.f.startsWith('.claude/') && !r.f.startsWith('marketing/freigabe/')).map((r) => r.f);   // Entwürfe = laufende Arbeit
 const md = process.argv.includes('--md');

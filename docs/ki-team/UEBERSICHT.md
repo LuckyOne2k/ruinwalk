@@ -23,6 +23,7 @@ Du entscheidest und gibst frei. Ohne deine Freigabe passiert nichts an der Live-
 | `rw-qa` | Tests, Regression, Review, Mutationsproben, CI, Sicherheitsprüfung – unabhängig | Tests schreiben, alles prüfen | projektwissen, tests, instanzkampf, mobile-check |
 | `rw-mobile-ux` | Hochformat, Touch, Responsive, Performance, Screenshots | UI/CSS ändern | projektwissen, mobile-check, tests |
 | `rw-projektpflege` | Ordnung, Sortierung, Kompaktheit: Inventar, Verweise, Archiv, Wissensbasis, Zweig-Übersicht | Doku/Wissensbasis ändern, kein Spielcode | projektwissen, projektpflege, ablauf |
+| `rw-pixelart` | Pixel-Art auf Profi-Niveau: Figuren 64×64, Items 48×48, Status 32×32, Monster; Stil/Palette einheitlich, besser als der Bestand | Entwürfe in `kunst/entwuerfe/`; Live-Grafiken erst nach Freigabe | pixelart, projektwissen |
 | `rw-marketing` | Marke, Instagram/Facebook, Content, Grafiken, Kalender, Community, Analyse | Entwürfe erstellen; Instagram-Beiträge selbst posten im Modus `autonom` | projektwissen, marke, social-content, grafik, meta-publishing |
 
 **Bewusst keine eigenen Agenten** für Economy, Balancing, Release, Analytics, Community: Teilaufgaben bestehender Agenten (gamedesign, qa, marketing). Abgrenzung Pflege/Architektur: `rw-architekt` prüft nur lesend, `rw-projektpflege` pflegt Ordnung, Doku und Wissensbasis schreibend – und fasst nichts an, woran gerade gearbeitet wird (Abstimmung mit dem zuständigen Agenten).
@@ -42,6 +43,7 @@ Du entscheidest und gibst frei. Ohne deine Freigabe passiert nichts an der Live-
 | `ruinwalk-social-content` | Arbeitsablauf | vom Thema zur Freigabe, Caption-Aufbau, Regeln | – |
 | `ruinwalk-grafik` | Werkzeug | Post/Story/Quadrat/Banner aus echten Assets | `scripts/render.js`, `scripts/sprites-export.js`, `vorlagen/vorlage.html` |
 | `ruinwalk-projektpflege` | Werkzeug + Regeln | Inventar, tote/zweigübergreifende Verweise, Archivierung, Abgleichpflicht | `scripts/inventar.js` |
+| `ruinwalk-pixelart` | Werkzeug + Handwerk | Formate, gemessener Stil, 14 Pixel-Art-Regeln, Ablauf, Abnahme | `scripts/pixel.py` (Raster→PNG, Import, Prüfung, Vorher/Nachher-Bogen) |
 | `ruinwalk-meta-publishing` | Werkzeug + Anleitung | Meta-Anbindung, Status, Insights, Veröffentlichen mit Freigabesperre | `scripts/meta-api.js` |
 | `supabase` | extern (Supabase, MIT) | Plattformwissen, Sicherheits-Checkliste | – |
 | `supabase-postgres-best-practices` | extern (Supabase, MIT) | Postgres-Regeln (RLS, Locks, Indizes …) | – |
