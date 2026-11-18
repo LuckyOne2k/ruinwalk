@@ -130,8 +130,8 @@ language sql stable security definer set search_path = public, pg_temp as $$
 --   rwi.on_profile_deleting) – damit können zwei gleichzeitige Löschungen/Rundenauflösungen sich nicht gegenseitig verklemmen (Deadlock).
 -- Fehlerbehandlung in zwei Stufen, nie ein stilles Geistermitglied:
 --   Stufe 1: rwi.leave. Schlägt es fehl (Teiltransaktion wird zurückgerollt), Stufe 2: minimale Bereinigung ohne Spiellogik (Wartelisteneintrag stornieren, Mitglied als
---   'left'/'freiwillig' mit denselben Endzuständen wie rwi.drop_member, ausstehende Beute entfällt), Eintrag 'char_cleanup_failed' in rwi.ops_alerts, danach Versuch der Folgeprüfung (Mindestgröße/Abbruch/Nachrücken).
---   Schlägt auch Stufe 2 fehl, wird der Fehler weitergereicht: das GESAMTE Löschen (Charakter bzw. Konto) wird zurückgerollt und bleibt konsistent wiederholbar.
+--   'left'/'freiwillig' mit denselben Endzuständen wie rwi.drop_member, ausstehende Beute entfällt), Eintrag 'char_cleanup_failed' in rwi.ops_alerts, danach die Folgeprüfung (Mindestgröße/Abbruch/Nachrücken).
+--   Schlägt auch Stufe 2 ODER die Folgeprüfung fehl, wird der Fehler weitergereicht: das GESAMTE Löschen (Charakter bzw. Konto) wird zurückgerollt und bleibt konsistent wiederholbar.
 -- Mitglieds-, Kampf- und Belohnungszeilen bleiben als Verlauf erhalten; sie enthalten nur die nicht mehr zuordenbare Charakter-ID.
 create function rwi.on_character_deleted() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -152,11 +152,7 @@ begin
        where instance_id = r.id and player = k and mstate = 'active';
       update rwi.entitlements set void = true, reason = 'freiwilliger Austritt' where instance_id = r.id and player = k and kind = 'beute' and not void;
       insert into rwi.ops_alerts(what, detail) values ('char_cleanup_failed', 'instance ' || r.id || ': ' || sqlstate);
-      begin
-        perform rwi.after_auto_removal(r.id);                                    -- Mindestgröße/Abbruch/Nachrücken, soweit möglich
-      exception when others then
-        insert into rwi.ops_alerts(what, detail) values ('char_cleanup_incomplete', 'instance ' || r.id || ': ' || sqlstate);
-      end;
+      perform rwi.after_auto_removal(r.id);                                    -- Mindestgröße/Abbruch/Nachrücken: scheitert auch das, läuft der Fehler heraus und das GESAMTE Löschen wird zurückgerollt (Beschluss)
     end;
   end loop;
   delete from rwi.players where player = k;

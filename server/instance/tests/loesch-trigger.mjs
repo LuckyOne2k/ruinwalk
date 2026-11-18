@@ -197,6 +197,18 @@ try {
     await q('drop trigger boom2_t on rwi.members; drop trigger boom_t on rwi.group_log');
     const r4 = await delAcc();
     ok(r4.code === 0 && (await q(`select count(*) from auth.users where id='${D.id}'`)) === '0' && (await mstate(FD.inst, D.chars[0])).startsWith('left'), 'nach Behebung gelingt die Wiederholung vollständig; Mitglied sauber ausgetreten', r4.err.split('\n')[0]);
+    // Stufe 2 gelingt, aber die Folgeprüfung (Abbruch bei Mindestgröße) scheitert -> ebenfalls alles zurück (kein halb bereinigter Endzustand)
+    { await q(`create trigger boom_t before insert on rwi.group_log for each row execute function public.boom();
+               create function public.boom3() returns trigger language plpgsql as $$ begin if new.status = 'aborted' and old.status <> 'aborted' then raise exception 'injizierter Fehler in der Folgeprüfung'; end if; return new; end $$;
+               create trigger boom3_t before update on rwi.instances for each row execute function public.boom3();`);
+      const P = await E.account('L9P'), Q = await E.account('L9Q'); const FP = await fightOf([P.chars[0], Q.chars[0]]);
+      const bkp = await q(`select count(*) from public.character_backups where character_id='${Q.chars[0]}'`);
+      const r5 = await E.cl.psql(`delete from public.characters where character_id='${Q.chars[0]}'`);
+      ok(r5.code !== 0 && /Folgeprüfung/.test(r5.err), 'Fehler in der Folgeprüfung nach erfolgreicher Stufe 2: das Löschen wird abgewiesen', r5.err.split('\n')[0]);
+      ok((await q(`select count(*) from public.characters where character_id='${Q.chars[0]}'`)) === '1' && (await mstate(FP.inst, Q.chars[0])) === 'active/' && (await q(`select status from rwi.instances where id=${FP.inst}`)) === 'active' && (await q(`select count(*) from public.character_backups where character_id='${Q.chars[0]}'`)) === bkp, 'Rollback: Charakter, Mitgliedschaft, Instanzstatus und Sicherungen unverändert (kein Geistermitglied, kein halber Zustand)');
+      await q('drop trigger boom3_t on rwi.instances; drop trigger boom_t on rwi.group_log');
+      const r6 = await E.cl.psql(`delete from public.characters where character_id='${Q.chars[0]}'`);
+      ok(r6.code === 0 && (await mstate(FP.inst, Q.chars[0])).startsWith('left') && (await consistent()) === 'ok', 'nach Behebung gelingt das Löschen; Zustand konsistent', r6.err.split('\n')[0]); }
     ok((await consistent()) === 'ok', 'Konsistenz über alle Instanzen', await consistent()); }
 
   // ===== 9. Wartelisteneintrag beim Löschen =====

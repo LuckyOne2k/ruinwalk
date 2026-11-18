@@ -7,7 +7,7 @@ Es gibt keine externe Anbindung und keine Secrets in diesem Stand.
 ## Eigenschaften aller Wrapper
 - **Eine Aufgabe, eine rwi-Funktion.** Der Test liest die Funktionskörper aus dem Katalog und prüft: jeder Wrapper ruft genau eine `rwi.*`-Funktion auf.
 - **SECURITY INVOKER.** Der Wrapper läuft mit den Rechten des Aufrufers (`service_role`), nicht mit denen des Besitzers. Es gibt keine Rechteausweitung; `service_role` hatte diese `rwi`-Rechte ohnehin.
-- **Fester `search_path = pg_catalog, pg_temp`.** Der Test prüft die Einstellung für alle zehn Wrapper im Katalog.
+- **Fester `search_path = pg_catalog, pg_temp`.** Der Test prüft die Einstellung für alle elf Wrapper im Katalog.
 - **Eingaben vollständig geprüft:** Typ (über die Signatur), Wertebereich, Länge/Größe, Format. Ein Verstoß ergibt den Fehler `invalid_input` (SQLSTATE `PT400`, bei PostgREST HTTP 400) **ohne Datenbankänderung** (der Test vergleicht Zeilenzahlen vor und nach 30 ungültigen Aufrufen).
 - **Rückgabe nur das Nötige.** Ohne Zuteilung liefert `rw_worker_claim` ausschließlich `{status}`. `rw_worker_commit` liefert `status`, `outcome`, `reason`.
 - **EXECUTE nur für `service_role`.** `anon`, `authenticated` und PUBLIC haben kein Recht (Katalogprüfung und tatsächlicher Aufruf: „permission denied for function“).
@@ -23,7 +23,8 @@ Es gibt keine externe Anbindung und keine Secrets in diesem Stand.
 | `rw_worker_roster(bigint)` | `rwi.roster` | nein | nein | **ja** | nein | nein |
 | `rw_worker_start_fight(bigint, jsonb)` | `rwi.start_fight` | nein | nein | **ja** | nein | nein |
 | `rw_ops_stuck_list()` | `rwi.stuck_overview` | nein | nein | **ja** | nein | nein |
-| `rw_ops_resume(bigint, int, text, text)` | `rwi.resume_stuck` | nein | nein | **ja** | nein | nein |
+| `rw_ops_resume(bigint, int, text, text, text default null)` | `rwi.resume_stuck` | nein | nein | **ja** | nein | nein |
+| `rw_ops_register_engine(text, int, text default null)` | `rwi.register_engine` | nein | nein | **ja** | nein | nein |
 | `rw_ops_terminate(bigint, text, text)` | `rwi.terminate_stuck` | nein | nein | **ja** | nein | nein |
 
 ## Eingabeprüfung und Rückgabe je Wrapper
@@ -37,7 +38,8 @@ Es gibt keine externe Anbindung und keine Secrets in diesem Stand.
 | `rw_worker_roster` | Instanz ≥ 1 | `[{id, name, grundklasse, pfad, tier}]` |
 | `rw_worker_start_fight` | Instanz ≥ 1, Zustand ein JSON-Objekt ≤ 256 KiB | `status`, `fight`, `fight_no` |
 | `rw_ops_stuck_list` | keine Eingabe | offene stuck-Alarme mit Kampf, Runde, Instanz, Versuchen, letzter Fehlermeldung |
-| `rw_ops_resume` | Kampf ≥ 1, Runde 1–100000, Betreiber ≤ 200, Begründung ≤ 4000 (die Funktion verlangt zusätzlich Betreiber 2–80 und Begründung 10–1000 Zeichen → sonst `{status: invalid_input}`) | `status` (`resumed`, `stale`, `not_stuck`, …) |
+| `rw_ops_resume` | Kampf ≥ 1, Runde 1–100000, Betreiber ≤ 200, Begründung ≤ 4000 (die Funktion verlangt zusätzlich Betreiber 2–80 und Begründung 10–1000 Zeichen → sonst `{status: invalid_input}`), optionale Engine-Version ≤ 200 | `status` (`resumed`, `stale`, `not_stuck`, `unknown_engine`, `incompatible_engine`, …), bei `resumed` alte und neue Engine-Version |
+| `rw_ops_register_engine` | Version 1–200 Zeichen (Funktion: 1–80), Zustandsschema 1–1000, Notiz ≤ 4000 | `status` (`registered`, `exists`, `invalid_input`) |
 | `rw_ops_terminate` | wie oben | `status` (`terminated`, `not_stuck`, `not_active`, …) |
 
 Fachliche Ablehnung (z. B. unbekannter Kampf, falscher Token) kommt als normale Antwort mit `status`, **nicht** als Fehler. Ein Fehler bedeutet immer einen Programmierfehler des Aufrufers.
