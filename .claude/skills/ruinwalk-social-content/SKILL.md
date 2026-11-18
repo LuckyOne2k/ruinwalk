@@ -21,12 +21,16 @@ Grundlagen: `ruinwalk-marke` (Ton, Wahrheitsregeln), `marketing/04_instagram.md`
 5. **Grafik** mit Skill `ruinwalk-grafik` (Entwurf nach `marketing/grafiken/entwuerfe/`), Reel als Skript + Shotliste (keine erfundenen Spielszenen).
 6. **Selbstprüfung** (Kurzprüfung aus `ruinwalk-marke`) und Gegenlesen auf typische KI-Floskeln („tauche ein“, „entfessle“, „Reise beginnt“ gehäuft, Dreierlisten ohne Inhalt, Gedankenstrich-Ketten).
 7. **Als Entwurf ablegen:** `marketing/freigabe/entwuerfe/JJJJ-MM-TT_<kanal>_<thema>.md` nach `marketing/freigabe/VORLAGE_BEITRAG.md` (Status `entwurf`).
-8. **Freigabe einholen:** Pascal den Entwurf zeigen (Text + Bild). Nur Pascal setzt `status: freigegeben` mit Datum (oder sagt es ausdrücklich im Chat; dann trägt der Agent „freigegeben durch Pascal am … im Chat“ ein).
-9. **Veröffentlichen** erst danach – manuell durch Pascal (Meta Business Suite) oder per API (Skill `ruinwalk-meta-publishing`, jeder Aufruf löst zusätzlich eine Bestätigungsabfrage aus). Danach Datei nach `veroeffentlicht/` verschieben und Link/Datum eintragen.
+8. **Automatische Prüfung:** `node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js pruefen <entwurf.md>` muss „bestanden“ melden.
+9. **Veröffentlichen je nach Modus** (`marketing/meta/modus.json`):
+   - `autonom`: Status auf `autonom` setzen, dann `meta-api.js veroeffentlichen <entwurf.md> --senden`. Wird protokolliert (`freigabe/veroeffentlicht/LOG.md`). Pascal kurz informieren.
+   - `freigabe`: Pascal den Entwurf zeigen; nur er setzt `status: freigegeben` (oder sagt es im Chat). Danach veröffentlichen (Bestätigungsabfrage).
+   - `pause`: nichts veröffentlichen.
+   Danach Datei nach `veroeffentlicht/` verschieben und Link/Datum eintragen.
 10. **Auswerten** nach 7 Tagen in `marketing/analyse/` (Vorlage `KPI_VORLAGE.md`).
 
 ## Harte Regeln
-- Nichts öffentlich ohne `status: freigegeben`. Kein Kommentieren, Liken, Folgen, Direktnachrichten im Namen von Ruin Walk ohne Freigabe.
+- Öffentlich nur nach Modus-Regeln (oben). Kein Kommentieren, Liken, Folgen, Direktnachrichten im Namen von Ruin Walk ohne Freigabe – auch nicht im Modus `autonom`.
 - Keine gekauften Follower, keine Engagement-Gruppen, keine Fake-Accounts, keine Bewertungen im Namen anderer.
 - Keine fremden Inhalte ohne Rechte (Musik in Reels nur aus der Plattform-Bibliothek, beim Posten durch Pascal gewählt).
 - Spieler-Inhalte (Screenshots, Zitate) nur mit Einwilligung, ohne Standortdaten. Karten-Screenshots: keine echten Wohnorte erkennbar machen (Testmodus-Position Augsburg-Zentrum oder neutrale Gegend nutzen).

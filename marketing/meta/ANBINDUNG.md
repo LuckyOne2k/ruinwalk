@@ -30,7 +30,7 @@ Stand der Recherche: November 2026 (Meta-Entwicklerdoku). Meta ändert Oberfläc
 |---|---|
 | Entwürfe, Grafiken, Kalender, Analysen erstellen | ja |
 | Kennzahlen lesen (Insights) | ja (nur lesend) |
-| Beitrag veröffentlichen | **nein** – nur Entwürfe mit `status: freigegeben`, plus Bestätigungsabfrage vor jedem Senden |
+| Beitrag veröffentlichen | Instagram: **ja im Modus `autonom`** (Qualitätsprüfung, Limits, Protokoll); Facebook und Modus `freigabe`: nur nach deiner Freigabe |
 | Kommentare beantworten, liken, folgen, Nachrichten | **nein** – derzeit gar nicht vorgesehen |
 | Anzeigen schalten | **nein** – nicht eingerichtet, separater Auftrag |
 

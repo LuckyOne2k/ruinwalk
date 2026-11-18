@@ -33,7 +33,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|mcp__.*",
+        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|mcp__.*",
         "hooks": [
           { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/schutz.js\"", "timeout": 10 }
         ]

@@ -124,3 +124,12 @@ marketing/                        Wissensbasis 01–11, meta/, freigabe/, grafik
 8. **Testgrenzen der Werkzeuge:** Mobile-Prüfung ohne echte Kartenkacheln/GPS und ohne Kampfansicht; Determinismus lokal nur mit Node (Bun/Deno prüft die CI).
 9. **Fehlende Fähigkeiten (bewusst später):** Analyse-Anbindung für Spielzahlen (bewusst kein Tracking), Discord/Community-Ort, Video-Schnitt-Automatisierung, Presse-Mappe, Anzeigenmanagement (separater Auftrag mit Budget).
 10. **Offene Produktentscheidungen** (für Agenten gesperrt): Attribute/Talente, Hauptgeschichte vs. Sandbox, D1–D5 Instanzkampf, Questbelohnungs-Obergrenzen, Preis Platz 3, Community-Ort (Discord oder Facebook-Gruppe).
+
+## Nachtrag 18.11.2026: Selbstständiges Posten auf Instagram
+Pascal hat entschieden, dass `rw-marketing` eigenständig postet. Umgesetzt:
+- Veröffentlichungsmodus `marketing/meta/modus.json`: `autonom` (aktiv, nur Instagram, max. 1 Beitrag/Tag, 4/Woche), `freigabe`, `pause` (Not-Aus).
+- `meta-api.js pruefen`: automatische Qualitätsprüfung (Hook-Länge, 3–5 Hashtags mit #ruinwalk, Alt-Text, Faktenprüfung mit Belegen, ehrliche Kennzeichnung „in Entwicklung“, keine Superlative/fremden Links/Gewinnspiele, Bild vorhanden). Entwürfe 001–004 bestehen; Negativproben werden abgelehnt.
+- Veröffentlichung im Modus `autonom` ohne Rückfrage, protokolliert in `marketing/freigabe/veroeffentlicht/LOG.md`.
+- Hook: Änderungen an `modus.json` (Datei-Werkzeuge und Shell) fragen immer Pascal; rohe Graph-API-Schreibaufrufe und verkettete Befehle fragen weiterhin.
+- Weiter nur mit Freigabe: Facebook, Kommentare, Likes, Follows, Nachrichten, Löschen, Anzeigen.
+- Voraussetzung für echtes Posten: Instagram-Profikonto, API-Zugang (Token als Netzwerk-Geheimnis), `config.json`, öffentliche Bild-URL. Danach optional geplanter Auftrag für feste Postingzeiten.

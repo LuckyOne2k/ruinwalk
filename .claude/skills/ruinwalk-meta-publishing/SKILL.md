@@ -25,15 +25,26 @@ Anleitung für Pascal: `marketing/meta/ANBINDUNG.md`. Berechtigungsliste: `marke
 ```bash
 node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js status                      # Token, Rechte, Seite, IG-Verknüpfung (lesend)
 node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js insights 7                  # letzte Beiträge (lesend)
+node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js pruefen <entwurf.md>        # Qualitätsprüfung
 node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js veroeffentlichen <entwurf.md>            # Trockenlauf
 node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js veroeffentlichen <entwurf.md> --senden   # nur nach Freigabe
 ```
-Veröffentlichen verlangt im Entwurf: `status: freigegeben`, `freigegeben_von: Pascal …`, `kanal: instagram|facebook|instagram,facebook`, `bild_url: https://…` (öffentlich erreichbar – Instagram lädt das Bild selbst; z. B. GitHub Pages nach Push auf `main` oder eine von Pascal gewählte Ablage). Abschnitte `## Caption Instagram`, `## Text Facebook`, `## Alt-Text`.
+Veröffentlichen verlangt im Entwurf: `status: autonom` (Modus autonom) oder `status: freigegeben` + `freigegeben_von: Pascal …`, `kanal: instagram|facebook|instagram,facebook`, `bild_url: https://…` (öffentlich erreichbar – Instagram lädt das Bild selbst; z. B. GitHub Pages nach Push auf `main` oder eine von Pascal gewählte Ablage). Abschnitte `## Caption Instagram`, `## Text Facebook`, `## Alt-Text`.
 
-## Sicherheitssperren (alle drei gelten)
-1. Skript sendet nur mit `--senden` und nur bei `status: freigegeben` + Freigabe durch Pascal.
-2. Hook `.claude/hooks/meta-guard.sh` erzwingt vor jedem schreibenden Meta-Aufruf (Skript mit `--senden`, `curl -X POST/DELETE` an graph.facebook.com/graph.instagram.com) eine Bestätigung durch den Menschen – auch im Auto-Modus.
-3. Agent `rw-marketing` hat die Regel, ohne Pascals Freigabe nichts zu veröffentlichen, zu kommentieren, zu liken, zu folgen oder Nachrichten zu senden.
+## Veröffentlichungsmodus (`marketing/meta/modus.json`)
+| Modus | Wirkung |
+|---|---|
+| `autonom` (aktuell, entschieden von Pascal 18.11.2026) | Skript veröffentlicht Entwürfe mit `status: autonom` oder `freigegeben`, wenn die Qualitätsprüfung besteht, der Kanal in `erlaubte_kanaele` steht (derzeit nur `instagram`) und Tages-/Wochenlimit frei sind. Hook fragt nicht nach. |
+| `freigabe` | nur `status: freigegeben` + `freigegeben_von: Pascal`; Hook fragt vor jedem Senden |
+| `pause` | Skript verweigert jede Veröffentlichung (Not-Aus) |
+
+## Sicherheitssperren
+1. Skript: sendet nur mit `--senden`, prüft Modus, Status, Qualität (`pruefen`: Hook ≤ 125 Zeichen, 3–5 Hashtags mit #ruinwalk, Alt-Text, Faktenprüfung mit Belegen, „in Entwicklung“ ehrlich benannt, keine Superlative/fremden Links/Gewinnspiele, Bilddatei vorhanden), Kanal und Limits; protokolliert in `marketing/freigabe/veroeffentlicht/LOG.md`.
+2. Hook `.claude/hooks/schutz.js`: jede Änderung an `modus.json` → Rückfrage an Pascal; rohe Schreibaufrufe an die Graph API (`curl -X POST` …) → immer Rückfrage; `meta-api.js --senden` nur im Modus `autonom` und nur als schlichter Einzelbefehl ohne Rückfrage.
+3. Agent `rw-marketing`: kommentiert, liked, folgt, schreibt Nachrichten und löscht nie ohne Freigabe; heikle Themen gehen trotz Modus `autonom` an Pascal.
+
+## Automatischer Zeitplan (nach API-Anbindung)
+Ein geplanter Auftrag (scheduled task der Claude-Umgebung) kann zu festen Zeiten den nächsten passenden Entwurf aus dem Redaktionskalender prüfen und veröffentlichen. Einrichtung erst, wenn Token und `config.json` stehen und ein erster Beitrag manuell erfolgreich war.
 
 ## Grenzen der API (vor Nutzung in der aktuellen Doku prüfen)
 - Instagram: Veröffentlichung in zwei Schritten (Container → `media_publish`), Bild per öffentlicher URL (JPEG empfohlen), Tageslimit für API-Beiträge (Endpunkt `content_publishing_limit`), Reels/Karussells mit eigenen Parametern, Stories nur für Business-Konten.

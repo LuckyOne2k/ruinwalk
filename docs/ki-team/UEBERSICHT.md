@@ -10,7 +10,7 @@ Einfach die Aufgabe in Claude Code beschreiben – die Hauptsitzung (Rolle Proje
 - „**rw-marketing**: bereite die Beiträge für Woche 1 vor.“
 - Skills direkt aufrufen: `/ruinwalk-ablauf`, `/ruinwalk-tests`, `/ruinwalk-grafik` …
 
-Du entscheidest und gibst frei. Ohne deine Freigabe passiert nichts Öffentliches, nichts an der Live-Datenbank und kein Push auf `main`.
+Du entscheidest und gibst frei. Ohne deine Freigabe passiert nichts an der Live-Datenbank und kein Push auf `main`. Instagram-Beiträge postet `rw-marketing` im Modus `autonom` selbst (Not-Aus: „Marketing pausieren“).
 
 ## Agenten (`.claude/agents/`)
 | Agent | Aufgabe | Darf | Vorgeladene Skills |
@@ -22,7 +22,7 @@ Du entscheidest und gibst frei. Ohne deine Freigabe passiert nichts Öffentliche
 | `rw-welt-ki` | Welt, Quests, NPCs, Geschichten, KI-generierte Inhalte mit Validierung | Vorschläge/Dateien erstellen | projektwissen, ki-inhalte, balancing |
 | `rw-qa` | Tests, Regression, Review, Mutationsproben, CI, Sicherheitsprüfung – unabhängig | Tests schreiben, alles prüfen | projektwissen, tests, instanzkampf, mobile-check |
 | `rw-mobile-ux` | Hochformat, Touch, Responsive, Performance, Screenshots | UI/CSS ändern | projektwissen, mobile-check, tests |
-| `rw-marketing` | Marke, Instagram/Facebook, Content, Grafiken, Kalender, Community, Analyse | Entwürfe erstellen, nichts veröffentlichen | projektwissen, marke, social-content, grafik, meta-publishing |
+| `rw-marketing` | Marke, Instagram/Facebook, Content, Grafiken, Kalender, Community, Analyse | Entwürfe erstellen; Instagram-Beiträge selbst posten im Modus `autonom` | projektwissen, marke, social-content, grafik, meta-publishing |
 
 **Bewusst keine eigenen Agenten** für Economy, Balancing, Doku, Release, Analytics, Community: Das sind Teilaufgaben bestehender Agenten (gamedesign, architekt, qa, marketing). Eigene Agenten würden doppelte Zuständigkeiten erzeugen.
 
@@ -53,13 +53,13 @@ Global (in Claude eingebaut, nicht im Repo): `skill-creator`, `code-review`, `se
 ## Automatische Abläufe (Hooks, `.claude/settings.json`)
 | Hook | Wann | Wirkung |
 |---|---|---|
-| `hooks/schutz.js` | vor Bash- und MCP-Aufrufen | Rückfrage an dich bei: Meta-Veröffentlichung/-Schreibzugriff, schreibendem SQL/Migration/Edge Function am Live-Supabase, `git push` auf `main` |
+| `hooks/schutz.js` | vor Bash-, Datei- und MCP-Aufrufen | Rückfrage an dich bei: Änderung des Veröffentlichungsmodus, Meta-Schreibzugriff außerhalb des Modus `autonom`, schreibendem SQL/Migration/Edge Function am Live-Supabase, `git push` auf `main` |
 | `hooks/hinweise.js` | nach Dateiänderungen | erinnert Claude an die passenden Tests/Regeln (Instanzkampf, SQL, index.html, Freigaben, Team-Dateien) |
 
 Selbsttest des ganzen Systems: `node .claude/tests/team-check.js`
 
 ## Freigaben, die nur du erteilst
-1. Veröffentlichungen (Status `freigegeben` in `marketing/freigabe/`).
+1. Den Veröffentlichungsmodus (`marketing/meta/modus.json`: `autonom` | `freigabe` | `pause`). Aktuell `autonom` für Instagram; Facebook, Kommentare und Nachrichten weiter nur mit deiner Freigabe.
 2. Änderungen an der Live-Datenbank.
 3. Änderungen an eingefrorenen Teilen der Instanzkampf-Architektur.
 4. Push/Merge auf `main` (= Deploy).

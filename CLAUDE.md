@@ -24,7 +24,7 @@ steht in `docs/ki-team/UEBERSICHT.md`.
 5. **Datenbank:** Keine Änderung an der produktiven Supabase-Datenbank ohne ausdrücklichen Auftrag von Pascal. Jede Schemaänderung = Migration + Rollback + Tests + Doku (Skill `ruinwalk-db-aenderung`).
 6. **Tests.** Jede relevante Änderung bekommt Tests. Vor dem Abschluss die betroffenen Suites laufen lassen (Skill `ruinwalk-tests`). Rote Tests nie verschweigen, nie Tests abschalten.
 7. **Sicherheit.** Keine Secrets ins Repo (nur der öffentliche Publishable Key steht im Client). Kein `service_role`-Schlüssel im Client. Fremde Skills/Skripte vor Nutzung vollständig prüfen.
-8. **Öffentlichkeit.** Nichts veröffentlichen (Social Media, Issues in fremden Repos, E-Mails) ohne Pascals Freigabe. Meta-Veröffentlichungen laufen nur über den Freigabeprozess in `marketing/freigabe/`.
+8. **Öffentlichkeit.** Nichts veröffentlichen (Issues in fremden Repos, E-Mails, Kommentare, Nachrichten) ohne Pascals Freigabe. **Ausnahme Instagram-Beiträge:** Im Modus `autonom` (`marketing/meta/modus.json`, entschieden von Pascal am 18.11.2026) postet `rw-marketing` selbstständig – nur über `meta-api.js`, nur nach bestandener Qualitätsprüfung, innerhalb der Limits. Den Modus ändert nur Pascal.
 9. **Dokumentieren.** Entscheidungen und Änderungen in `docs/` festhalten. Berichte ehrlich: was getestet, was nicht.
 10. **Commits** auf Deutsch, beschreibend. Kein Push auf `main` ohne Auftrag.
 

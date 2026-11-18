@@ -1,5 +1,7 @@
 # Freigabeprozess
 
+> **Aktueller Modus: `autonom`** (`../meta/modus.json`, entschieden von Pascal am 18.11.2026). `rw-marketing` setzt geprüfte Instagram-Entwürfe selbst auf `status: autonom` und veröffentlicht sie über `meta-api.js` (Qualitätsprüfung, max. 1 Beitrag/Tag und 4/Woche, Protokoll in `veroeffentlicht/LOG.md`). Der folgende manuelle Ablauf gilt im Modus `freigabe` sowie immer für Facebook, Kommentare und heikle Themen. Not-Aus: Modus `pause`.
+
 ```
 entwuerfe/  ──(Pascal gibt frei)──►  freigegeben/  ──(veröffentlicht)──►  veroeffentlicht/
 ```

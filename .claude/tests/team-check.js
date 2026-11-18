@@ -51,7 +51,7 @@ for (const a of agents) {
 }
 check(agents.length === 8, `8 Agenten (${agents.length})`);
 const marketing = frontmatter(path.join(C, 'agents/rw-marketing.md'));
-check(marketing && !/mcp__Supabase/.test(marketing.tools) && /Nichts veröffentlichen/.test(marketing._body), 'rw-marketing: keine DB-Werkzeuge, Veröffentlichungsverbot');
+check(marketing && !/mcp__Supabase/.test(marketing.tools) && /modus\.json/.test(marketing._body), 'rw-marketing: keine DB-Werkzeuge, Veröffentlichungsmodus geregelt');
 const arch = frontmatter(path.join(C, 'agents/rw-architekt.md'));
 check(arch && !/Edit|Write/.test(arch.tools), 'rw-architekt: nur lesend');
 
@@ -60,9 +60,16 @@ let st; try { st = JSON.parse(fs.readFileSync(path.join(C, 'settings.json'), 'ut
 for (const ev of Object.values((st || {}).hooks || {})) for (const h of ev) for (const x of h.hooks) {
   const m = x.command.match(/\.claude\/hooks\/[\w.-]+/); check(m && fs.existsSync(path.join(ROOT, m[0])), `Hook-Datei ${m && m[0]} existiert`);
 }
-const hook = (inp) => cp.execFileSync('node', [path.join(C, 'hooks/schutz.js')], { input: JSON.stringify(inp) }).toString();
+const hook = (inp) => cp.execFileSync('node', [path.join(C, 'hooks/schutz.js')], { input: JSON.stringify(inp), env: { ...process.env, CLAUDE_PROJECT_DIR: ROOT } }).toString();
 const FAELLE = [
-  [{ tool_name: 'Bash', tool_input: { command: 'node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js veroeffentlichen a.md --senden' } }, true],
+  // Modus aus marketing/meta/modus.json (Erwartung wird unten abhängig vom Modus gesetzt)
+  [{ tool_name: 'Bash', tool_input: { command: 'node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js veroeffentlichen a.md --senden' } }, 'MODUS'],
+  [{ tool_name: 'Bash', tool_input: { command: 'node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js veroeffentlichen a.md --senden; curl -X POST https://graph.facebook.com/x' } }, true],
+  [{ tool_name: 'Edit', tool_input: { file_path: '/repo/marketing/meta/modus.json' } }, true],
+  [{ tool_name: 'Write', tool_input: { file_path: '/repo/marketing/meta/modus.json' } }, true],
+  [{ tool_name: 'Bash', tool_input: { command: "sed -i 's/pause/autonom/' marketing/meta/modus.json" } }, true],
+  [{ tool_name: 'Bash', tool_input: { command: 'cat marketing/meta/modus.json' } }, false],
+  [{ tool_name: 'Edit', tool_input: { file_path: '/repo/marketing/04_instagram.md' } }, false],
   [{ tool_name: 'Bash', tool_input: { command: 'node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js veroeffentlichen a.md' } }, false],
   [{ tool_name: 'Bash', tool_input: { command: 'curl -X POST https://graph.facebook.com/v25.0/1/feed -d message=x' } }, true],
   [{ tool_name: 'Bash', tool_input: { command: 'curl https://graph.facebook.com/v25.0/me' } }, false],
@@ -77,7 +84,9 @@ const FAELLE = [
   [{ tool_name: 'mcp__Supabase__list_tables', tool_input: {} }, false],
   [{ tool_name: 'Read', tool_input: { file_path: 'x' } }, false]
 ];
-for (const [inp, soll] of FAELLE) {
+let MODUS = 'freigabe'; try { MODUS = JSON.parse(fs.readFileSync(path.join(ROOT, 'marketing/meta/modus.json'), 'utf8')).modus; } catch {}
+for (let [inp, soll] of FAELLE) {
+  if (soll === 'MODUS') soll = MODUS !== 'autonom';
   const out = hook(inp); const ist = /"permissionDecision":"ask"/.test(out);
   check(ist === soll, `schutz.js: ${inp.tool_name} ${JSON.stringify(inp.tool_input).slice(0, 70)} → ${soll ? 'Rückfrage' : 'frei'}`);
 }
