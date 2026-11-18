@@ -39,7 +39,7 @@ Du entscheidest und gibst frei. Ohne deine Freigabe passiert nichts Öffentliche
 | `ruinwalk-ki-inhalte` | Methode + Werkzeug | Weltkanon, Vorschlagsformat, Validierung gegen Spieldaten | `scripts/inhalt-pruefen.js` |
 | `ruinwalk-marke` | Leitfaden | Positionierung, Ton, Farben, Schriften, Wahrheitsregeln | – |
 | `ruinwalk-social-content` | Arbeitsablauf | vom Thema zur Freigabe, Caption-Aufbau, Regeln | – |
-| `ruinwalk-grafik` | Werkzeug | Post/Story/Quadrat/Banner aus echten Assets | `scripts/render.js`, `vorlagen/vorlage.html` |
+| `ruinwalk-grafik` | Werkzeug | Post/Story/Quadrat/Banner aus echten Assets | `scripts/render.js`, `scripts/sprites-export.js`, `vorlagen/vorlage.html` |
 | `ruinwalk-meta-publishing` | Werkzeug + Anleitung | Meta-Anbindung, Status, Insights, Veröffentlichen mit Freigabesperre | `scripts/meta-api.js` |
 | `supabase` | extern (Supabase, MIT) | Plattformwissen, Sicherheits-Checkliste | – |
 | `supabase-postgres-best-practices` | extern (Supabase, MIT) | Postgres-Regeln (RLS, Locks, Indizes …) | – |

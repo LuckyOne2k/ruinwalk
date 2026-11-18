@@ -11,6 +11,7 @@
       "Bash(node .claude/skills/ruinwalk-balancing/scripts/spieldaten-export.js:*)",
       "Bash(node .claude/skills/ruinwalk-mobile-check/scripts/mobile-check.js:*)",
       "Bash(node .claude/skills/ruinwalk-grafik/scripts/render.js:*)",
+      "Bash(node .claude/skills/ruinwalk-grafik/scripts/sprites-export.js:*)",
       "Bash(node .claude/skills/ruinwalk-ki-inhalte/scripts/inhalt-pruefen.js:*)",
       "Bash(node .claude/tests/team-check.js:*)",
       "Bash(git status:*)",

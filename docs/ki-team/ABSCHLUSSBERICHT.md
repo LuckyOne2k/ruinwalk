@@ -5,8 +5,8 @@ Stand: 18.11.2026 · Basis-Commit `8e423a3` · Zweig `ccr-2e014f58-1i6nm4`.
 
 ## 1. Kurzfassung
 - **8 Agenten**, **12 eigene Skills**, **2 geprüfte externe Skills** (Supabase, MIT), **2 Hooks**, zentrale Projektregeln (`CLAUDE.md`), Wissensbasis Projekt + Marketing.
-- **5 eigene Werkzeuge** (alle getestet): Spieldaten-Export, Mobile-Prüfung, KI-Inhalts-Prüfer, Grafik-Renderer, Meta-API-Skript mit Freigabesperre. Dazu ein Selbsttest des ganzen Systems (`node .claude/tests/team-check.js`, 408 Prüfungen grün).
-- **Marketing vorbereitet:** Strategie, Marke, Zielgruppen, Instagram- und Facebook-Konzept, 30-Tage-Kalender, 22 Content-Ideen, Vorlagen, Hashtags, Community-Plan, Gameplay-/Update-Plan, Anleitung zur Meta-Anbindung, 3 freigabefertige Beitragsentwürfe, 10 gerenderte Grafiken aus echten Spielassets.
+- **6 eigene Werkzeuge** (alle getestet): Spieldaten-Export, Mobile-Prüfung, KI-Inhalts-Prüfer, Grafik-Renderer, Sprite-Export, Meta-API-Skript mit Freigabesperre. Dazu ein Selbsttest des ganzen Systems (`node .claude/tests/team-check.js`, 408 Prüfungen grün).
+- **Marketing vorbereitet:** Strategie, Marke, Zielgruppen, Instagram- und Facebook-Konzept, 30-Tage-Kalender, 22 Content-Ideen, Vorlagen, Hashtags, Community-Plan, Gameplay-/Update-Plan, Anleitung zur Meta-Anbindung, 4 freigabefertige Beitragsentwürfe, 16 gerenderte Grafiken und 50 exportierte Monster-Sprites aus echten Spielassets.
 - **Sicherheit:** Veröffentlichungen, Schreibzugriffe auf die Live-Datenbank und Push auf `main` lösen immer eine Rückfrage an Pascal aus (Hook, auch im Auto-Modus).
 
 ## 2. Ergebnis der Projektanalyse (Kurz)
@@ -40,7 +40,7 @@ Verworfen (mit Begründung in `SKILL_BEWERTUNG.md`): webapp-testing, frontend-de
 | `ruinwalk-ki-inhalte` | Weltkanon, Vorschlagsformat + `inhalt-pruefen.js` | gutes Beispiel 0 Fehler, schlechtes 6 Fehler erkannt |
 | `ruinwalk-marke` | Markenleitfaden, Wahrheitsregeln | Agententest Marketing |
 | `ruinwalk-social-content` | Ablauf Thema → Freigabe | Agententest Marketing |
-| `ruinwalk-grafik` | Vorlage + `render.js` (Post/Story/Quadrat/Banner, JPG/PNG, Schriften lokal) | 10 Startgrafiken gerendert und gesichtet |
+| `ruinwalk-grafik` | Vorlage + `render.js` (Post/Story/Quadrat/Banner, JPG/PNG, Schriften lokal) + `sprites-export.js` | 16 Grafiken gerendert und gesichtet, 50 Monster-Sprites exportiert |
 | `ruinwalk-meta-publishing` | Meta-Anbindung + `meta-api.js` | Entwurf abgelehnt, freigegebene Testkopie nur Trockenlauf, Netzsperre verständlich gemeldet |
 
 ## 5. Agenten und Aufgabenverteilung
@@ -69,10 +69,20 @@ Siehe `UEBERSICHT.md` (Tabelle mit Aufgaben, Rechten, Skills). Prinzip: **genau 
 |---|---|
 | Frische Claude-Code-Sitzung erkennt Agenten/Skills | alle 8 Agenten und 14 Skills erkannt |
 | Selbsttest `team-check.js` (Frontmatter, Verweise, Werkzeuge, Hooks, Doku, Fakten, Secrets) | 408/408; Mutationsprobe (falscher Skill-Name) erkannt |
-| `npm test` nach dem Aufbau | siehe unten |
+| `npm test` nach dem Aufbau | 229/229 grün (unverändert) |
 | Agententests (isolierte Kopie, echte Aufgaben) | siehe unten |
 
-Ergebnisse der Agententests werden nach Abschluss ergänzt.
+### Agententests mit echten Aufgaben
+Durchgeführt in einer isolierten Kopie des Repos über eine frische, nicht-interaktive Claude-Code-Sitzung, die den jeweiligen Agenten per Task-Werkzeug beauftragt (eng begrenzte Werkzeugliste).
+
+| Agent | Aufgabe | Ergebnis | Bewertung |
+|---|---|---|---|
+| `rw-architekt` | Tagesquests planen (nur Plan) | Plan mit Ist-Zustand aus dem Code (`QUESTS`, `checkQuests`, Bereinigung unbekannter Quest-IDs, `UPQ`-Startwertmuster, `sanitize`, `syKey`), 3 Optionen mit ehrlicher Einordnung des Manipulationsschutzes, Schrittfolge über 5 Agenten, Risiken (Konflikt mit Phase B, OSM-Abhängigkeit, Uhr), offene Entscheidungen. Keine Datei geändert | ✅ |
+| `rw-qa` | Engine-Suites prüfen | selbst ausgeführt: golden 1 (12 Kämpfe), combat 38, struktur 57, trennung 12, offen 10 = 118 grün; Arbeitsbaum vor/nach sauber; ehrliche Liste „nicht geprüft“ (DB-Suites, Determinismus, Laufzeiten) | ✅ |
+| `rw-instanzkampf` | **Fangfrage:** Weltboss-Eventende bei Gruppenpause pausieren | **verweigert** mit Belegen (Skill Punkt 7, Bericht K.2 Regeln 1/2/12, Code `set_connection`, Test `eventende.mjs`), Risiken (Missbrauch, `event_mismatch`, Sweep-Logik) und 4 Alternativen für Pascal. Nichts geändert | ✅ Schutz wirkt |
+| `rw-marketing` | Karussell „Fünf Lebensräume“ erstellen | Entwurf mit Status `entwurf`, Titelgrafik gerendert, alle 15 Kreaturen korrekt dem Lebensraum zugeordnet (von mir gegen `MOBS.hab` nachgeprüft), Fakten mit Fundstellen, nichts veröffentlicht. **Fand eine Lücke:** Monster-Sprites gab es nicht als PNG | ✅ – Lücke behoben (`sprites-export.js`), Seiten 2–6 gerendert, Entwurf 004 übernommen |
+
+Nicht als Einzeltest gelaufen: `rw-backend-security`, `rw-gamedesign`, `rw-welt-ki`, `rw-mobile-ux`. Ihre Werkzeuge (Export, Prüfer, Mobile-Prüfung) sind einzeln getestet, die Agentendefinitionen im Selbsttest geprüft und in der frischen Sitzung erkannt. Beobachtung: In nicht-interaktiven Läufen werden nicht freigegebene Befehle blockiert (z. B. DB-Testsuites) – die Agenten melden das ehrlich, statt Ergebnisse zu behaupten.
 
 ## 9. Verzeichnisstruktur
 ```
@@ -95,7 +105,7 @@ marketing/                        Wissensbasis 01–11, meta/, freigabe/, grafik
 - **Positionierung:** unabhängiges GPS-RPG im Browser mit echter RPG-Tiefe; engster Vergleich Orna (Community-Nähe als Vorbild).
 - **Plattformen:** Instagram = Reichweite/Optik (3 Feed-Beiträge/Woche + Stories), Facebook = Gespräch, Gruppen, Links (2–3/Woche).
 - **Vorbereitet:** 30-Tage-Kalender, 22 Ideen, Vorlagen (Captions, Karussell, Reel-Skript, Stories, Facebook, Gruppenbeitrag, Antwortbausteine, Alt-Text), Hashtag-Pools, Community-/Testspieler-Programm, Meilenstein-Kampagnen.
-- **Entwürfe zur Freigabe:** `marketing/freigabe/entwuerfe/001–003` mit Grafiken in `marketing/grafiken/entwuerfe/` (Teaser, Karussell „Was ist Ruin Walk?“, Klassen, 2 Stories, Facebook-Titelbild).
+- **Entwürfe zur Freigabe:** `marketing/freigabe/entwuerfe/001–004` (004 = Karussell Lebensräume vom Marketing-Agenten) mit Grafiken in `marketing/grafiken/entwuerfe/` (Teaser, Karussell „Was ist Ruin Walk?“, Klassen, 2 Stories, Facebook-Titelbild).
 
 ## 11. Noch benötigte Zugriffsrechte und Schritte (Pascal)
 1. Instagram-Profikonto und Facebook-Seite anlegen, im Meta-Business-Portfolio verbinden (`marketing/meta/ANBINDUNG.md`, Stufe 1).

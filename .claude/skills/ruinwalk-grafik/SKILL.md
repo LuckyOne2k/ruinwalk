@@ -32,6 +32,7 @@ Standard-Ausgabe: `marketing/grafiken/entwuerfe/`. Grafiken sind **Entwürfe** b
 - `assets/logo.png` (800×498, transparent), `assets/bg_*.jpg` (720×1290 Hochformat).
 - `figs/<pfad>.png` (64×64 Pixel-Art, wird scharf hochskaliert): wanderer, krieger, bogen, magier, heiler, alle 36 Pfadstufen (ritter, paladin, sonnenwaechter, berserker, kriegsherr, weltenbrecher, duellant, klingentaenzer, phantomklinge, scharfschuetze, meisterschuetze, falkenauge, jaeger, bestienmeister, herr, fallensteller, schattenjaeger, nachtpirscher, feuermagier, pyromant, phoenixweber, frostmagier, eisweber, winterherrscher, sturmmagier, sturmrufer, himmelsspalter, priester, hohepriester, lichtgesandter, moench, grossmeister, erleuchteter, naturheiler, druide, weltenbaumhueter).
 - `items/*.png` (Ausrüstung), `status/*.png` (Status-Icons).
+- **Monster-, Fähigkeits- und Ressourcen-Sprites** liegen im Spiel nur als Zeichenanweisungen (`sprites*.js`). Export als PNG (32×32, wird scharf hochskaliert): `node .claude/skills/ruinwalk-grafik/scripts/sprites-export.js [ordner] [--praefix=m_|sk_|n_|st_]` → Standard `marketing/grafiken/sprites/m_<id>.png` (alle 50 Monster liegen dort bereits). IDs = Schlüssel in `MOBS`.
 - Echte Spiel-Screenshots: `node .claude/skills/ruinwalk-mobile-check/scripts/mobile-check.js <ordner> --breiten=390` erzeugt Karte, Inventar, Herstellen, Quests, Charakter, Mehr.
 
 ## Regeln
