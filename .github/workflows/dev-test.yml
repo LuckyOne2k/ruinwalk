@@ -1,0 +1,44 @@
+name: dev-test
+# Manueller Test echter Client-Aufrufe gegen das Supabase-DEV-Projekt. Läuft NIE automatisch (kein push/pull_request/schedule).
+# Secrets (Environment "dev-test", mit erforderlicher Freigabe durch den Eigentümer): DEV_SUPABASE_URL, DEV_ANON_KEY. KEIN service_role-Schlüssel, nirgends.
+# Variablen (optional, Environment-Variablen): DEV_TEST_INSTANCE, DEV_TEST_FIGHT, DEV_TEST_ROUND für die positiven Gruppenschritte.
+on:
+  workflow_dispatch:
+    inputs:
+      bestaetigung:
+        description: 'Zur Bestätigung "dev" eintragen (es werden Testkonten auf Dev angelegt und am Ende gelöscht)'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: dev-test
+  cancel-in-progress: false
+jobs:
+  dev-test:
+    if: ${{ github.event.inputs.bestaetigung == 'dev' && github.repository == 'LuckyOne2k/ruinwalk' }}
+    runs-on: ubuntu-latest
+    environment: dev-test
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Secrets vorhanden? (Werte werden nie ausgegeben)
+        env:
+          DEV_SUPABASE_URL: ${{ secrets.DEV_SUPABASE_URL }}
+          DEV_ANON_KEY: ${{ secrets.DEV_ANON_KEY }}
+        run: |
+          for k in DEV_SUPABASE_URL DEV_ANON_KEY; do
+            if [ -z "${!k}" ]; then echo "ABBRUCH: Secret $k fehlt (kein Aufruf gemacht)"; exit 2; fi
+            echo "::add-mask::${!k}"
+          done
+          echo "Secrets vorhanden."
+      - name: Echter Dev-Client-Test
+        env:
+          DEV_SUPABASE_URL: ${{ secrets.DEV_SUPABASE_URL }}
+          DEV_ANON_KEY: ${{ secrets.DEV_ANON_KEY }}
+          DEV_TEST_INSTANCE: ${{ vars.DEV_TEST_INSTANCE }}
+          DEV_TEST_FIGHT: ${{ vars.DEV_TEST_FIGHT }}
+          DEV_TEST_ROUND: ${{ vars.DEV_TEST_ROUND }}
+        run: node supabase/dev/real-test.mjs

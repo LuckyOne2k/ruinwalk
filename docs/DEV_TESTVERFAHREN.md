@@ -34,7 +34,7 @@ Jedes Ergebnis wird mit Zeit, Aufruf und Statuscode (ohne Token/Passwörter) in 
 - Schutz: Workflow bricht ab, wenn die URL nicht die Dev-Projekt-Ref enthält (`jlkqktmvqxibqdcobbhf`) oder die Production-Ref (`malbiahllucctiafzydv`) vorkommt; keine Secrets in Logs (`::add-mask::`), keine Forks.
 - Risiken: Rate-Limits/E-Mail-Bestätigung bei Registrierung, Dev-Zustand wird verändert (Testdaten), Flakiness durch Netz.
 - Alternative (realistischer für den Anfang): lokales Skript `node supabase/dev/real-test.mjs` (noch nicht gebaut), das du mit den Dev-Schlüsseln in deiner Shell startest; Ausgabe ohne Geheimnisse.
-**Nicht gebaut:** weder Workflow noch Skript; beides erst nach deiner Entscheidung.
+**Gebaut (Stand 18.11.2026, nicht ausgeführt):** Workflow `.github/workflows/dev-test.yml` (nur `workflow_dispatch`, Environment `dev-test`) und `supabase/dev/real-test.mjs` (deckt die Schritte 1–9 und 12 ab; Schritte 10, 11 und die positiven Gruppenschritte brauchen lokale/serverseitige Vorbereitung). Verwaiste Testkonten: `supabase/dev/list_test_accounts.sql`. Lokal geprüft nur gegen einen HTTP-Stub (`dev-skript.mjs`).
 
 ## Weiter offen (nur echt beweisbar)
 Echtes GoTrue/JWT, REST-Verhalten von PostgREST (Rechte, Profile-Header), Betreiber-JWT-Prüfung durch eine Edge Function (nicht gebaut), Last/Parallelität gegen echte Instanz.

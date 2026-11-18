@@ -11,8 +11,20 @@ Betreiber = ein **Supabase-Konto** (UUID). Ein Freitext oder eine vom Aufrufer g
 - Verwaltung der Betreiber **nur per SQL/Migration** (`rwi.set_operator`, kein Wrapper, kein öffentliches Admin-Interface). Konto gelöscht → Betreiberzeile entfällt (FK cascade), Protokoll behält die ID.
 - Wrapper `public.rw_ops_*` bleiben **nur service_role**; Normalclients (anon/authenticated) kommen an Wrapper, `rwi.operators`, `set_operator` und `resume_stuck` nicht heran (getestet).
 
+## Edge Function `operator` (neu, nicht bereitgestellt)
+`supabase/functions/operator/` (`handler.mjs` Kernlogik, `index.ts` Deno-Einstieg, `config.toml` mit `verify_jwt = true`). Aktionen: `resume`, `terminate` (kein `register_engine`: nicht ausdrücklich freigegeben, bleibt SQL/service_role).
+- **Identität:** Das `Authorization: Bearer`-JWT wird bei GoTrue geprüft (`GET /auth/v1/user`: Signatur, Ablauf, Sitzung); zusätzlich Rolle `authenticated`, `sub` = von GoTrue gelieferte ID, Ablauf in der Zukunft. Nur diese ID geht als `p_operator` an die Wrapper. Felder `operator`, `operator_id`, `account_id` im Body machen die Anfrage **ungültig (400)**.
+- **MFA:** Standard erzwingt `aal2` (`OPERATOR_REQUIRE_MFA=false` nur für Dev).
+- **Berechtigung:** durch `rwi.check_operator` (aktiv, Umfang); Antwort an den Aufrufer nur `403 forbidden` ohne Grund; Grund und geprüfte Konto-ID stehen im `ops_log` (`denied`).
+- **Eingaben:** strenge Validierung (Kampf, Runde, Begründung 10–1000 Zeichen, Engine-Name, unbekannte Felder abgelehnt, Body ≤ 4096 Byte, nur POST).
+- **Schlüssel:** `SUPABASE_SERVICE_ROLE_KEY` wird nur serverseitig aus der Umgebung gelesen, nie zurückgegeben oder protokolliert. Aufruf der A1-Wrapper über PostgREST (`/rest/v1/rpc/rw_ops_*`) mit diesem Schlüssel; die internen `rwi`-Funktionen werden nie freigegeben. `rwi` bleibt nicht exponiert.
+- **Fehler:** `401` (kein/ungültiges/abgelaufenes JWT), `403` (nicht berechtigt / MFA fehlt), `400` (Eingabe), `405`, `502` (Backend-Fehler ohne Details).
+- **Tests:** `operator-edge.mjs` (34): gültiger Betreiber, ungültige Signatur, abgelaufen, falscher Schlüssel, Anon-Key, Rolle service_role, normaler Spieler, Betreiber ohne Umfang, fehlende/zu kurze Begründung, manipulierte Betreiber-ID, doppelte Wiederaufnahme, beendete Instanz, MFA, Backend-Fehler, keine Schlüssel in Antworten/Logs, `rwi.operators` über Data API weder lesbar noch beschreibbar.
+- **Simuliert vs. echt:** GoTrue ist ein lokaler Stub (HS256-Prüfung); die Datenbankwrapper sind echt (lokales PG mit Rollenstub). **Nicht bewiesen:** echtes GoTrue/JWT (Signatur-Schlüssel, Sitzungssperre), echte Edge-Runtime (Deno), Gateway-`verify_jwt`, MFA-Claims (`aal`) eines echten Tokens.
+- **Echte Dev-Prüfung (nach Freigabe):** Funktion auf Dev bereitstellen; Betreiberkonto mit MFA anlegen und per SQL `rwi.set_operator`; Aufrufe mit gültigem Token, abgelaufenem Token, normalem Spielerkonto, Konto ohne Umfang; `ops_log` prüfen.
+
 ## Was NICHT bewiesen ist
-Die Datenbank prüft die **Berechtigung der übergebenen Konto-UUID**. Dass diese UUID wirklich vom eingeloggten Betreiber stammt, muss die aufrufende Schicht sicherstellen: eine vertrauenswürdige Edge Function (service_role) verifiziert das Betreiber-JWT (GoTrue; optional MFA) und reicht `sub` weiter. Diese Funktion ist **nicht gebaut** und lokal nicht beweisbar (kein GoTrue). Bis dahin: Wrapper nur mit dem service_role-Schlüssel, nur durch Pascal von einem sicheren Ort. Der Datenbank-Eigentümer (postgres) kann technisch weiterhin das Protokoll leeren (TRUNCATE) — nur Rechte schützen, nicht der Trigger.
+Die Datenbank prüft die **Berechtigung der übergebenen Konto-UUID**. Dass diese UUID wirklich vom eingeloggten Betreiber stammt, stellt die Edge Function `operator` sicher (siehe oben): sie ist **gebaut, aber nicht bereitgestellt** und mit echtem GoTrue nicht geprüft. Bis zur Bereitstellung und Dev-Prüfung: Wrapper nur mit dem service_role-Schlüssel, nur durch Pascal von einem sicheren Ort. Der Datenbank-Eigentümer (postgres) kann technisch weiterhin das Protokoll leeren (TRUNCATE) — nur Rechte schützen, nicht der Trigger.
 
 ## Berechtigungsmatrix
 | Aktion | anon | authenticated | service_role (Wrapper) | Betreiber nötig |
