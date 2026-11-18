@@ -1,5 +1,10 @@
 -- Das Skript steht in EINER eigenen Transaktion (begin/commit): auch ohne psql -1 und ohne ON_ERROR_STOP wird nach einer fehlgeschlagenen Prüfung nichts gelöscht.
+-- BEDIENUNG: ausschließlich über  supabase/dev/cleanup_dev.sh  (Referenz und Bestätigung als  set local  in DIESER Transaktion, nur Port 5432,
+-- bereinigte PG-Umgebung, SHA-256-Pflicht). Direkt mit psql nur über eine Direktverbindung und mit  psql -X -v ON_ERROR_STOP=1 -f  (ohne -1).
 begin;
+-- Sperr-Wartezeit begrenzen, bevor die erste Sperre angefordert wird (5 s wie bei der Installation; eine wartende Sperre auf auth.users würde
+-- sonst auch alle später ankommenden Anmeldezugriffe blockieren). Als DO-Block, damit es keine Ausgabe erzeugt.
+do $$ begin perform set_config('lock_timeout', '5s', true); end $$;
 
 -- ZIELPRÜFUNG (zwingend, steht wortgleich in 00_preflight.sql, rollback_dev.sql und cleanup_test_accounts.sql; ein Test vergleicht die Texte)
 -- Erwartet ausdrücklich: set rw.project_ref = 'jlkqktmvqxibqdcobbhf';  (vor dem Skript, gleiche Sitzung; fehlt sie oder weicht sie ab: Abbruch, kein Fallback)
@@ -18,7 +23,7 @@ begin
 end $$;
 
 -- Löscht ausschließlich Testkonten, deren E-Mail auf @rwtest.invalid endet (reservierte Testdomain, nie echte Spieler). Separat vom Rollback.
--- Voraussetzung: gleiche Bestätigung wie beim Rollback:  set rw.rollback_confirm = 'ja-loeschen';
+-- Voraussetzung: gleiche Bestätigung wie beim Rollback (rw.rollback_confirm = 'ja-loeschen'; Wrapper: RW_ROLLBACK_CONFIRM=ja-loeschen).
 do $$
 declare n bigint;
 begin

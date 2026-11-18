@@ -1,5 +1,10 @@
 -- Das Skript steht in EINER eigenen Transaktion (begin/commit): auch ohne psql -1 und ohne ON_ERROR_STOP führt ein fehlgeschlagener Check dazu, dass nichts davon ausgeführt wird.
+-- BEDIENUNG: ausschließlich über  supabase/dev/rollback_dev.sh  (setzt Projektreferenz und Bestätigung als  set local  in DIESER Transaktion, nur Port 5432,
+-- bereinigte PG-Umgebung, SHA-256-Pflicht). Direkt mit psql nur über eine Direktverbindung und mit  psql -X -v ON_ERROR_STOP=1 -f  (ohne -1).
 begin;
+-- Sperr-Wartezeit begrenzen, bevor die erste Sperre angefordert wird (5 s wie bei der Installation; eine wartende Sperre auf auth.users würde
+-- sonst auch alle später ankommenden Anmeldezugriffe blockieren). Als DO-Block, damit es keine Ausgabe erzeugt.
+do $$ begin perform set_config('lock_timeout', '5s', true); end $$;
 
 -- ZIELPRÜFUNG (zwingend, steht wortgleich in 00_preflight.sql, rollback_dev.sql und cleanup_test_accounts.sql; ein Test vergleicht die Texte)
 -- Erwartet ausdrücklich: set rw.project_ref = 'jlkqktmvqxibqdcobbhf';  (vor dem Skript, gleiche Sitzung; fehlt sie oder weicht sie ab: Abbruch, kein Fallback)
@@ -17,8 +22,9 @@ begin
   if have is distinct from dev_sysid then raise exception 'ziel: Datenbankkennung gehört nicht zu ruinwalk-dev - Abbruch'; end if;
 end $$;
 
--- Rücksetzung der Dev-Installation (schema.sql + rwi 01..05). NIE auf Produktion, nie ungeprüft. Läuft in EINER Transaktion: psql -1 -v ON_ERROR_STOP=1 -f rollback_dev.sql
--- Sicherung gegen Versehen: ohne  set rw.rollback_confirm = 'ja-loeschen';  vor dem Skript (gleiche Sitzung) bricht es ab.
+-- Rücksetzung der Dev-Installation (schema.sql + rwi 01..05). NIE auf Produktion, nie ungeprüft. Besitzt seine Transaktion selbst (begin/commit oben/unten): psql -X -v ON_ERROR_STOP=1 -f rollback_dev.sql, OHNE -1 (sonst nur Warnungen zu verschachteltem begin/commit).
+-- Verbindung: direkt oder Session-Pooler (Port 5432), NICHT Transaktions-Pooler (6543). Der Wrapper rollback_dev.sh erzwingt das und setzt Referenz/Bestätigung in der Transaktion.
+-- Sicherung gegen Versehen: ohne Bestätigung rw.rollback_confirm = 'ja-loeschen' (Wrapper: RW_ROLLBACK_CONFIRM=ja-loeschen) bricht es ab.
 -- Entfernt NUR die Objekte dieser Installation (Manifest mit Fingerabdrücken, kein „alles in public“). Nicht entfernt werden:
 --   * auth.users-Zeilen (Testkonten): separat mit cleanup_test_accounts.sql
 --   * Erweiterungen, Rollen, bestehende Default-ACLs, Vault-Secrets, Edge Functions, Cron-Jobs, Migrationshistorie (supabase_migrations)
@@ -45,7 +51,7 @@ end $$;
 -- Sperren: alle Tabellen des Umfangs exklusiv sperren, BEVOR geprüft wird (gleiche Transaktion, bis zum Ende gehalten). Das verhindert gleichzeitiges Anlegen von
 -- Sichten, Fremdschlüsseln, Triggern oder Richtlinien auf diesen Tabellen und Schreibzugriffe. lock_timeout: lieber abbrechen als hängen.
 -- Nicht ausschließbar: gleichzeitiges Anlegen einer NEUEN Funktion oder eines Typs in rwi zwischen Prüfung und DROP SCHEMA (siehe docs/DEV_INSTALLATIONSFREIGABE.md).
-set local lock_timeout = '15s';
+set local lock_timeout = '5s';   -- vorher 15 s; 5 s wie Installation/Cleanup (DROP TRIGGER braucht ACCESS EXCLUSIVE auf auth.users)
 do $$
 declare r record;
 begin

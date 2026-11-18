@@ -1,9 +1,10 @@
 // Installation, zweiter Versuch, Rollback und Wiederholung: node server/instance/tests/installation.mjs
 // Prüft supabase/dev/{00_preflight,build.sh,rollback_dev.sql,cleanup_test_accounts.sql} auf einer lokalen PostgreSQL-Instanz mit der Supabase-Attrappe
 // (supabase/tests/00_stub.sql, Modus legacy = Standardrechte für API-Rollen wie auf Dev). Lokal, NICHT auf einem echten Supabase-Projekt.
-import { readFileSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, writeFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { spawnSync, spawn } from 'node:child_process';
+import net from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -13,6 +14,8 @@ const root = join(here, '../../..');
 const STUB = readFileSync(join(root, 'supabase/tests/00_stub.sql'), 'utf8');
 let pass = 0, fail = 0;
 const ok = (c, n, i = '') => { (c ? pass++ : fail++); console.log(`${c ? 'ok' : 'NICHT OK'} - ${n}${i ? '  [' + i + ']' : ''}`); };
+// Testpasswort mit Sonderzeichen für die pgpass-Maskierung (\ und :); taucht nie in URLs auf
+const PW = 'pw\\mit:doppelpunkt', PW_PGPASS = 'pw\\\\mit\\:doppelpunkt';
 
 const out = join(mkdtempSync(join(tmpdir(), 'rwbuild-')), 'install_dev.sql');
 const b = spawnSync('bash', [join(root, 'supabase/dev/build.sh'), out], { encoding: 'utf8' });
@@ -95,25 +98,26 @@ try {
 
   // Wrapper-Skript install_dev.sh: bricht vor dem Aufruf von psql ab (psql ist hier eine Attrappe, die nur den Aufruf aufzeichnet)
   const fake = mkdtempSync(join(tmpdir(), 'rwfake-')), calls = join(fake, 'calls.txt');
-  writeFileSync(join(fake, 'psql'), `#!/usr/bin/env bash\necho "$@" >> '${calls}'\ncat > '${calls}.stdin'\n`, { mode: 0o755 });
+  writeFileSync(join(fake, 'psql'), `#!/usr/bin/env bash\necho "$@" >> '${calls}'\nenv | grep -E '^(PG|PSQLRC)' > '${calls}.env'\ncat > '${calls}.stdin'\n[ -n "$PGPASSFILE" ] && { cat "$PGPASSFILE" > '${calls}.pgpass'; stat -c %a "$PGPASSFILE" > '${calls}.pgpassmode'; echo "$PGPASSFILE" > '${calls}.pgpasspath'; } || true\n`, { mode: 0o755 });
   const sha = createHash('sha256').update(INSTALL).digest('hex'), instFile = join(fake, 'install_dev.sql'); writeFileSync(instFile, INSTALL);
-  const run = (env, arg) => spawnSync('bash', [join(root, 'supabase/dev/install_dev.sh'), ...(arg === undefined ? [] : [arg])], { encoding: 'utf8', env: { PATH: fake + ':' + process.env.PATH, RW_INSTALL_FILE: instFile, ...env } });
-  const URLOK = `postgresql://postgres.${DEV_REF}:x@aws-0-eu-central-1.pooler.supabase.com:5432/postgres`;
+  const run = (env, arg) => spawnSync('bash', [join(root, 'supabase/dev/install_dev.sh'), ...(arg === undefined ? [] : [arg])], { encoding: 'utf8', env: { PGPASSWORD: PW, PATH: fake + ':' + process.env.PATH, RW_INSTALL_FILE: instFile, ...env } });
+  const URLOK = `postgresql://postgres.${DEV_REF}@aws-0-eu-central-1.pooler.supabase.com:5432/postgres`;
   const called = () => { try { return readFileSync(calls, 'utf8').trim().length > 0; } catch { return false; } };
   const cases = [
     ['ohne RW_PROJECT_REF', { RW_DB_URL: URLOK }, sha, /RW_PROJECT_REF ist nicht gesetzt/],
     ['Produktionsreferenz', { RW_PROJECT_REF: PROD_REF, RW_DB_URL: URLOK }, sha, /Produktion ist ausdrücklich ausgeschlossen/],
     ['abweichende Referenz', { RW_PROJECT_REF: 'abcdefghijklmnopqrst', RW_DB_URL: URLOK }, sha, /weicht von ruinwalk-dev ab/],
     ['ohne Verbindung', { RW_PROJECT_REF: DEV_REF }, sha, /RW_DB_URL ist nicht gesetzt/],
-    ['Verbindung ohne Dev-Referenz', { RW_PROJECT_REF: DEV_REF, RW_DB_URL: 'postgresql://postgres:x@db.abcdefghijklmnopqrst.supabase.co:5432/postgres' }, sha, /Referenz von ruinwalk-dev nicht/],
-    ['Verbindung nennt Produktion', { RW_PROJECT_REF: DEV_REF, RW_DB_URL: `postgresql://postgres:x@db.${PROD_REF}.supabase.co/postgres?x=${DEV_REF}` }, sha, /Produktionsreferenz/],
+    ['Verbindung ohne Dev-Referenz', { RW_PROJECT_REF: DEV_REF, RW_DB_URL: 'postgresql://postgres@db.abcdefghijklmnopqrst.supabase.co:5432/postgres' }, sha, /Referenz von ruinwalk-dev nicht/],
+    ['Verbindung nennt Produktion', { RW_PROJECT_REF: DEV_REF, RW_DB_URL: `postgresql://postgres@db.${PROD_REF}.supabase.co/postgres?x=${DEV_REF}` }, sha, /Produktionsreferenz/],
     ['ohne Hash-Argument', { RW_PROJECT_REF: DEV_REF, RW_DB_URL: URLOK }, undefined, /SHA-256 der install_dev.sql fehlt/],
     ['falscher Hash', { RW_PROJECT_REF: DEV_REF, RW_DB_URL: URLOK }, '0'.repeat(64), /weicht vom erwarteten Wert ab/],
   ];
-  for (const [n, env, arg, re] of cases) { const r = run(env, arg); ok(r.status === 2 && re.test(r.stderr) && !called() && !r.stdout.includes('x@'), `install_dev.sh bricht ab (${n}), psql wird nicht aufgerufen`); }
+  for (const [n, env, arg, re] of cases) { const r = run(env, arg); ok(r.status === 2 && re.test(r.stderr) && !called() && !r.stdout.includes(PW), `install_dev.sh bricht ab (${n}), psql wird nicht aufgerufen`); }
   const good = run({ RW_PROJECT_REF: DEV_REF, RW_DB_URL: URLOK }, sha);
   const sent = readFileSync(calls + '.stdin', 'utf8');
-  ok(good.status === 0 && called() && (/ -v ON_ERROR_STOP=1 -f -$/m.test(readFileSync(calls, 'utf8')) && !/ -1( |$)/m.test(readFileSync(calls, 'utf8'))) && sent.startsWith(`set rw.project_ref = '${DEV_REF}';\n`) && sent.includes(INSTALL) && !good.stdout.includes('x@') && !good.stderr.includes('x@'), 'install_dev.sh mit allen richtigen Angaben: ON_ERROR_STOP=1 und kein -1 (die Datei besitzt ihre Transaktion), Referenz vor der Datei gesetzt, Verbindungszeichenfolge nicht ausgegeben');
+  const REFLINE = `set local rw.project_ref = '${DEV_REF}';\n`;
+  ok(good.status === 0 && called() && (/ -X -w -v ON_ERROR_STOP=1 -f -$/m.test(readFileSync(calls, 'utf8')) && !/ -1( |$)/m.test(readFileSync(calls, 'utf8'))) && !/^set rw\.project_ref/m.test(sent) && sent.includes('\nbegin;\n' + REFLINE) && sent.indexOf(REFLINE) < sent.indexOf('-- ZIELPRÜFUNG') && sent.replace(REFLINE, '') === INSTALL && !good.stdout.includes(PW) && !good.stderr.includes(PW), 'install_dev.sh mit allen richtigen Angaben: psql -X, ON_ERROR_STOP=1, kein -1; Referenz als set local direkt nach dem begin der Datei (in der Transaktion, vor der Zielprüfung), sonst unveränderter Inhalt; Verbindungszeichenfolge nicht ausgegeben');
 
   // --- Installation ---
   const inst = await tx(T + adapt(INSTALL));
@@ -261,7 +265,7 @@ try {
   // Wrapper mit ECHTEM psql (nur die Verbindung wird auf die lokale Testdatenbank umgeleitet): eine Transaktion, Abbruch bei erstem Fehler, Zielprüfung in der Datenbank
   const real = join(fake, 'bin'); await q('select 1');
   const wrapDir = mkdtempSync(join(tmpdir(), 'rwwrap-')); writeFileSync(join(wrapDir, 'psql'), `#!/usr/bin/env bash\nshift\nexec ${cl.BIN}/psql -h ${cl.tmp} -p ${cl.port} -U postgres -X -q -d rwi "$@"\n`, { mode: 0o755 });
-  const runReal = (file, extraEnv = {}) => { writeFileSync(join(wrapDir, 'inst.sql'), file); const h = createHash('sha256').update(file).digest('hex'); return spawnSync('bash', [join(root, 'supabase/dev/install_dev.sh'), h], { encoding: 'utf8', env: { PATH: wrapDir + ':' + process.env.PATH, RW_INSTALL_FILE: join(wrapDir, 'inst.sql'), RW_PROJECT_REF: DEV_REF, RW_DB_URL: URLOK, ...extraEnv } }); };
+  const runReal = (file, extraEnv = {}) => { writeFileSync(join(wrapDir, 'inst.sql'), file); const h = createHash('sha256').update(file).digest('hex'); return spawnSync('bash', [join(root, 'supabase/dev/install_dev.sh'), h], { encoding: 'utf8', env: { PGPASSWORD: PW, PATH: wrapDir + ':' + process.env.PATH, RW_INSTALL_FILE: join(wrapDir, 'inst.sql'), RW_PROJECT_REF: DEV_REF, RW_DB_URL: URLOK, ...extraEnv } }); };
   const rbOk = await RB(); ok(rbOk.code === 0 && (await fp()) === pristine, 'Ausgangszustand für den Wrapper-Test');
   const wrongDb = runReal(INSTALL);   // unveränderte Dev-Kennung: lokale Datenbank ist nicht ruinwalk-dev
   ok(wrongDb.status !== 0 && /Datenbankkennung gehört nicht zu ruinwalk-dev/.test(wrongDb.stderr) && (await fp()) === pristine, 'install_dev.sh mit echtem psql gegen eine andere Datenbank: Abbruch durch die Zielprüfung, nichts verändert');
@@ -272,11 +276,16 @@ try {
   ok(wrapTwice.status !== 0 && (await tabs()) === '6/18', 'zweiter Wrapper-Lauf bricht ab (Preflight), nichts verändert');
   await q('drop table public.fremd_blockiert');
   // Wrapper: Hash wird über genau die ausgeführte Datei gebildet
-  const shSrc = readFileSync(join(root, 'supabase/dev/install_dev.sh'), 'utf8');
-  ok(/cp "\$FILE" "\$TMP"/.test(shSrc) && /sha256sum "\$TMP"/.test(shSrc) && /cat "\$TMP"/.test(shSrc) && !/cat "\$FILE"/.test(shSrc), 'install_dev.sh hasht und führt dieselbe private Kopie aus (kein zweites Lesen der Originaldatei)');
-  const badUrls = [['Überschreibung des Hosts über Abfrageparameter', `postgresql://postgres.${DEV_REF}:x@aws-0-eu-central-1.pooler.supabase.com:5432/postgres?host=db.abc.supabase.co`], ['Dev-Referenz nur im Passwort', `postgresql://postgres:${DEV_REF}@db.abcdefghijklmnopqrst.supabase.co:5432/postgres`], ['Dev-Referenz nur im Datenbanknamen', `postgresql://postgres:x@db.abcdefghijklmnopqrst.supabase.co:5432/${DEV_REF}`], ['keine URL (Schlüssel-Wert-Form)', `host=db.${DEV_REF}.supabase.co user=postgres`], ['Pooler-Benutzer ohne Referenz', 'postgresql://postgres:x@aws-0-eu-central-1.pooler.supabase.com:5432/postgres']];
+  // (angepasst, gleich streng: die Schutzlogik liegt jetzt gemeinsam in _ziel_wrapper.sh; alle drei Wrapper binden sie ein und lesen keine Datei selbst)
+  const shSrc = readFileSync(join(root, 'supabase/dev/_ziel_wrapper.sh'), 'utf8');
+  const fileUse = shSrc.split('\n').filter((l) => l.includes('"$FILE"') && !/^\s*#/.test(l));
+  const wrappers = ['install_dev.sh', 'rollback_dev.sh', 'cleanup_dev.sh'].map((w) => readFileSync(join(root, 'supabase/dev', w), 'utf8'));
+  ok(/cp "\$FILE" "\$TMP"/.test(shSrc) && /sha256sum "\$TMP"/.test(shSrc) && /\{ print \}' "\$TMP"/.test(shSrc) && fileUse.length === 2 && fileUse.every((l) => /\[ -f "\$FILE" \]|cp "\$FILE" "\$TMP"/.test(l))
+     && wrappers.every((w) => /source "\$D\/_ziel_wrapper\.sh"/.test(w) && /^rw_pruefe_ziel$/m.test(w) && /^rw_fuehre_aus /m.test(w) && !/\b(cat|psql|sha256sum)\b/.test(w.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n'))),
+     'Wrapper hashen und führen dieselbe private Kopie aus (gemeinsame Schutzlogik _ziel_wrapper.sh; install/rollback/cleanup lesen keine Datei selbst und rufen psql nicht selbst auf)');
+  const badUrls = [['Überschreibung des Hosts über Abfrageparameter', `postgresql://postgres.${DEV_REF}@aws-0-eu-central-1.pooler.supabase.com:5432/postgres?host=db.abc.supabase.co`], ['Dev-Referenz nur im Passwort', `postgresql://postgres:${DEV_REF}@db.abcdefghijklmnopqrst.supabase.co:5432/postgres`], ['Dev-Referenz nur im Datenbanknamen', `postgresql://postgres@db.abcdefghijklmnopqrst.supabase.co:5432/${DEV_REF}`], ['keine URL (Schlüssel-Wert-Form)', `host=db.${DEV_REF}.supabase.co user=postgres`], ['Pooler-Benutzer ohne Referenz', 'postgresql://postgres@aws-0-eu-central-1.pooler.supabase.com:5432/postgres']];
   for (const [n, u] of badUrls) { const r = run({ RW_PROJECT_REF: DEV_REF, RW_DB_URL: u }, sha); ok(r.status === 2 && /ABBRUCH/.test(r.stderr), `install_dev.sh lehnt ab: ${n}`); }
-  const direct = run({ RW_PROJECT_REF: DEV_REF, RW_DB_URL: `postgresql://postgres:x@db.${DEV_REF}.supabase.co:5432/postgres` }, sha);
+  const direct = run({ RW_PROJECT_REF: DEV_REF, RW_DB_URL: `postgresql://postgres@db.${DEV_REF}.supabase.co:5432/postgres` }, sha);
   ok(direct.status === 0, 'install_dev.sh akzeptiert die direkte Dev-Verbindung db.<ref>.supabase.co');
   await q(`select 1`);
   const fin = await RB(); ok(fin.code === 0 && (await fp()) === pristine, 'Aufräumen: Rollback, Ausgangszustand');
@@ -334,14 +343,287 @@ try {
   // Wrapper: Fehlerverhalten mit echtem psql
   const failInst = inj(mitte, 'select 1/0;'), shaF = createHash('sha256').update(failInst).digest('hex');
   writeFileSync(join(wrapDir, 'inst.sql'), failInst);
-  const wf = spawnSync('bash', [join(root, 'supabase/dev/install_dev.sh'), shaF], { encoding: 'utf8', env: { PATH: wrapDir + ':' + process.env.PATH, RW_INSTALL_FILE: join(wrapDir, 'inst.sql'), RW_PROJECT_REF: DEV_REF, RW_DB_URL: URLOK } });
+  const wf = spawnSync('bash', [join(root, 'supabase/dev/install_dev.sh'), shaF], { encoding: 'utf8', env: { PGPASSWORD: PW, PATH: wrapDir + ':' + process.env.PATH, RW_INSTALL_FILE: join(wrapDir, 'inst.sql'), RW_PROJECT_REF: DEV_REF, RW_DB_URL: URLOK } });
   ok(wf.status !== 0 && /division by zero/.test(wf.stderr) && /FEHLGESCHLAGEN/.test(wf.stderr) && !/ohne Fehler abgeschlossen/.test(wf.stderr + wf.stdout) && (await fp()) === pristine, 'Wrapper: Fehler in der Installation => Exit-Status ungleich 0, Meldung FEHLGESCHLAGEN, keine Erfolgsmeldung, nichts installiert');
   const wokR = runReal(adapt(INSTALL));
   ok(wokR.status === 0 && /ohne Fehler abgeschlossen/.test(wokR.stderr) && (await tabs()) === '6/18', 'Wrapper: erfolgreiche Installation meldet den Erfolg erst nach fehlerfreiem psql');
   // psql-Attrappe, die mit Fehlercode endet: der Wrapper darf nicht Erfolg melden
   const fake2 = mkdtempSync(join(tmpdir(), 'rwfake2-')); writeFileSync(join(fake2, 'psql'), '#!/usr/bin/env bash\ncat > /dev/null\nexit 7\n', { mode: 0o755 });
-  const wx = spawnSync('bash', [join(root, 'supabase/dev/install_dev.sh'), sha], { encoding: 'utf8', env: { PATH: fake2 + ':' + process.env.PATH, RW_INSTALL_FILE: instFile, RW_PROJECT_REF: DEV_REF, RW_DB_URL: URLOK } });
+  const wx = spawnSync('bash', [join(root, 'supabase/dev/install_dev.sh'), sha], { encoding: 'utf8', env: { PGPASSWORD: PW, PATH: fake2 + ':' + process.env.PATH, RW_INSTALL_FILE: instFile, RW_PROJECT_REF: DEV_REF, RW_DB_URL: URLOK } });
   ok(wx.status !== 0 && /FEHLGESCHLAGEN/.test(wx.stderr) && !/ohne Fehler abgeschlossen/.test(wx.stderr + wx.stdout), 'Wrapper: psql-Exit-Status 7 wird als Fehler gemeldet (kein Erfolg)');
+
+  // =====  NEU (vierte Runde): Transaktions-Pooler, Port, Umgebungsvariablen, lock_timeout  =====
+  const rbP = await RB(); ok(rbP.code === 0 && (await fp()) === pristine, 'Ausgangszustand für die Pooler-/Sperrtests');
+  // Port und Verbindungsart
+  for (const [n, u, soll] of [
+    ['Transaktions-Pooler (Port 6543)', `postgresql://postgres.${DEV_REF}@aws-0-eu-central-1.pooler.supabase.com:6543/postgres`, false],
+    ['Direktverbindung auf Port 6543', `postgresql://postgres@db.${DEV_REF}.supabase.co:6543/postgres`, false],
+    ['unbekannter Port', `postgresql://postgres.${DEV_REF}@aws-0-eu-central-1.pooler.supabase.com:15432/postgres`, false],
+    ['Port über Abfrageparameter', `postgresql://postgres.${DEV_REF}@aws-0-eu-central-1.pooler.supabase.com:5432/postgres?port=6543`, false],
+    ['Sitzungsoptionen über Abfrageparameter', `postgresql://postgres.${DEV_REF}@aws-0-eu-central-1.pooler.supabase.com:5432/postgres?options=-c%20x%3Dy`, false],
+    ['sslmode=disable', `postgresql://postgres.${DEV_REF}@aws-0-eu-central-1.pooler.supabase.com:5432/postgres?sslmode=disable`, false],
+    ['Session-Pooler (Port 5432)', URLOK, true],
+    ['Direktverbindung ohne Portangabe', `postgresql://postgres@db.${DEV_REF}.supabase.co/postgres`, true],
+    ['sslmode=require', `postgresql://postgres.${DEV_REF}@aws-0-eu-central-1.pooler.supabase.com:5432/postgres?sslmode=require`, true]]) {
+    try { writeFileSync(calls, ''); } catch {}
+    const r = run({ RW_PROJECT_REF: DEV_REF, RW_DB_URL: u }, sha);
+    ok(soll ? r.status === 0 && called() : r.status === 2 && /ABBRUCH/.test(r.stderr) && !called(), `install_dev.sh ${soll ? 'akzeptiert' : 'lehnt ab'}: ${n}`, (r.stderr || '').split('\n').find((l) => /ABBRUCH/.test(l)) || '');
+  }
+  // Umgebungsvariablen können Ziel/Port/Optionen/TLS nicht umlenken, ~/.psqlrc wird nicht gelesen
+  writeFileSync(calls, '');
+  const evil = { RW_PROJECT_REF: DEV_REF, RW_DB_URL: URLOK, PGHOSTADDR: '203.0.113.7', PGHOST: 'evil.example', PGPORT: '6543', PGOPTIONS: '-c session_replication_role=replica', PGSERVICE: 'evil', PGSERVICEFILE: '/tmp/evil', PGSSLMODE: 'disable', PGTARGETSESSIONATTRS: 'any', PSQLRC: '/tmp/evil_psqlrc', PGPASSWORD: 'nur-passwort' };
+  const ev = run(evil, sha), envSeen = readFileSync(calls + '.env', 'utf8');
+  ok(ev.status === 0 && !/PGHOSTADDR|PGHOST=|PGPORT|PGOPTIONS|PGSERVICE|PGTARGETSESSIONATTRS|PSQLRC/.test(envSeen) && /^PGSSLMODE=require$/m.test(envSeen) && !/^PGPASSWORD=/m.test(envSeen) && /^PGPASSFILE=/m.test(envSeen) && readFileSync(calls + '.pgpass', 'utf8').endsWith(':nur-passwort\n') && / -X /.test(readFileSync(calls, 'utf8')),
+    'install_dev.sh: PGHOSTADDR/PGHOST/PGPORT/PGOPTIONS/PGSERVICE/PGSSLMODE/PSQLRC aus der Umgebung erreichen psql nicht, PGSSLMODE=require, PGPASSWORD erreicht psql nur über die private pgpass-Datei, psql -X', envSeen.replace(/\n/g, ' ').slice(0, 120));
+  // Datei, deren erste Anweisung nicht begin; ist: Abbruch vor psql (die Referenz könnte sonst außerhalb der Transaktion landen)
+  writeFileSync(calls, '');
+  const noBegin = INSTALL.replace(/^begin;$/m, '-- begin entfernt'), noBeginFile = join(fake, 'nobegin.sql'); writeFileSync(noBeginFile, noBegin);
+  const nb = spawnSync('bash', [join(root, 'supabase/dev/install_dev.sh'), createHash('sha256').update(noBegin).digest('hex')], { encoding: 'utf8', env: { PGPASSWORD: PW, PATH: fake + ':' + process.env.PATH, RW_INSTALL_FILE: noBeginFile, RW_PROJECT_REF: DEV_REF, RW_DB_URL: URLOK } });
+  ok(nb.status === 2 && /beginnt nicht mit\s+begin;/.test(nb.stderr) && !called(), 'install_dev.sh: Datei ohne einleitendes begin; wird nicht ausgeführt');
+
+  // Transaktions-Pooling simuliert: alles VOR dem einleitenden begin; läuft auf einem Backend, alles ab begin; auf einem ANDEREN (eigener psql-Prozess = eigenes Backend).
+  const poolFile = join(fake, 'pool.sql'), poolTxt = adapt(INSTALL); writeFileSync(poolFile, poolTxt); writeFileSync(calls, '');
+  const pr = spawnSync('bash', [join(root, 'supabase/dev/install_dev.sh'), createHash('sha256').update(poolTxt).digest('hex')], { encoding: 'utf8', env: { PGPASSWORD: PW, PATH: fake + ':' + process.env.PATH, RW_INSTALL_FILE: poolFile, RW_PROJECT_REF: DEV_REF, RW_DB_URL: URLOK } });
+  const stream = readFileSync(calls + '.stdin', 'utf8'), cut = (x) => { const k = x.search(/^begin;$/m); return [x.slice(0, k), x.slice(k)]; };
+  const [vorA, abA] = cut(stream);
+  const bA1 = await cl.psql(vorA || 'select 1'), bA2 = await cl.psql(abA);
+  ok(pr.status === 0 && bA1.code === 0 && bA2.code === 0 && (await tabs()) === '6/18', 'Pooling-Simulation, neuer Wrapper: Teil vor begin auf Backend A, Rest auf Backend B => Referenz, Zielprüfung und Installation trotzdem in EINER Transaktion, Installation gelungen', (bA2.err.split('\n').find((l) => /ERROR/.test(l)) || '').slice(0, 90));
+  const rbP2 = await RB(); ok(rbP2.code === 0 && (await fp()) === pristine, 'Pooling-Simulation: zurückgesetzt');
+  const [vorB, abB] = cut(`set rw.project_ref = '${DEV_REF}';\n` + poolTxt);   // altes Verfahren: Referenz vor der Datei
+  const bB1 = await cl.psql(vorB), bB2 = await cl.psql(abB, 'rwi', ['-v', 'ON_ERROR_STOP=0']);
+  ok(bB1.code === 0 && /ziel: rw.project_ref ist nicht gesetzt/.test(bB2.err) && (await fp()) === pristine, 'Gegenprobe altes Verfahren (set vor der Datei): auf getrenntem Backend fehlt die Referenz, Abbruch, nichts installiert');
+
+  // lock_timeout: steht direkt nach begin; vor Zielprüfung und vor schema.sql und wirkt
+  const stmts = INSTALL.split('\n').filter((l) => l.trim() && !/^\s*--/.test(l));
+  ok(stmts[0] === 'begin;' && stmts[1] === "set local lock_timeout = '5s';" && INSTALL.indexOf("set local lock_timeout = '5s';") < INSTALL.indexOf('-- ZIELPRÜFUNG') && INSTALL.indexOf("set local lock_timeout") < INSTALL.indexOf('===== schema.sql ====='), 'install_dev.sql: set local lock_timeout = 5s ist die erste Anweisung nach begin; (vor Zielprüfung und vor der ersten Sperre)');
+  const holder2 = cl.psql(`begin;\nlock table auth.users in row exclusive mode;\nselect pg_sleep(9);\ncommit;`);
+  await new Promise((r) => setTimeout(r, 1200));
+  const t0 = Date.now(), lk = await cl.psql(`set rw.project_ref = '${DEV_REF}';\n` + adapt(INSTALL)), dt = Date.now() - t0;
+  ok(lk.code !== 0 && /lock timeout/.test(lk.err) && dt < 8000 && (await fp()) === pristine, `lock_timeout wirkt: offene Schreibtransaktion auf auth.users => Installation bricht nach ~5 s mit "lock timeout" ab (${dt} ms), nichts installiert`, (lk.err.split('\n').find((l) => /ERROR/.test(l)) || '').slice(0, 90));
+  await holder2;
+  const nachSperre = await cl.psql(`set rw.project_ref = '${DEV_REF}';\n` + adapt(INSTALL));
+  ok(nachSperre.code === 0 && (await tabs()) === '6/18', 'nach Ende der fremden Transaktion: Installation gelingt');
+
+  // =====  NEU (fünfte Runde): Rollback und Cleanup mit demselben Schutz wie die Installation  =====
+  const rb5 = await RB(); ok(rb5.code === 0 && (await fp()) === pristine, 'Ausgangszustand für die Rollback-/Cleanup-Wrapper-Tests');
+  const runW = (script, env, arg, path = fake) => spawnSync('bash', [join(root, 'supabase/dev', script), ...(arg === undefined ? [] : [arg])], { encoding: 'utf8', env: { PGPASSWORD: PW, PATH: path + ':' + process.env.PATH, ...env } });
+  const RBFILE = join(fake, 'rb.sql'), CLFILE = join(fake, 'cl.sql'), rbTxt = adapt(ROLLBACK), clTxt = adapt(CLEAN);
+  writeFileSync(RBFILE, rbTxt); writeFileSync(CLFILE, clTxt);
+  const shaRb = createHash('sha256').update(rbTxt).digest('hex'), shaCl = createHash('sha256').update(clTxt).digest('hex');
+  const BASE_RB = { RW_PROJECT_REF: DEV_REF, RW_DB_URL: URLOK, RW_ROLLBACK_CONFIRM: 'ja-loeschen', RW_ROLLBACK_FILE: RBFILE, RW_CLEANUP_FILE: CLFILE };
+  // Abbrüche vor psql (je Wrapper)
+  for (const [script, shaX] of [['rollback_dev.sh', shaRb], ['cleanup_dev.sh', shaCl]]) {
+    for (const [n, env, arg, re] of [
+      ['ohne RW_PROJECT_REF', { ...BASE_RB, RW_PROJECT_REF: '' }, shaX, /RW_PROJECT_REF ist nicht gesetzt/],
+      ['falsche Projektreferenz (Produktion)', { ...BASE_RB, RW_PROJECT_REF: PROD_REF }, shaX, /Produktion ist ausdrücklich ausgeschlossen/],
+      ['falsche Projektreferenz (fremd)', { ...BASE_RB, RW_PROJECT_REF: 'abcdefghijklmnopqrst' }, shaX, /weicht von ruinwalk-dev ab/],
+      ['ohne Bestätigung', { ...BASE_RB, RW_ROLLBACK_CONFIRM: '' }, shaX, /RW_ROLLBACK_CONFIRM=ja-loeschen fehlt/],
+      ['falsche Bestätigung', { ...BASE_RB, RW_ROLLBACK_CONFIRM: 'ja' }, shaX, /RW_ROLLBACK_CONFIRM=ja-loeschen fehlt/],
+      ['Transaktions-Pooler (6543)', { ...BASE_RB, RW_DB_URL: URLOK.replace(':5432', ':6543') }, shaX, /nur Port 5432/],
+      ['fremder Host', { ...BASE_RB, RW_DB_URL: 'postgresql://postgres@db.abcdefghijklmnopqrst.supabase.co:5432/postgres' }, shaX, /Referenz von ruinwalk-dev nicht/],
+      ['ohne Hash', BASE_RB, undefined, /SHA-256 der .* fehlt/],
+      ['falscher Hash', BASE_RB, '0'.repeat(64), /weicht vom erwarteten Wert ab/]]) {
+      writeFileSync(calls, ''); const r = runW(script, env, arg);
+      ok(r.status === 2 && re.test(r.stderr) && !called() && !(r.stdout + r.stderr).includes(PW), `${script} bricht ab (${n}), psql wird nicht aufgerufen`);
+    }
+  }
+  // Erfolgsfall mit Attrappe: Referenz UND Bestätigung als set local direkt nach begin; Umgebung bereinigt; psql -X ohne -1
+  for (const [script, shaX, txt] of [['rollback_dev.sh', shaRb, rbTxt], ['cleanup_dev.sh', shaCl, clTxt]]) {
+    writeFileSync(calls, '');
+    const r = runW(script, { ...BASE_RB, PGHOSTADDR: '203.0.113.7', PGPORT: '6543', PGOPTIONS: '-c session_replication_role=replica', PGSERVICE: 'evil', PSQLRC: '/tmp/evil', PGSSLMODE: 'disable', PGTARGETSESSIONATTRS: 'any' }, shaX);
+    const st = readFileSync(calls + '.stdin', 'utf8'), ev = readFileSync(calls + '.env', 'utf8'), args = readFileSync(calls, 'utf8');
+    const ins = `begin;\nset local rw.project_ref = '${DEV_REF}';\nset local rw.rollback_confirm = 'ja-loeschen';\n`;
+    ok(r.status === 0 && st.includes(ins) && st.replace(`set local rw.project_ref = '${DEV_REF}';\nset local rw.rollback_confirm = 'ja-loeschen';\n`, '') === txt && !/^set rw\./m.test(st)
+       && / -X -w -v ON_ERROR_STOP=1 -f -$/m.test(args) && !/ -1( |$)/m.test(args) && !/PGHOSTADDR|PGPORT|PGOPTIONS|PGSERVICE|PGTARGETSESSIONATTRS|PSQLRC/.test(ev) && /^PGSSLMODE=require$/m.test(ev),
+       `${script}: Referenz und Bestätigung als set local in der Transaktion, Inhalt sonst unverändert, manipulierte PG-Umgebung erreicht psql nicht, psql -X ohne -1`, ev.replace(/\n/g, ' ').slice(0, 80));
+  }
+  // lock_timeout: steht in rollback und cleanup direkt nach begin; (vor jeder Sperre), Rollback-Sperrphase 5 s statt 15 s
+  for (const [n, txt] of [['rollback_dev.sql', ROLLBACK], ['cleanup_test_accounts.sql', CLEAN]]) {
+    const st2 = txt.split('\n').filter((l) => l.trim() && !/^\s*--/.test(l));
+    ok(st2[0] === 'begin;' && /set_config\('lock_timeout', '5s', true\)/.test(st2[1]) && txt.indexOf("set_config('lock_timeout'") < txt.indexOf('-- ZIELPRÜFUNG'), `${n}: lock_timeout 5 s ist die erste Anweisung nach begin;`);
+  }
+  ok(!/lock_timeout = '15s'/.test(ROLLBACK) && /set local lock_timeout = '5s'/.test(ROLLBACK), 'rollback_dev.sql: Sperrphase mit lock_timeout 5 s (vorher 15 s)');
+
+  // echtes psql: Rollback über den Wrapper – falsche Datenbankkennung bricht ab, richtige setzt zurück (ohne CASCADE, siehe statische Prüfung oben)
+  const realRb = (file, extra = {}) => { writeFileSync(join(wrapDir, 'w.sql'), file); return runW('rollback_dev.sh', { ...BASE_RB, RW_ROLLBACK_FILE: join(wrapDir, 'w.sql'), ...extra }, createHash('sha256').update(file).digest('hex'), wrapDir); };
+  const realCl = (file, extra = {}) => { writeFileSync(join(wrapDir, 'w.sql'), file); return runW('cleanup_dev.sh', { ...BASE_RB, RW_CLEANUP_FILE: join(wrapDir, 'w.sql'), ...extra }, createHash('sha256').update(file).digest('hex'), wrapDir); };
+  ok((await tx(T + adapt(INSTALL))).code === 0 && (await tabs()) === '6/18', 'Installation für die Rollback-Wrapper-Tests');
+  const rbWrongDb = realRb(ROLLBACK);   // unveränderte Dev-Kennung = falsche Datenbank
+  ok(rbWrongDb.status !== 0 && /Datenbankkennung gehört nicht zu ruinwalk-dev/.test(rbWrongDb.stderr) && /FEHLGESCHLAGEN/.test(rbWrongDb.stderr) && (await tabs()) === '6/18', 'rollback_dev.sh mit echtem psql gegen falsche Datenbank: Abbruch durch die Zielprüfung, nichts gelöscht');
+  const rbOkW = realRb(rbTxt);
+  ok(rbOkW.status === 0 && /der Rollback ohne Fehler abgeschlossen/.test(rbOkW.stderr) && (await fp()) === pristine, 'rollback_dev.sh mit echtem psql: Rollback ohne CASCADE vollständig, Ausgangszustand', (rbOkW.stderr.split('\n').find((l) => /ERROR/.test(l)) || '').slice(0, 90));
+
+  // Transaktions-Pooling simuliert für den Rollback: Teil vor begin; auf Backend A, Rest auf Backend B
+  ok((await tx(T + adapt(INSTALL))).code === 0, 'Installation für die Rollback-Pooling-Simulation');
+  writeFileSync(calls, ''); runW('rollback_dev.sh', BASE_RB, shaRb);
+  const [rbVor, rbAb] = cut(readFileSync(calls + '.stdin', 'utf8'));
+  const pA = await cl.psql(rbVor || 'select 1'), pB = await cl.psql(rbAb);
+  ok(pA.code === 0 && pB.code === 0 && (await fp()) === pristine, 'Pooling-Simulation Rollback: Referenz, Bestätigung, Zielprüfung und Löschung trotzdem in EINER Transaktion – Rollback gelungen', (pB.err.split('\n').find((l) => /ERROR/.test(l)) || '').slice(0, 90));
+  ok((await tx(T + adapt(INSTALL))).code === 0, 'Installation für die Gegenprobe');
+  const [oVor, oAb] = cut(`set rw.project_ref = '${DEV_REF}';\nset rw.rollback_confirm = 'ja-loeschen';\n` + rbTxt);
+  const oA = await cl.psql(oVor), oB = await cl.psql(oAb, 'rwi', ['-v', 'ON_ERROR_STOP=0']);
+  ok(oA.code === 0 && /ziel: rw.project_ref ist nicht gesetzt/.test(oB.err) && (await tabs()) === '6/18', 'Gegenprobe altes Verfahren (set vor der Datei, getrenntes Backend): Abbruch, nichts gelöscht');
+
+  // Sperrkonflikt beim Rollback: offene Schreibtransaktion auf auth.users => DROP TRIGGER wartet höchstens ~5 s, dann alles zurück
+  const holdRb = cl.psql(`begin;\nlock table auth.users in row exclusive mode;\nselect pg_sleep(9);\ncommit;`);
+  await new Promise((r) => setTimeout(r, 1200));
+  const t1 = Date.now(), rbLock = realRb(rbTxt), d1 = Date.now() - t1;
+  ok(rbLock.status !== 0 && /lock timeout/.test(rbLock.stderr) && d1 < 8000 && (await tabs()) === '6/18' && (await cnt(`select count(*) from pg_trigger where tgname='on_auth_user_created'`)) === 1, `Rollback bei Sperrkonflikt: Abbruch nach ~5 s (${d1} ms), nichts gelöscht`);
+  await holdRb;
+
+  // Cleanup: nur vorgesehene Testkonten, auch mit Pooling-Simulation
+  const konten = [['dddddddd-0000-4000-8000-000000000001', 't1@rwtest.invalid'], ['dddddddd-0000-4000-8000-000000000002', 't2@rwtest.invalid'], ['dddddddd-0000-4000-8000-000000000003', 'echt2@example.org'], ['dddddddd-0000-4000-8000-000000000004', 'x@rwtest.invalid.example.org'], ['dddddddd-0000-4000-8000-000000000005', 'rwtest.invalid@example.org']];
+  for (const [id, mail] of konten) await q(`insert into auth.users(id,email,raw_user_meta_data,email_confirmed_at) values ('${id}','${mail}','{"username":"Konto${id.slice(-1)}"}', now())`);
+  writeFileSync(calls, ''); runW('cleanup_dev.sh', BASE_RB, shaCl);
+  const [cVor, cAb] = cut(readFileSync(calls + '.stdin', 'utf8'));
+  const cA = await cl.psql(cVor || 'select 1'), cB = await cl.psql(cAb);
+  const rest = await q(`select string_agg(email, ',' order by email) from auth.users where id::text like 'dddddddd-%'`);
+  ok(cA.code === 0 && cB.code === 0 && rest === 'echt2@example.org,rwtest.invalid@example.org,x@rwtest.invalid.example.org', 'Cleanup (Pooling-Simulation): nur die zwei @rwtest.invalid-Konten gelöscht; echtes Konto und ähnlich aussehende Adressen bleiben', rest);
+  // Cleanup bei falscher Datenbankkennung und bei Sperrkonflikt
+  await q(`insert into auth.users(id,email,raw_user_meta_data,email_confirmed_at) values ('dddddddd-0000-4000-8000-000000000006','t3@rwtest.invalid','{"username":"Konto6"}', now())`);
+  const clWrong = realCl(CLEAN);
+  ok(clWrong.status !== 0 && /Datenbankkennung gehört nicht zu ruinwalk-dev/.test(clWrong.stderr) && (await cnt(`select count(*) from auth.users where email='t3@rwtest.invalid'`)) === 1, 'cleanup_dev.sh gegen falsche Datenbank: Abbruch, kein Konto gelöscht');
+  const holdCl = cl.psql(`begin;\nlock table auth.users in share mode;\nselect pg_sleep(9);\ncommit;`);
+  await new Promise((r) => setTimeout(r, 1200));
+  const t2 = Date.now(), clLock = realCl(clTxt), d2 = Date.now() - t2;
+  ok(clLock.status !== 0 && /lock timeout/.test(clLock.stderr) && d2 < 8000 && (await cnt(`select count(*) from auth.users where email='t3@rwtest.invalid'`)) === 1, `Cleanup bei Sperrkonflikt: Abbruch nach ~5 s (${d2} ms), kein Konto gelöscht`);
+  await holdCl;
+  const clOk = realCl(clTxt);
+  ok(clOk.status === 0 && (await cnt(`select count(*) from auth.users where email like '%@rwtest.invalid'`)) === 0 && (await cnt(`select count(*) from auth.users where id::text like 'dddddddd-%'`)) === 3, 'cleanup_dev.sh mit echtem psql: Testkonto gelöscht, die drei anderen bleiben');
+  await q(`delete from auth.users where id::text like 'dddddddd-%'`);
+  const rbEnd = await RB(); ok(rbEnd.code === 0 && (await fp()) === pristine, 'Ausgangszustand nach den Rollback-/Cleanup-Tests');
+  // =====  NEU (sechste Runde): URL nur per Positivliste, genau ein Host, Passwort nur per pgpass an genau den geprüften Host  =====
+  // libpq 16 (geprüft): dekodiert %xx in Parameternamen UND -werten, letzter doppelter Parameter gewinnt, & trennt, # ist KEIN Fragment,
+  // h1,h2 = mehrere Hosts nacheinander, POSTGRESQL:// ist keine URL. Deshalb wird jede Abweichung von der exakten Form abgelehnt.
+  const R = DEV_REF, POOL = 'aws-0-eu-central-1.pooler.supabase.com', DIR6 = `postgresql://postgres@db.${R}.supabase.co`, POOLU = `postgresql://postgres.${R}@${POOL}`;
+  const urlFaelle = [
+    ['kodierter Port ?%70ort=6543', `${DIR6}:5432/postgres?%70ort=6543`, 'Z'],
+    ['kodierter Port ?p%6Frt=6543', `${POOLU}:5432/postgres?p%6Frt=6543`, 'Z'],
+    ['kodierter Host ?%68ost=', `${DIR6}/postgres?%68ost=evil.example`, 'Z'],
+    ['kodierter Hostaddr ?h%6Fstaddr=', `${DIR6}/postgres?h%6Fstaddr=203.0.113.7`, 'Z'],
+    ['kodierter TLS-Wert sslmode=disab%6Ce', `${DIR6}/postgres?sslmode=disab%6Ce`, 'Z'],
+    ['kodierter TLS-Name ss%6Cmode=disable', `${DIR6}/postgres?ss%6Cmode=disable`, 'Z'],
+    ['kodierte Optionen ?%6Fptions=', `${DIR6}/postgres?%6Fptions=-c%20x%3Dy`, 'Z'],
+    ['kodierter Punkt im Host', `postgresql://postgres@db%2E${R}.supabase.co/postgres`, 'Z'],
+    ['kodierter Socket-Pfad als Host', `postgresql://postgres@%2Ftmp/postgres`, 'Z'],
+    ['kodierte Datenbank mit ?port', `${DIR6}/postgres%3Fport%3D6543`, 'Z'],
+    ['mehrere Hosts (fremder zuerst)', `postgresql://postgres.${R}@evil.example,${POOL}/postgres`, 'Z'],
+    ['mehrere Hosts mit Ports (fremder zuerst)', `postgresql://postgres.${R}@evil.example:5432,${POOL}:5432/postgres`, 'Z'],
+    ['mehrere Hosts (Dev zuerst, fremder danach)', `postgresql://postgres@db.${R}.supabase.co,evil.example/postgres`, 'Z'],
+    ['IPv6-Klammernotation', 'postgresql://postgres@[::1]:5432/postgres', 'Z'],
+    ['zusätzlicher Parameter mit &', `${DIR6}/postgres?sslmode=require&port=6543`, 'Z'],
+    ['doppelter Parameter', `${DIR6}/postgres?sslmode=require&sslmode=disable`, 'Z'],
+    ['zweites ? im Abfrageteil', `${DIR6}/postgres?sslmode=require?port=6543`, 'A'],
+    ['leerer Abfrageteil ?', `${DIR6}/postgres?`, 'A'],
+    ['leerer Parameter ?&', `${DIR6}/postgres?&`, 'Z'],
+    ['Parameter ohne Wert', `${DIR6}/postgres?sslmode`, 'A'],
+    ['Parameter mit leerem Wert', `${DIR6}/postgres?sslmode=`, 'A'],
+    ['zusätzlicher Parameter application_name', `${DIR6}/postgres?application_name=x`, 'Z'],
+    ['zusätzlicher Parameter target_session_attrs', `${DIR6}/postgres?target_session_attrs=any`, 'Z'],
+    ['Großschreibung SSLMODE', `${DIR6}/postgres?SSLMODE=require`, 'Z'],
+    ['Großschreibung im Schema', `POSTGRESQL://postgres@db.${R}.supabase.co/postgres`, 'Z'],
+    ['Großschreibung im Host', `postgresql://postgres@DB.${R}.supabase.co/postgres`, 'Z'],
+    ['ungültiger TLS-Modus disable', `${DIR6}/postgres?sslmode=disable`, 'A'],
+    ['ungültiger TLS-Modus allow', `${DIR6}/postgres?sslmode=allow`, 'A'],
+    ['ungültiger TLS-Modus prefer', `${DIR6}/postgres?sslmode=prefer`, 'A'],
+    ['ungültiger TLS-Modus Verify-Full', `${DIR6}/postgres?sslmode=Verify-Full`, 'Z'],
+    ['ungültiger TLS-Modus verify_full', `${DIR6}/postgres?sslmode=verify_full`, 'Z'],
+    ['URL-Fragment #x', `${DIR6}/postgres#x`, 'Z'],
+    ['URL-Fragment mit Port #?port=6543', `${DIR6}/postgres#?port=6543`, 'Z'],
+    ['Passwort in der URL', `postgresql://postgres:geheim@db.${R}.supabase.co/postgres`, 'P'],
+    ['leeres Passwort in der URL', `postgresql://postgres:@db.${R}.supabase.co/postgres`, 'P'],
+    ['zwei @ (Userinfo mit fremdem Host)', `postgresql://postgres@evil.example@db.${R}.supabase.co/postgres`, 'F'],
+    ['leere Userinfo', `postgresql://@db.${R}.supabase.co/postgres`, 'F'],
+    ['ohne Userinfo', `postgresql://db.${R}.supabase.co/postgres`, 'F'],
+    ['fremder Benutzer am Dev-Host', `postgresql://evil@db.${R}.supabase.co/postgres`, 'H'],
+    ['Pooler-Benutzer am Direkt-Host', `postgresql://postgres.${R}@db.${R}.supabase.co/postgres`, 'H'],
+    ['Direkt-Benutzer am Pooler', `postgresql://postgres@${POOL}/postgres`, 'H'],
+    ['leerer Port host:', `${DIR6}:/postgres`, 'O'],
+    ['Port 05432', `${DIR6}:05432/postgres`, 'O'],
+    ['Port 6543 (Transaktions-Pooler)', `${POOLU}:6543/postgres`, 'O'],
+    ['Port 15432', `${DIR6}:15432/postgres`, 'O'],
+    ['zwei Ports', `${DIR6}:5432:6543/postgres`, 'F'],
+    ['Host mit Schlusspunkt', `postgresql://postgres@db.${R}.supabase.co./postgres`, 'H'],
+    ['fremde Domain hinter Dev-Host', `postgresql://postgres@db.${R}.supabase.co.evil.com/postgres`, 'H'],
+    ['fremde Domain hinter Pooler', `postgresql://postgres.${R}@${POOL}.evil.com/postgres`, 'H'],
+    ['Pooler unter fremder Endung (.co)', `postgresql://postgres.${R}@aws-0-eu-central-1.pooler.supabase.co/postgres`, 'H'],
+    ['Pooler mit fremdem Präfix', `postgresql://postgres.${R}@evil.pooler.supabase.com/postgres`, 'H'],
+    ['IP-Adresse statt Host', `postgresql://postgres@203.0.113.7:5432/postgres`, 'H'],
+    ['Backslash im Host', `postgresql://postgres@db\\.${R}.supabase.co/postgres`, 'Z'],
+    ['Leerzeichen', `${DIR6}/postgres port=6543`, 'Z'],
+    ['Zeilenumbruch', `${DIR6}/postgres\nport=6543`, 'Z'],
+    ['Tabulator', `${DIR6}/postgres\tport=6543`, 'Z'],
+    ['doppelter Schrägstrich', `postgresql://postgres@db.${R}.supabase.co//postgres`, 'E'],
+    ['andere Datenbank', `${DIR6}/template1`, 'E'],
+    ['ohne Datenbank', DIR6, 'E'],
+    ['Schema ohne //', `postgresql:postgres@db.${R}.supabase.co/postgres`, 'F'],
+    ['Schlüssel-Wert-Form', `host=db.${R}.supabase.co port=5432 user=postgres dbname=postgres`, 'Z']];
+  const GRUND = { Z: /unzulässige Zeichen/, A: /als Abfrageteil ist nur/, P: /Passwort gehört nicht in RW_DB_URL/, F: /keine URL der Form/, H: /nennt die Referenz von ruinwalk-dev nicht/, O: /nur Port 5432/, E: /nicht exakt der erlaubten Form/ };
+  for (const [n, u, g] of urlFaelle) {
+    const erg = [];
+    for (const script of ['install_dev.sh', 'rollback_dev.sh', 'cleanup_dev.sh']) {
+      try { writeFileSync(calls, ''); } catch {}
+      const r = script === 'install_dev.sh' ? run({ RW_PROJECT_REF: DEV_REF, RW_DB_URL: u }, sha) : runW(script, { ...BASE_RB, RW_DB_URL: u }, script === 'rollback_dev.sh' ? shaRb : shaCl);
+      erg.push(r.status === 2 && GRUND[g].test(r.stderr) && !called() && !(r.stdout + r.stderr).includes(PW) && !(r.stdout + r.stderr).includes(u));
+    }
+    ok(erg.every(Boolean), `URL abgelehnt von install/rollback/cleanup (Grund ${g}), psql nicht aufgerufen: ${n}`);
+  }
+  // Zulässige Formen: werden akzeptiert, pgpass ist an GENAU diesen Host/Benutzer gebunden
+  for (const [n, u, host, user] of [
+    ['direkt mit Port', `${DIR6}:5432/postgres`, `db.${R}.supabase.co`, 'postgres'],
+    ['direkt ohne Port, Schema postgres://', `postgres://postgres@db.${R}.supabase.co/postgres`, `db.${R}.supabase.co`, 'postgres'],
+    ['direkt mit sslmode=verify-full', `${DIR6}/postgres?sslmode=verify-full`, `db.${R}.supabase.co`, 'postgres'],
+    ['direkt mit sslmode=verify-ca', `${DIR6}/postgres?sslmode=verify-ca`, `db.${R}.supabase.co`, 'postgres'],
+    ['Session-Pooler mit sslmode=require', `${POOLU}:5432/postgres?sslmode=require`, POOL, `postgres.${R}`],
+    ['Session-Pooler andere Region (aws-1-us-east-1)', `postgresql://postgres.${R}@aws-1-us-east-1.pooler.supabase.com/postgres`, 'aws-1-us-east-1.pooler.supabase.com', `postgres.${R}`]]) {
+    for (const script of ['install_dev.sh', 'rollback_dev.sh', 'cleanup_dev.sh']) {
+      writeFileSync(calls, ''); for (const x of ['.pgpass', '.pgpassmode', '.pgpasspath']) writeFileSync(calls + x, '');
+      const r = script === 'install_dev.sh' ? run({ RW_PROJECT_REF: DEV_REF, RW_DB_URL: u }, sha) : runW(script, { ...BASE_RB, RW_DB_URL: u }, script === 'rollback_dev.sh' ? shaRb : shaCl);
+      const args = readFileSync(calls, 'utf8'), envS = readFileSync(calls + '.env', 'utf8'), pp = readFileSync(calls + '.pgpasspath', 'utf8').trim();
+      ok(r.status === 0 && called() && readFileSync(calls + '.pgpass', 'utf8') === `${host}:5432:postgres:${user}:${PW_PGPASS}\n` && readFileSync(calls + '.pgpassmode', 'utf8').trim() === '600'
+        && !/^PGPASSWORD=/m.test(envS) && !args.includes(PW) && !args.includes('doppelpunkt') && pp !== '' && !existsSync(pp) && !(r.stdout + r.stderr).includes(PW),
+        `${script} akzeptiert ${n}: pgpass (600) nur für ${host}/${user}, kein PGPASSWORD und kein Passwort in den psql-Argumenten, pgpass danach gelöscht`);
+    }
+  }
+  // Passwortpflicht und -prüfung
+  for (const [n, env, re] of [['ohne PGPASSWORD', { PGPASSWORD: '' }, /PGPASSWORD ist nicht gesetzt/], ['PGPASSWORD mit Zeilenumbruch', { PGPASSWORD: 'a\nb' }, /Steuerzeichen/]]) {
+    const erg = [];
+    for (const script of ['install_dev.sh', 'rollback_dev.sh', 'cleanup_dev.sh']) {
+      writeFileSync(calls, '');
+      const r = script === 'install_dev.sh' ? run({ RW_PROJECT_REF: DEV_REF, RW_DB_URL: URLOK, ...env }, sha) : runW(script, { ...BASE_RB, ...env }, script === 'rollback_dev.sh' ? shaRb : shaCl);
+      erg.push(r.status === 2 && re.test(r.stderr) && !called());
+    }
+    ok(erg.every(Boolean), `alle drei Wrapper brechen ab (${n}), psql wird nicht aufgerufen`);
+  }
+  // Echte libpq: ein Lausch-Server fordert ein Klartext-Passwort an und zeichnet auf, was ankommt
+  const lauscher = () => new Promise((res) => { const got = []; const srv = net.createServer((sock) => { let buf = Buffer.alloc(0), phase = 0;
+    sock.on('error', () => {}); sock.on('data', (d) => { buf = Buffer.concat([buf, d]);
+      for (;;) {
+        if (phase === 0) { if (buf.length < 8) return; const len = buf.readInt32BE(0); if (buf.length < len) return; const code = buf.readInt32BE(4); buf = buf.subarray(len);
+          if (code === 80877103 || code === 80877104) { sock.write('N'); continue; }
+          phase = 1; const m = Buffer.alloc(9); m.write('R', 0); m.writeInt32BE(8, 1); m.writeInt32BE(3, 5); sock.write(m); continue; }
+        if (buf.length < 5) return; const t = String.fromCharCode(buf[0]), len = buf.readInt32BE(1); if (buf.length < 1 + len) return;
+        if (t === 'p') got.push(buf.subarray(5, len).toString()); buf = buf.subarray(1 + len); sock.end(); return; } }); });
+    srv.listen(0, '127.0.0.1', () => res({ port: srv.address().port, got, close: () => srv.close() })); });
+  const psqlA = (args, env) => new Promise((res) => { const p = spawn(`${cl.BIN}/psql`, ['-w', ...args], { env: { PATH: process.env.PATH, PGCONNECT_TIMEOUT: '3', ...env } }); let e = ''; p.stderr.on('data', (d) => { e += d; }); p.stdout.resume(); p.stdin.end(); p.on('close', (c) => res({ code: c, err: e })); });
+  const pgp = (zeile) => { const f = join(mkdtempSync(join(tmpdir(), 'rwpgp-')), 'pgpass'); writeFileSync(f, zeile, { mode: 0o600 }); return f; };
+  {
+    const L = await lauscher();
+    const g = await psqlA(['-X', '-c', 'select 1', `postgresql://postgres@127.0.0.1:${L.port}/postgres?sslmode=disable`], { PGPASSFILE: pgp(`127.0.0.1:${L.port}:postgres:postgres:${PW_PGPASS}\n`) });
+    ok(L.got.length === 1 && L.got[0] === PW, 'Gegenprobe: pgpass für genau diesen Host - der Lausch-Server erhält das Passwort (Lauscher und Maskierung funktionieren)', L.got.join('|') + ' ' + g.err.trim().slice(0, 60));
+    L.got.length = 0;
+    const h = await psqlA(['-X', '-c', 'select 1', `postgresql://postgres@127.0.0.1:${L.port}/postgres?sslmode=disable`], { PGPASSFILE: pgp(`db.${R}.supabase.co:5432:postgres:postgres:${PW_PGPASS}\n`) });
+    ok(L.got.length === 0 && h.code !== 0 && /no password supplied/.test(h.err), 'pgpass an den Dev-Host gebunden: ein anderer Host erhält das Passwort NICHT (libpq gibt es nicht heraus)', h.err.trim().slice(0, 80));
+    const m = await psqlA(['-X', '-c', 'select 1', `postgresql://postgres@127.0.0.1:${L.port},db.${R}.supabase.invalid:5432/postgres?sslmode=disable`], { PGPASSFILE: pgp(`db.${R}.supabase.invalid:5432:postgres:postgres:${PW_PGPASS}\n`) });
+    ok(L.got.length === 0 && m.code !== 0, 'Mehrfach-Host direkt an libpq (fremder Host zuerst): der fremde Host erhält das Passwort nicht', m.err.trim().split('\n')[0].slice(0, 80));
+    // Ende-zu-Ende über den Wrapper: selbst wenn psql auf einen fremden Host umgelenkt würde, kennt die pgpass-Datei nur den geprüften Host
+    const umlenk = mkdtempSync(join(tmpdir(), 'rwumlenk-'));
+    writeFileSync(join(umlenk, 'psql'), `#!/usr/bin/env bash\nshift\nexec ${cl.BIN}/psql "postgresql://postgres@127.0.0.1:${L.port}/postgres?sslmode=disable" "$@"\n`, { mode: 0o755 });
+    const w = await new Promise((res) => { const p = spawn('bash', [join(root, 'supabase/dev/install_dev.sh'), sha], { env: { PGPASSWORD: PW, PGCONNECT_TIMEOUT: '3', PATH: umlenk + ':' + process.env.PATH, RW_INSTALL_FILE: instFile, RW_PROJECT_REF: DEV_REF, RW_DB_URL: `${DIR6}:5432/postgres` } });
+      let e = ''; p.stderr.on('data', (d) => { e += d; }); p.stdout.resume(); p.on('close', (c) => res({ code: c, err: e })); });
+    ok(L.got.length === 0 && w.code === 2 && /no password supplied/.test(w.err) && /FEHLGESCHLAGEN/.test(w.err) && !w.err.includes(PW), 'Wrapper mit auf fremden Host umgelenktem psql: kein Passwort und auch keine SQL-Zeile als Passwortersatz beim fremden Host (psql -w), Abbruch als FEHLGESCHLAGEN', w.err.trim().split('\n').slice(-1)[0].slice(0, 80));
+    L.close();
+  }
   const rbF = await RB(); ok(rbF.code === 0 && (await fp()) === pristine, 'Aufräumen: Rollback, Ausgangszustand');
 } catch (e) { ok(false, 'Lauf ohne Ausnahme', String(e.message).split('\n').slice(0, 2).join(' | ')); }
 finally { cl.stop(); }
