@@ -4,17 +4,17 @@ Stand: 18.11.2026 abends. Kurz halten (≤ 80 Zeilen). Pflege: Hauptsitzung nach
 
 ## Orte
 - **Hauptordner** `/home/user/ruinwalk`, Zweig `ccr-2e014f58-1i6nm4` (KI-Team, Marketing; Instagram-Läufe committen hierher). `main` = KI-Team seit PR #1.
-- **Zweig-Ordner** `/home/user/ruinwalk-nacht`, Zweig `nacht/operator-edge-function` (Kopf `ce29fd0`) mit **nicht committeten** Korrekturen der Dev-Installation. Kein Commit/Push ohne Pascals Freigabe.
+- **Zweig-Ordner** `/home/user/ruinwalk-nacht`, Zweig `nacht/operator-edge-function` (Kopf `d49a417`, gepusht). Kein weiterer Commit/Push ohne Pascals Freigabe.
 - Weitere Remote-Zweige (Arbeit aus Pascals normalem Chat): `nacht/supabase-integration`, `analyse/client-modularisierung` – nur lesen.
 
 ## Letzter Auftrag
 Folgeauftrag „Rollback und Cleanup gegen Transaktions-Pooling absichern“ (Zweig-Ordner, ohne Commit):
 - Umgesetzt: gemeinsame Schutzlogik `supabase/dev/_ziel_wrapper.sh`; `install_dev.sh`, neu `rollback_dev.sh`, `cleanup_dev.sh` (Referenz + Bestätigung als `set local` nach `begin;`, nur Port 5432, PG-Umgebung bereinigt, `psql -X`, SHA-Pflicht); `lock_timeout` 5 s in Rollback/Cleanup; Doku in `docs/DEV_INSTALLATIONSFREIGABE.md`.
-- **Commit/Push freigegeben (18.11.), aber ANGEHALTEN:** Abgleich fand 2 Lücken in `_ziel_wrapper.sh` (schon in ce29fd0): prozent-kodierte Abfrageparameter (`?%70ort=6543`) und Mehrfach-Host per Komma (`fremd,x.pooler.supabase.com`). Wartet auf Pascals Entscheidung (Fix im Umfang?). Lokal: install_dev.sh-Modus auf 644 zurück, Doku-Statuszeilen korrigiert. Vorher: `installation.mjs` 188/188, `run-all-db.sh` (PG16) ALLES BESTANDEN, 11/11 Mutationsproben erkannt, `index.html`/`schema.sql` unverändert.
+- **Committet+gepusht `d49a417`** (Positivliste URL, genau ein Host, Passwort per pgpass, psql -X -w; installation 273/273, run-all-db PG16 grün, 28/28 Mutationsproben). CI-Lauf 44400939204: database 16/17, Vergleich, determinism grün; `bestehende-tests` rot durch wackeligen Browser-Test `status` (Timer 1:29 statt 1:30, Zeit-Wettlauf im Test, lokal 1/20, unabhängig vom Commit). Wartet auf Pascal (Lauf neu starten? Test reparieren? verify-full/PGREQUIREAUTH?).
 - SHA-256 `install_dev.sql`: `2206042d22f047044f6a7813bcfa6eea9d778c3fd376033042bf454000adebf3`.
 
 ## Offene Entscheidungen (Pascal)
-1. Commit + Push der Korrekturen auf `nacht/operator-edge-function` (CI PG16/17).
+1. Wackeligen Test `status` (Timer) reparieren bzw. CI-Lauf neu starten; `verify-full`/`PGREQUIREAUTH` verbindlich machen?
 2. Hook-Lücke: direkte `psql`-/Supabase-CLI-Aufrufe werden vom Schutz-Hook nicht abgefangen – schließen?
 3. Optional: echter Git-`commit-msg`-Hook für die Abgleichpflicht; Erlaubnis für `inventar.js` in `settings.json`.
 4. Live-Projekt-Kennung lesend abfragen (Eindeutigkeit der Datenbankkennung)?
