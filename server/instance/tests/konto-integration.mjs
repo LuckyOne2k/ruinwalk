@@ -75,14 +75,17 @@ try {
   for (const t of ['rwi.members', 'rwi.players', 'rwi.instances', 'rwi.fights', 'rwi.rewards']) {
     r = await wr(U.A, `select count(*) from ${t}`); ok(fails(r, /permission denied/), `authenticated hat keinen direkten Zugriff auf ${t}`);
   }
-  // Platz-3-Charakter im selben Konto beitritt: Berechtigung wird später entzogen (Rückerstattung) -> gesperrtes Profil in laufender Instanz
-  await q(`select rwi.join(${I}, '${C.A3}')`);
+  // Platz-3-Charakter desselben Kontos in einer ANDEREN Instanz (dieselbe Instanz ist nach der Account-Regel verboten): Berechtigung wird später entzogen (Rückerstattung) -> gesperrtes Profil in laufender Instanz
+  ok(J(await q(`select rwi.join(${I}, '${C.A3}')`)).status === 'account_in_instance', 'derselbe Account kann mit einem zweiten Charakter nicht in dieselbe Instanz (Account-Regel)');
+  const I2 = J(await q(`select rwi.create_group('dungeon', array['${C.A3}','${C.C1}']::text[], 2)`)).instance;
   await q(`update public.account_entitlements set status='refunded' where account_id='${U.A}'`);
-  r = await wr(U.A, `select public.group_ready(${I}, '${C.A3}')`);
+  r = await wr(U.A, `select public.group_ready(${I2}, '${C.A3}')`);
   ok(fails(r, /forbidden/), 'gesperrter Platz-3-Charakter kann in der laufenden Instanz nicht handeln (forbidden)', err(r));
+  r = await wr(U.A, `select public.group_ready(${I2})`);
+  ok(fails(r, /forbidden/), 'ohne Charakterangabe: der gesperrte Charakter wird nicht abgeleitet (forbidden, nicht ambiguous)', err(r) || r.out);
   r = await wr(U.A, `select public.group_ready(${I})`);
-  ok(r.code === 0, 'ohne Charakterangabe wird der freigeschaltete Charakter des Kontos gewählt, nicht der gesperrte', err(r) || r.out);
-  ok((await q(`select mstate from rwi.members where instance_id=${I} and player='${C.A3}'`)) === 'active', 'OFFEN (dokumentiert): der gesperrte Charakter bleibt aktives Mitglied, bis ihn der Server per Verbindungsabbruch entfernt');
+  ok(r.code === 0, 'in der eigenen Instanz mit dem freigeschalteten Charakter wird dieser ohne Angabe abgeleitet', err(r) || r.out);
+  ok((await q(`select mstate from rwi.members where instance_id=${I2} and player='${C.A3}'`)) === 'active', 'OFFEN (dokumentiert): der gesperrte Charakter bleibt aktives Mitglied, bis ihn der Server per Verbindungsabbruch entfernt');
 
   // ---------- 5. Löschen eines Charakters / Kontos während einer laufenden Instanz ----------
   r = await wr(U.B, `select public.delete_character('${C.B1}')`);
@@ -114,6 +117,8 @@ try {
   ok((await q(`select count(*) from rwi.players where player in ('${C.A1}','${C.A3}')`)) === '0', 'Kontolöschung entfernt die Spielerprofile aus rwi.players (Kaskade -> Trigger)');
   ok((await q(`select count(*) from rwi.members where player in ('${C.A1}','${C.A3}') and mstate='active'`)) === '0', 'Kontolöschung hinterlässt kein aktives Mitglied in einer Instanz');
   ok((await q(`select status from rwi.instances where id=${I}`)) !== 'active', 'wenn alle Mitglieder ausgetreten sind, wird die Instanz regulär abgebrochen (bestehende Austrittsregel)');
+  ok((await q(`select status from rwi.instances where id=${I2}`)) === 'active' && (await q(`select count(*) from rwi.members where instance_id=${I2} and mstate='active'`)) === '1', 'Instanz mit weiterem Mitglied bleibt aktiv, nur das gelöschte Konto ist ausgetreten');
+  ok((await q(`select count(*) from rwi.members where account is not null and account='${U.A}'`)) === '0', 'Kontolöschung entfernt die Kontokennung aus Mitglieds-/Wartelistenzeilen');
   ok((await q(`select count(*) from rwi.ops_alerts where what='char_cleanup_failed'`)) === '0', 'keine Fehlermeldung in rwi.ops_alerts durch die Bereinigung');
   ok(fails(await del(U.A, S.ok, 'Spieler_A'), /not_authenticated|not_found|reauth_required/), 'zweiter Aufruf nach der Löschung ist kein Fehlzustand (Konto existiert nicht mehr)');
 } catch (e) { ok(false, 'Lauf ohne Ausnahme', String(e.message).split('\n').slice(0, 2).join(' | ')); }

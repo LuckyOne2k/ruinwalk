@@ -55,8 +55,8 @@ try {
   ok(inst.code === 0, 'kombinierte Installation in einer Transaktion', (inst.err || '').split('\n').filter((l) => /ERROR/.test(l))[0] || '');
   const after = await fp();
   ok(after !== pristine, 'Installation hat den Katalog verändert');
-  ok((await cnt(`select count(*) from pg_class where relnamespace='public'::regnamespace and relkind='r'`)) === 6 && (await cnt(`select count(*) from pg_class where relnamespace='rwi'::regnamespace and relkind='r'`)) === 15, '6 Tabellen in public, 15 in rwi');
-  ok((await cnt(`select count(*) from pg_proc where pronamespace='public'::regnamespace`)) === 27 && (await cnt(`select count(*) from pg_proc where pronamespace='rwi'::regnamespace`)) >= 46, '27 Funktionen in public (19 Schema + 8 Wrapper), mindestens 46 in rwi');
+  ok((await cnt(`select count(*) from pg_class where relnamespace='public'::regnamespace and relkind='r'`)) === 6 && (await cnt(`select count(*) from pg_class where relnamespace='rwi'::regnamespace and relkind='r'`)) === 16, '6 Tabellen in public, 16 in rwi');
+  ok((await cnt(`select count(*) from pg_proc where pronamespace='public'::regnamespace`)) === 37 && (await cnt(`select count(*) from pg_proc where pronamespace='rwi'::regnamespace`)) >= 55, '37 Funktionen in public (19 Schema + 8 Client-Wrapper + 10 Worker-/Betriebs-Wrapper), mindestens 55 in rwi');
   ok((await cnt(`select count(*) from pg_default_acl where defaclnamespace='public'::regnamespace`)) === 3, 'Default-ACLs in public unverändert (3 Einträge aus der Umgebung, von der Installation nicht angefasst)');
 
   // --- zweiter Installationsversuch ---

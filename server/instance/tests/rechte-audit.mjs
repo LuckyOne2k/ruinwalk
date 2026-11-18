@@ -57,7 +57,7 @@ try {
 
   // SECURITY DEFINER und search_path
   eq(await lines(`select n.nspname || '.' || p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','rwi') and p.prosecdef and not exists (select 1 from unnest(coalesce(p.proconfig,'{}')) c where c like 'search_path=%') order by 1`), [], 'jede SECURITY-DEFINER-Funktion hat einen festen search_path');
-  eq(await lines(`select p.proname from pg_proc p where p.pronamespace='rwi'::regnamespace and p.prosecdef order by 1`), ['on_character_deleted', 'own_character'], 'rwi: genau zwei SECURITY-DEFINER-Funktionen');
+  eq(await lines(`select p.proname from pg_proc p where p.pronamespace='rwi'::regnamespace and p.prosecdef order by 1`), ['account_guard', 'account_of', 'on_character_deleted', 'on_profile_deleted', 'on_profile_deleting', 'own_character'], 'rwi: genau sechs SECURITY-DEFINER-Funktionen (Identität, Konto-Hook, Triggerfunktionen)');
   ok((await lines(`select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','rwi') and p.prosecdef and exists (select 1 from unnest(p.proconfig) c where c like 'search_path=%' and c !~ 'pg_temp$')`)).length === 0, 'in jedem festen search_path steht pg_temp zuletzt (kein Vorrang für temporäre Objekte)');
   ok((await q(`select count(*) from pg_proc p where p.pronamespace='rwi'::regnamespace and not p.prosecdef and p.proconfig is not null`)) === '0', 'rwi: übrige Funktionen laufen als Aufrufer ohne eigene Konfiguration (Serverrollen, kein erweiterter Zugriff)');
 
@@ -72,7 +72,7 @@ try {
   // Trigger auf auth.users und Wechselwirkungen
   eq(await lines(`select tgname from pg_trigger where tgrelid='auth.users'::regclass and not tgisinternal`), ['on_auth_user_created'], 'auth.users: genau ein eigener Trigger');
   eq(await lines(`select n.nspname || '.' || c.relname || '.' || t.tgname || ' ' || case when t.tgtype & 2 = 2 then 'BEFORE' else 'AFTER' end from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where not t.tgisinternal and n.nspname = 'public' order by 1`),
-    ['public.account_entitlements.entitlements_audit AFTER', 'public.characters.characters_backup_del BEFORE', 'public.characters.characters_backup_upd BEFORE', 'public.characters.characters_guard BEFORE', 'public.characters.characters_rwi_cleanup AFTER', 'public.profiles.profiles_guard BEFORE'], 'Trigger auf den public-Tabellen: erwartete Menge und Zeitpunkte');
+    ['public.account_entitlements.entitlements_audit AFTER', 'public.characters.characters_backup_del BEFORE', 'public.characters.characters_backup_upd BEFORE', 'public.characters.characters_guard BEFORE', 'public.characters.characters_rwi_cleanup AFTER', 'public.profiles.profiles_guard BEFORE', 'public.profiles.profiles_rwi_cleanup AFTER', 'public.profiles.profiles_rwi_lock BEFORE'], 'Trigger auf den public-Tabellen: erwartete Menge und Zeitpunkte');
 
   // Default-ACLs
   const dacl = await lines(`select defaclrole::regrole || ' ' || coalesce(defaclnamespace::regnamespace::text,'-') || ' ' || defaclobjtype::text from pg_default_acl where defaclnamespace::regnamespace::text in ('public','rwi') order by 1`);

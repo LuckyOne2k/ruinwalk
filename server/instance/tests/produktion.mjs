@@ -15,11 +15,12 @@ let pass = 0, fail = 0; const lines = [];
 const ok = (c, n, i = '') => { (c ? pass++ : fail++); console.log(`${c ? 'ok' : 'NICHT OK'} - ${n}${i ? '  [' + i + ']' : ''}`); };
 const J = (s) => JSON.parse(s);
 const CFG = { bossHp: 150, bossAtk: 8 };
-const UID = { A: 'aaaaaaaa-0000-4000-8000-000000000001', B: 'bbbbbbbb-0000-4000-8000-000000000002', C: 'cccccccc-0000-4000-8000-000000000003', D: 'dddddddd-0000-4000-8000-000000000004', E: 'eeeeeeee-0000-4000-8000-000000000005' };
-const CH = { A1: 'a1a1a1a1-0000-4000-8000-000000000001', A2: 'a2a2a2a2-0000-4000-8000-000000000002', A3: 'a3a3a3a3-0000-4000-8000-000000000003', B1: 'b1b1b1b1-0000-4000-8000-000000000001', C1: 'c1c1c1c1-0000-4000-8000-000000000001', D1: 'd1d1d1d1-0000-4000-8000-000000000001', E1: 'e1e1e1e1-0000-4000-8000-000000000001', LOW: '10101010-0000-4000-8000-000000000001' };
+const UID = { A: 'aaaaaaaa-0000-4000-8000-000000000001', B: 'bbbbbbbb-0000-4000-8000-000000000002', C: 'cccccccc-0000-4000-8000-000000000003', D: 'dddddddd-0000-4000-8000-000000000004', E: 'eeeeeeee-0000-4000-8000-000000000005', F: 'ffffffff-0000-4000-8000-000000000006' };
+const CH = { A1: 'a1a1a1a1-0000-4000-8000-000000000001', A2: 'a2a2a2a2-0000-4000-8000-000000000002', A3: 'a3a3a3a3-0000-4000-8000-000000000003', B1: 'b1b1b1b1-0000-4000-8000-000000000001', C1: 'c1c1c1c1-0000-4000-8000-000000000001', D1: 'd1d1d1d1-0000-4000-8000-000000000001', E1: 'e1e1e1e1-0000-4000-8000-000000000001', LOW: '10101010-0000-4000-8000-000000000001', F1: 'f1f1f1f1-0000-4000-8000-000000000001' };
 const CLASSES = [['krieger', 'ritter'], ['bogenschuetze', 'jaeger'], ['magier', 'feuer'], ['heiler', 'priester'], ['heiler', 'natur'], ['krieger', 'berserker'], ['magier', 'frost'], ['bogenschuetze', 'fallensteller']];
 
 async function suite(mode) {
+  const strip05 = () => SQL('05_produktion').replace(/create function rwi\.own_character[\s\S]*?end \$\$;\n/, '').replace(/create function rwi\.on_character_deleted[\s\S]*?end \$\$;\n/, '').replace(/create trigger characters_rwi_cleanup[^\n]*\n/, '').replace(/create function rwi\.on_profile_deleting[\s\S]*?end \$\$;\n/, '').replace(/create function rwi\.on_profile_deleted[\s\S]*?end \$\$;\n/, '').replace(/create trigger profiles_rwi_(lock|cleanup)[^\n]*\n/g, '').replace(/create function public\.group_[\s\S]*?end \$\$;\n/g, '').replace(/create function public\.rw_[\s\S]*?end \$\$;\n/g, '');   // 05 erneut ausführen, ohne die bereits vorhandenen Objekte neu anzulegen (Rechte-Block und Wächter bleiben)
   const legacy = mode === 'legacy';
   const cl = await startCluster(legacy ? 54398 : 54397);
   const q = async (s) => { const r = await cl.psql(s); if (r.code) throw new Error(r.err + '\n' + s.slice(0, 300)); return r.out; };
@@ -38,11 +39,11 @@ async function suite(mode) {
     // Testdaten: 5 Konten, Charaktere über das echte Schema; A hat zwei freie Plätze und einen gesperrten dritten Platz
     for (const [k, id] of Object.entries(UID)) await q(`insert into auth.users(id,email,raw_user_meta_data) values ('${id}','${k.toLowerCase()}@test.de','{"username":"Spieler_${k}"}')`);
     const mkChar = (id, uid, slot, name) => `insert into public.characters(character_id,account_id,slot_number,character_name,character_data) values ('${id}','${uid}',${slot},'${name}','{}')`;
-    await q(mkChar(CH.A1, UID.A, 1, 'A1') + ';' + mkChar(CH.A2, UID.A, 2, 'A2') + ';' + mkChar(CH.B1, UID.B, 1, 'B1') + ';' + mkChar(CH.C1, UID.C, 1, 'C1') + ';' + mkChar(CH.D1, UID.D, 1, 'D1') + ';' + mkChar(CH.E1, UID.E, 1, 'E1') + ';' + mkChar(CH.LOW, UID.E, 2, 'Low'));
+    await q(mkChar(CH.A1, UID.A, 1, 'A1') + ';' + mkChar(CH.A2, UID.A, 2, 'A2') + ';' + mkChar(CH.B1, UID.B, 1, 'B1') + ';' + mkChar(CH.C1, UID.C, 1, 'C1') + ';' + mkChar(CH.D1, UID.D, 1, 'D1') + ';' + mkChar(CH.E1, UID.E, 1, 'E1') + ';' + mkChar(CH.LOW, UID.E, 2, 'Low') + ';' + mkChar(CH.F1, UID.F, 1, 'F1'));
     await q(`insert into public.account_entitlements(account_id,entitlement_type,status,granted_at) values ('${UID.A}','third_character_slot','active',now())`);
     await q(mkChar(CH.A3, UID.A, 3, 'A3'));
     await q(`update public.account_entitlements set status='refunded' where account_id='${UID.A}'`);          // Platz 3 ist nun gesperrt
-    let n = 0; for (const c of ['A1', 'A2', 'A3', 'B1', 'C1', 'D1', 'E1']) { const [g, p] = CLASSES[n++ % CLASSES.length]; await q(`insert into rwi.players values ('${CH[c]}', 10, '${g}', '${p}', 3)`); }
+    let n = 0; for (const c of ['A1', 'A2', 'A3', 'B1', 'C1', 'D1', 'E1', 'F1']) { const [g, p] = CLASSES[n++ % CLASSES.length]; await q(`insert into rwi.players values ('${CH[c]}', 10, '${g}', '${p}', 3)`); }
     await q(`insert into rwi.players values ('${CH.LOW}', 4, 'krieger', 'ritter', 3)`);
     const svc = async (sql) => { const r = await as('service_role', null, sql); if (r.code) throw new Error(r.err + '\n' + sql.slice(0, 200)); return r.out; };
     const mkG = async (chars, fights = 2) => J(await svc(`select rwi.create_group('dungeon', array[${chars.map((c) => `'${CH[c]}'`).join(',')}]::text[], ${fights})`));
@@ -52,7 +53,7 @@ async function suite(mode) {
       '|' || coalesce((select bool_or(a.grantee = 0) from aclexplode(p.proacl) a), true)::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'rwi' order by p.proname, p.oid::regprocedure::text`);
     const rows = FN.split('\n').map((l) => l.split('|'));
     const TEST = ['join', 'leave', 'set_ready', 'submit_action', 'submit_action_for', 'instance_view', 'heartbeat', 'heartbeat_for', 'use_revive_item', 'decline_revive_item', 'current_player'];
-    const TRIG = ['members_size_guard', 'on_fight_end', 'reward_filter', 'on_character_deleted'];
+    const TRIG = ['members_size_guard', 'on_fight_end', 'reward_filter', 'on_character_deleted', 'account_guard', 'on_profile_deleting', 'on_profile_deleted'];
     ok(rows.length >= 45, `${tag} Inventar: ${rows.length} Funktionen im Schema rwi gefunden`);
     ok(rows.every((r) => r[2] === 'false' && r[3] === 'false'), `${tag} KEINE rwi-Funktion ist für anon oder authenticated ausführbar`, rows.filter((r) => r[2] !== 'false' || r[3] !== 'false').map((r) => r[0]).join(','));
     ok(rows.every((r) => r[5] === 'false'), `${tag} KEINE rwi-Funktion hat ein PUBLIC-Recht (auch nicht das Standard-EXECUTE)`, rows.filter((r) => r[5] !== 'false').map((r) => r[0]).join(','));
@@ -73,13 +74,13 @@ async function suite(mode) {
     ok(wr.map((r) => r[0]).join() === [...WR].sort().join(), `${tag} genau die acht Client-Wrapper existieren in public`, wr.map((r) => r[0]).join(','));
     ok(wr.every((r) => r[1] === 'false' && r[2] === 'true' && r[3] === 'false' && r[4] === 'false'), `${tag} Wrapper: nur authenticated darf ausführen (kein anon, kein PUBLIC, kein service_role)`);
     ok(wr.every((r) => r[5] === 'true' && /search_path=public, pg_temp/.test(r[6])), `${tag} Wrapper: SECURITY DEFINER mit festem search_path`);
-    const SD = await q(`select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='rwi' and p.prosecdef and p.proname not in ('own_character', 'on_character_deleted')`);
-    ok(SD === '0', `${tag} im Schema rwi sind nur own_character und der Löschtrigger on_character_deleted SECURITY DEFINER (kein verstecktes Definer-Recht)`);
+    const SD = await q(`select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='rwi' and p.prosecdef and p.proname not in ('own_character', 'on_character_deleted', 'account_guard', 'account_of', 'on_profile_deleting', 'on_profile_deleted')`);
+    ok(SD === '0', `${tag} im Schema rwi sind nur own_character, account_of, die Lösch-/Konto-Trigger und account_guard SECURITY DEFINER (kein verstecktes Definer-Recht)`);
     ok((await q(`select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and (p.proname ~* 'reward|claim|belohn') and has_function_privilege('authenticated', p.oid, 'execute')`)) === '0',
       `${tag} es gibt (noch) keine für Clients ausführbare Belohnungs-Abruf- oder Einlösefunktion – Belohnungstabellen sind unerreichbar`);
     // Wächter: eine neue, nicht eingeordnete rwi-Funktion bricht die Rechte-Skript-Ausführung ab
     await q(`create function rwi.neu_unklassifiziert() returns int language sql as $$ select 1 $$`);
-    const g = await cl.psql(SQL('05_produktion').replace(/create function rwi\.own_character[\s\S]*?end \$\$;\n/, '').replace(/create function rwi\.on_character_deleted[\s\S]*?end \$\$;\n/, '').replace(/create trigger characters_rwi_cleanup[^\n]*\n/, '').replace(/create function public\.group_[\s\S]*?end \$\$;\n/g, ''));
+    const g = await cl.psql(strip05());
     ok(failsWith(g, /nicht \(eindeutig\) klassifiziert/), `${tag} Wächter: neue rwi-Funktion ohne Einordnung lässt das Rechte-Skript scheitern`);
     await q(`drop function rwi.neu_unklassifiziert()`);
 
@@ -129,14 +130,11 @@ async function suite(mode) {
     ok((await q(`select count(*) from rwi.members where instance_id=${I1} and player='${UID.A}'`)) === '0', `${tag} die Konto-ID taucht nie als Spielerschlüssel auf`);
     const rj2 = await asJ('authenticated', UID.A, `select public.group_join(${I1}, '${CH.A1}')`);
     ok(['already_member', 'already_waiting'].includes(rj2.status), `${tag} zweiter Beitritt ist wirkungslos`, rj2.status);
-    // Uneindeutigkeit: A hat zwei Charaktere in derselben Instanz
+    // Account-Regel (Beschluss): ein Account stellt je Instanz höchstens einen Charakter -> zweiter eigener Charakter wird abgewiesen, die Ableitung ohne Charakterangabe ist damit eindeutig
     const rA2 = await asJ('authenticated', UID.A, `select public.group_join(${I1}, '${CH.A2}')`);
-    ok(['joined', 'waitlisted', 'full'].includes(rA2.status), `${tag} A kann einen zweiten eigenen Charakter beitreten lassen`, rA2.status);
-    if (rA2.status !== 'full') {
-      ok(failsWith(await as('authenticated', UID.A, `select public.group_ready(${I1})`), /ambiguous_character/), `${tag} ohne Charakterangabe und mit zwei eigenen Charakteren in der Instanz: ambiguous_character (kein Raten)`);
-      ok((await asJ('authenticated', UID.A, `select public.group_ready(${I1}, '${CH.A1}')`)).status === 'ok', `${tag} mit Charakterangabe (eigener Charakter) geht es`);
-      await asJ('authenticated', UID.A, `select public.group_leave(${I1}, '${CH.A2}')`);
-    } else await asJ('authenticated', UID.A, `select public.group_ready(${I1}, '${CH.A1}')`);
+    ok(rA2.status === 'account_in_instance', `${tag} A kann keinen zweiten eigenen Charakter in dieselbe Instanz bringen (Account-Regel)`, rA2.status);
+    ok((await asJ('authenticated', UID.A, `select public.group_ready(${I1})`)).status === 'ok', `${tag} ohne Charakterangabe wird der einzige eigene Charakter der Instanz abgeleitet (eindeutig, kein Raten)`);
+    ok((await asJ('authenticated', UID.A, `select public.group_ready(${I1}, '${CH.A1}')`)).status === 'ok', `${tag} mit Charakterangabe (eigener Charakter) geht es ebenfalls`);
     const rB = await asJ('authenticated', UID.B, `select public.group_ready(${I1})`);
     ok(rB.status === 'ok', `${tag} B bestätigt Bereitschaft ohne Charakterangabe (aus Sitzung und Mitgliedschaft abgeleitet)`);
     ok((await q(`select ready from rwi.members where instance_id=${I1} and player='${CH.B1}'`)) === 't' && (await q(`select ready from rwi.members where instance_id=${I1} and player='${CH.C1}'`)) === 'f', `${tag} nur B ist bereit, C unverändert`);
@@ -225,11 +223,11 @@ async function suite(mode) {
       const cm = J(await svc(`select rwi.commit_round(${fid}, ${cl1.input.round_no}, '${cl1.token}', ${cl1.round_version}, '${cl1.input_hash}', '${ENGINE_VERSION}', $j$${JSON.stringify(res)}$j$::jsonb)`));
       ok(['committed', 'event_ended'].includes(cm.status), `${tag} service_role: commit_round (Triggerfunktionen laufen ohne eigenes EXECUTE-Recht)`, cm.status);
     }
-    ok(J(await svc(`select rwi.create_group('weltboss', array['${CH.A1}','${CH.B1}','${CH.C1}','${CH.D1}','${CH.E1}','${CH.A2}']::text[], 1, 7, clock_timestamp() + interval '1 hour')`)).status === 'ok', `${tag} service_role: create_group Weltboss (6 Spieler) – Servergruppierung funktioniert`);
+    ok(J(await svc(`select rwi.create_group('weltboss', array['${CH.A1}','${CH.B1}','${CH.C1}','${CH.D1}','${CH.E1}','${CH.F1}']::text[], 1, 7, clock_timestamp() + interval '1 hour')`)).status === 'ok', `${tag} service_role: create_group Weltboss (6 Spieler) – Servergruppierung funktioniert`);
     // gleiche Daten als Superuser: der Prototyp-Weg (Tests mit Spielerparametern) bleibt für den Tabelleneigentümer erhalten
     const own = J(await q(`select rwi.instance_view(${I1}, '${CH.B1}')`)); ok(own.status === 'ok', `${tag} Tabelleneigentümer (Migrationsrolle) kann die Testfunktionen weiter nutzen`);
     // Rechte stabil nach erneuter Ausführung
-    await q(SQL('05_produktion').replace(/create function rwi\.own_character[\s\S]*?end \$\$;\n/, '').replace(/create function rwi\.on_character_deleted[\s\S]*?end \$\$;\n/, '').replace(/create trigger characters_rwi_cleanup[^\n]*\n/, '').replace(/create function public\.group_[\s\S]*?end \$\$;\n/g, ''));
+    await q(strip05());
     const again = (await q(`select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='rwi' and (has_function_privilege('anon', p.oid, 'execute') or has_function_privilege('authenticated', p.oid, 'execute'))`));
     ok(again === '0', `${tag} Rechte-Skript ist wiederholbar und lässt keine Clientrechte zurück`);
     // Ausgabe der Matrix für den Bericht (nur Ausgabe, keine Prüfung)

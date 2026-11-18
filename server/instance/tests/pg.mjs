@@ -15,7 +15,7 @@ export async function startCluster(port = 54331, extra = '') {
   const base = ['-h', tmp, '-p', String(port), '-U', 'postgres', '-X', '-q', '-v', 'ON_ERROR_STOP=1'];
   const psql = (sql, db = 'rwi', extra = []) => new Promise((res) => {
     const p = spawn(`${BIN}/psql`, [...base, '-d', db, '-At', ...extra], { stdio: ['pipe', 'pipe', 'pipe'] }); let o = '', e = '';
-    p.stdout.on('data', (d) => (o += d)); p.stderr.on('data', (d) => (e += d)); p.on('close', (code) => res({ code, out: o.trim(), err: e.trim() })); p.stdin.end(sql);
+    p.stdout.on('data', (d) => (o += d)); p.stderr.on('data', (d) => (e += d)); p.on('close', (code) => res({ code, out: o.trim(), err: e.trim() })); p.stdin.on('error', () => {});   /* psql darf vorzeitig enden (z. B. Preflight-Abbruch); das Ergebnis steht in code/err */ p.stdin.end(sql);
   });
   await psql('create database rwi', 'postgres');
   const stop = () => { run(`${BIN}/pg_ctl`, ['-D', `${tmp}/data`, '-m', 'immediate', 'stop']); rmSync(tmp, { recursive: true, force: true }); };

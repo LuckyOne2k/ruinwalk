@@ -35,6 +35,7 @@ declare r record;
 begin
   for r in select p.oid::regprocedure as sig from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = any(array[
       'group_join','group_leave','group_ready','group_heartbeat','group_view','group_action','group_revive_use','group_revive_decline',
+      'rw_worker_tick','rw_worker_rounds','rw_worker_claim','rw_worker_commit','rw_worker_report_failure','rw_worker_roster','rw_worker_start_fight','rw_ops_stuck_list','rw_ops_resume','rw_ops_terminate',
       'create_character','save_character','delete_character','list_characters','move_character','touch_login','delete_account','username_available',
       'purge_expired_backups','purge_account_backups','has_entitlement','is_verified','safe_class','safe_level',
       'handle_new_user','guard_profile','guard_character','backup_character','audit_entitlement']) loop
