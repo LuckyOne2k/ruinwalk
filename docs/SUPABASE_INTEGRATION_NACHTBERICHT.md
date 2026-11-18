@@ -50,7 +50,7 @@ Zahlen je Test (PG16 = PG17): run 45, fenster 39, gruppe 157, eventende 32, sema
 - `state_schema` ist heute überall 1; eine Schemamigration des gespeicherten Kampfzustands ist nicht gebaut (die Prüfung lehnt Versionen mit anderem Schema nur ab).
 - F9: `rwi.players` (Profilquelle) wird noch nicht aus `public.characters` abgeleitet (F5, `derive-profile` fehlt). Der Schutz bezieht sich auf das gespeicherte Instanzprofil ab Eintritt/Ready.
 - Spieler ohne Charakterzuordnung (nur Prototypschlüssel) haben keine Kontokennung und werden nicht auf die Account-Regel geprüft.
-- Bei Entzug von Platz 3 vor dem Ready kann der Charakter bis zum Ready-Ablauf Mitglied bleiben (er kann nicht bereit werden, die Bereitschaftsfrist entfernt ihn nach der bestehenden Regel).
+- Bei Entzug von Platz 3 vor dem Ready bleibt der Charakter Mitglied, kann aber nicht bereit werden (getestet). Dass ihn danach die bestehende Bereitschaftsfrist entfernt, ist erwartet, aber für diesen Fall nicht gesondert getestet.
 - Aufrufe von Edge Function, Cron, `pg_net`, `dispatch_due`, Authentisierung/Ratenbegrenzung des Workers sind nicht gebaut.
 
 ### 00.7 Offene Dev-Voraussetzungen
