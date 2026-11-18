@@ -10,7 +10,7 @@ Stand: 18.11.2026 abends. Kurz halten (≤ 80 Zeilen). Pflege: Hauptsitzung nach
 ## Letzter Auftrag
 Folgeauftrag „Rollback und Cleanup gegen Transaktions-Pooling absichern“ (Zweig-Ordner, ohne Commit):
 - Umgesetzt: gemeinsame Schutzlogik `supabase/dev/_ziel_wrapper.sh`; `install_dev.sh`, neu `rollback_dev.sh`, `cleanup_dev.sh` (Referenz + Bestätigung als `set local` nach `begin;`, nur Port 5432, PG-Umgebung bereinigt, `psql -X`, SHA-Pflicht); `lock_timeout` 5 s in Rollback/Cleanup; Doku in `docs/DEV_INSTALLATIONSFREIGABE.md`.
-- **Abgeschlossen, Bericht an Pascal erstattet – wartet auf seine Entscheidung (Commit/Push).** `installation.mjs` 188/188, `run-all-db.sh` (PG16) ALLES BESTANDEN, 11/11 Mutationsproben erkannt, `index.html`/`schema.sql` unverändert.
+- **Commit/Push freigegeben (18.11.), aber ANGEHALTEN:** Abgleich fand 2 Lücken in `_ziel_wrapper.sh` (schon in ce29fd0): prozent-kodierte Abfrageparameter (`?%70ort=6543`) und Mehrfach-Host per Komma (`fremd,x.pooler.supabase.com`). Wartet auf Pascals Entscheidung (Fix im Umfang?). Lokal: install_dev.sh-Modus auf 644 zurück, Doku-Statuszeilen korrigiert. Vorher: `installation.mjs` 188/188, `run-all-db.sh` (PG16) ALLES BESTANDEN, 11/11 Mutationsproben erkannt, `index.html`/`schema.sql` unverändert.
 - SHA-256 `install_dev.sql`: `2206042d22f047044f6a7813bcfa6eea9d778c3fd376033042bf454000adebf3`.
 
 ## Offene Entscheidungen (Pascal)
