@@ -146,5 +146,29 @@ const files = cp.execSync('git ls-files -co --exclude-standard .claude marketing
 for (const f of files) { if (/\.(png|jpg|woff2)$/.test(f)) continue; const s = fs.readFileSync(path.join(ROOT, f), 'utf8');
   check(!/(EAA[A-Za-z0-9]{20,}|sb_secret_[A-Za-z0-9_]{10,}|service_role"\s*:\s*"ey|IGQV[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,})/.test(s), `${f}: keine Zugangsschlüssel`); }
 
+console.log('Kontextsicherung (Komprimieren)');
+const stg = JSON.parse(fs.readFileSync(path.join(C, 'settings.json'), 'utf8'));
+check(stg.env && stg.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE === '80', 'settings.json: Auto-Komprimieren ab 80 %');
+check(JSON.stringify(stg.hooks.PreCompact || '').includes('kontext-sicherung.js\\" vorher'), 'settings.json: PreCompact → kontext-sicherung.js vorher');
+check((stg.hooks.SessionStart || []).some(h => h.matcher === 'compact' && JSON.stringify(h).includes('kontext-sicherung.js\\" nachher')), 'settings.json: SessionStart/compact → kontext-sicherung.js nachher');
+check(fs.existsSync(path.join(ROOT, 'docs/ki-team/ARBEITSSTAND.md')), 'docs/ki-team/ARBEITSSTAND.md existiert');
+check(fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8').includes('.claude/arbeitsstand/'), '.gitignore schließt .claude/arbeitsstand/ aus');
+{ // in einer Wegwerf-Kopie ausführen, damit der echte Schnappschuss unberührt bleibt
+  const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'rw-ks-'));
+  cp.execSync('git init -q && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m start', { cwd: tmp });
+  fs.mkdirSync(path.join(tmp, 'docs/ki-team'), { recursive: true });
+  fs.writeFileSync(path.join(tmp, 'docs/ki-team/ARBEITSSTAND.md'), '# Übergabe\nMARKE-123\n' + 'x'.repeat(30000));
+  const lauf = (m) => cp.execFileSync('node', [path.join(C, 'hooks/kontext-sicherung.js'), m], { input: JSON.stringify({ trigger: 'auto' }), env: { ...process.env, CLAUDE_PROJECT_DIR: tmp } }).toString();
+  const vor = lauf('vorher');
+  check(vor.length > 0 && vor.length <= 10000, `kontext-sicherung vorher: Anweisung ≤ 10.000 Zeichen (${vor.length})`);
+  check(vor.includes('MARKE-123'), 'kontext-sicherung vorher: enthält Übergabe-Auszug');
+  check(fs.existsSync(path.join(tmp, '.claude/arbeitsstand/schnappschuss.md')), 'kontext-sicherung vorher: Schnappschuss geschrieben');
+  let j = {}; try { j = JSON.parse(lauf('nachher')); } catch {}
+  const ac = (j.hookSpecificOutput || {}).additionalContext || '';
+  check(j.hookSpecificOutput && j.hookSpecificOutput.hookEventName === 'SessionStart' && ac.includes('MARKE-123') && ac.includes('Schnappschuss'), 'kontext-sicherung nachher: gültiges JSON mit Übergabe + Schnappschuss');
+  let leer = ''; try { leer = cp.execFileSync('node', [path.join(C, 'hooks/kontext-sicherung.js'), 'nachher'], { input: 'kein json', env: { ...process.env, CLAUDE_PROJECT_DIR: path.join(tmp, 'gibtsnicht') } }).toString(); check(true, 'kontext-sicherung: blockiert nie (Exit 0 bei Fehleingaben)'); } catch { check(false, 'kontext-sicherung: blockiert nie (Exit 0 bei Fehleingaben)'); }
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
+
 console.log(`\nErgebnis: ${ok} bestanden, ${bad} fehlgeschlagen`);
 process.exit(bad ? 1 : 0);

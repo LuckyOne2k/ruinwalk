@@ -57,6 +57,9 @@ Global (in Claude eingebaut, nicht im Repo): `skill-creator`, `code-review`, `se
 |---|---|---|
 | `hooks/schutz.js` | vor Bash-, Datei- und MCP-Aufrufen | Rückfrage an dich bei: Änderung des Veröffentlichungsmodus, Meta-Schreibzugriff außerhalb des Modus `autonom`, schreibendem SQL/Migration/Edge Function am Live-Supabase, `git push` auf `main` |
 | `hooks/hinweise.js` | nach Dateiänderungen | erinnert Claude an die passenden Tests/Regeln (Instanzkampf, SQL, index.html, Freigaben, Team-Dateien) |
+| `hooks/kontext-sicherung.js` | vor dem Komprimieren (PreCompact) und beim Neustart danach (SessionStart, matcher `compact`) | schreibt einen Schnappschuss nach `.claude/arbeitsstand/` (nicht eingecheckt), gibt der Zusammenfassung Anweisungen mit und lädt danach `ARBEITSSTAND.md` + Schnappschuss wieder ein; blockiert nie |
+
+Auto-Komprimieren ab 80 % Kontext (`env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` in `settings.json`). Übergabedatei: `docs/ki-team/ARBEITSSTAND.md` (pflegt die Hauptsitzung).
 
 Selbsttest des ganzen Systems: `node .claude/tests/team-check.js`
 
