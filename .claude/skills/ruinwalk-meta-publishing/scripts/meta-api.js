@@ -120,6 +120,15 @@ function logZaehlen() {
       if (lim && lim.data && lim.data[0]) console.log('API-Veröffentlichungen in den letzten 24 h:', lim.data[0].quota_usage, '/', (lim.data[0].config || {}).quota_total);
       return;
     }
+    if (IG) {
+      const k = await api('GET', '/' + IG, { fields: 'id,username,name,media_count,followers_count' });
+      console.log(`Instagram-Konto: @${k.username} (ID ${k.id}, ${k.media_count} Beiträge, ${k.followers_count} Follower) über ${HOST}`);
+      const lim = await api('GET', `/${IG}/content_publishing_limit`, { fields: 'quota_usage,config' }).catch(() => null);
+      if (lim && lim.data && lim.data[0]) console.log('API-Veröffentlichungen in den letzten 24 h:', lim.data[0].quota_usage, '/', (lim.data[0].config || {}).quota_total);
+      const perms = await api('GET', '/me/permissions').catch(() => ({ data: [] }));
+      console.log('Berechtigungen:', (perms.data || []).filter(p => p.status === 'granted').map(p => p.permission).join(', '));
+      return;
+    }
     if (!cfg.page_id) console.log('Hinweis: marketing/meta/config.json fehlt oder ohne page_id – siehe marketing/meta/ANBINDUNG.md');
     const me = await api('GET', '/me', { fields: 'id,name' });
     console.log('Token gehört zu:', me.name, me.id);
