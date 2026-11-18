@@ -1,8 +1,8 @@
 # Instagram-Konzept
 
-## Profil (Pascal legt an)
+## Profil
 - **Kontotyp:** Professionelles Konto, Kategorie „Videospiel“ (oder „Spieleentwickler“). Nötig für Insights und spätere API.
-- **Name/Handle:** Wunsch `@ruinwalk` (Alternativen `@ruinwalk.game`, `@ruinwalk_rpg`) – Verfügbarkeit prüft Pascal.
+- **Handle:** **@ruinwalk.official** (angelegt, Business-Konto, 18.11.2026)
 - **Anzeigename:** `Ruin Walk · GPS-Fantasy-RPG` (Suchbegriffe im Namen helfen bei der Suche).
 - **Bio (≤ 150 Zeichen):**
   ```

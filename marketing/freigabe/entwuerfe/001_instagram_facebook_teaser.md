@@ -1,7 +1,7 @@
 ---
 id: 001
 titel: Teaser – Deine Welt ist das Spielfeld
-kanal: instagram,facebook
+kanal: instagram
 format: post
 geplant_fuer: vor Tag 1 (Rasterbeitrag 1)
 status: entwurf

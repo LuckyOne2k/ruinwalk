@@ -1,7 +1,7 @@
 ---
 id: 003
 titel: Wähle deinen Weg – vier Klassen
-kanal: instagram,facebook
+kanal: instagram
 format: post
 geplant_fuer: vor Tag 1 (Rasterbeitrag 3)
 status: entwurf

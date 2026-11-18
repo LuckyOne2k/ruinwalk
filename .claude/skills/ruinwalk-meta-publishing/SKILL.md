@@ -8,7 +8,9 @@ description: Anbindung von Ruin Walk an Instagram und Facebook über Meta Busine
 Anleitung für Pascal: `marketing/meta/ANBINDUNG.md`. Berechtigungsliste: `marketing/meta/BERECHTIGUNGEN.md`.
 
 ## Stand
-- Noch **keine** Accounts, keine Meta-App, kein Token (Stand 18.11.2026). Pascal legt die Accounts selbst an.
+- Instagram **@ruinwalk.official** (Business-Konto, 18.11.2026), Weg: Instagram-API mit Instagram-Login (`api_host: graph.instagram.com` in `marketing/meta/config.json`). Token noch nicht hinterlegt. Keine Facebook-Seite.
+- **Bilder öffentlich:** Ist `bild_url` leer, erzeugt das Skript automatisch `https://raw.githubusercontent.com/LuckyOne2k/ruinwalk/<commit>/<pfad>` aus dem auf GitHub gepushten Stand des aktuellen Zweigs (Commit-Hash = unveränderliche Adresse). Bilder müssen JPEG sein und **vor** dem Posten committet und gepusht werden. Kein Push auf `main` nötig.
+- **Karussell:** `bild: …_1.jpg (+ _2 bis _N)` → alle Seiten `_1…_N` (max. 10) werden als Karussell gepostet.
 - Kein offizieller Meta-Connector in der Claude-Umgebung vorhanden. Drittanbieter-Connectoren (z. B. Windsor.ai, Zapier) wären möglich, leiten aber Daten über Dritte – nur auf ausdrücklichen Wunsch.
 
 ## Zwei Wege – Empfehlung

@@ -1,6 +1,6 @@
 # Ruin Walk – Marketing-Wissensbasis
 
-Arbeitsgrundlage des Agenten `rw-marketing`. Stand: 18.11.2026. **Status: vorbereitet, noch keine Accounts, nichts veröffentlicht.**
+Arbeitsgrundlage des Agenten `rw-marketing`. Stand: 18.11.2026. **Status: Instagram @ruinwalk.official angelegt (Business), Modus `autonom`; API-Zugang noch offen; noch keine Facebook-Seite.**
 
 | Datei | Inhalt |
 |---|---|

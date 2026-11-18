@@ -1,7 +1,9 @@
 {
-  "_hinweis": "Nur öffentliche Angaben, NIEMALS Tokens. api_host graph.instagram.com = Instagram-API mit Instagram-Login (ohne Facebook-Seite).",
-  "api_host": "graph.instagram.com",
-  "api_version": "v25.0",
-  "ig_user_id": "",
-  "page_id": ""
+    "api_host": "graph.instagram.com",
+    "api_version": "v25.0",
+    "ig_user_id": "",
+    "page_id": "",
+    "github_repo": "LuckyOne2k/ruinwalk",
+    "instagram_handle": "ruinwalk.official",
+    "_hinweis": "Nur \u00f6ffentliche Angaben, NIEMALS Tokens."
 }

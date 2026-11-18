@@ -72,10 +72,34 @@ function pruefen(e) {
   if (!e.fakten || !/→/.test(e.fakten)) f.push('Faktenprüfung fehlt (Aussage → Beleg → Status)');
   if (/→[^→\n]*→\s*in entwicklung\b/i.test(e.fakten) && !/in entwicklung/i.test(e.caption_ig + e.text_fb)) f.push('Faktenprüfung nennt etwas „in Entwicklung“, der Text sagt das nicht');
   for (const r of VERBOTEN) if (r.test(e.caption_ig + '\n' + e.text_fb)) f.push('unzulässige Formulierung/Link: ' + r);
-  const bildDatei = (e.bild || '').split(' ')[0];
-  if (!bildDatei || !fs.existsSync(path.join(ROOT, bildDatei))) f.push('Bilddatei fehlt: ' + bildDatei);
+  const bilder = bilderVon(e);
+  if (!bilder.length) f.push('Bilddatei fehlt');
+  for (const b of bilder) if (!fs.existsSync(path.join(ROOT, b))) f.push('Bilddatei fehlt: ' + b);
+  for (const b of bilder) if (!/\.jpe?g$/i.test(b)) f.push('Instagram-API akzeptiert nur JPEG: ' + b);
   return f;
 }
+// Bilder eines Entwurfs: „bild: pfad_1.jpg (+ _2 bis _6)“ = Karussell; sonst Einzelbild
+function bilderVon(e) {
+  const erst = (e.bild || '').split(' ')[0]; if (!erst) return [];
+  const m = erst.match(/^(.*_)(\d+)(\.\w+)$/);
+  if (!m || !/\(\+/.test(e.bild)) return [erst];
+  const dir = path.dirname(path.join(ROOT, erst)), basis = path.basename(m[1]), ende = m[3];
+  return fs.readdirSync(dir).filter(x => x.startsWith(basis) && x.endsWith(ende) && /^\d+$/.test(x.slice(basis.length, -ende.length)))
+    .sort((a, b) => parseInt(a.slice(basis.length)) - parseInt(b.slice(basis.length))).slice(0, 10)
+    .map(x => path.relative(ROOT, path.join(dir, x)).split(path.sep).join('/'));
+}
+// Öffentliche Bild-URL: raw.githubusercontent.com auf einem festen, bereits gepushten Commit (öffentliches Repo).
+// Kein Push auf main nötig. Der Commit-Hash macht die Adresse unveränderlich.
+function githubUrl(rel) {
+  const cp = require('child_process'), git = a => cp.execFileSync('git', a, { cwd: ROOT }).toString().trim();
+  const repo = (cfg.github_repo || 'LuckyOne2k/ruinwalk');
+  let sha = null;
+  try { const zweig = git(['rev-parse', '--abbrev-ref', 'HEAD']); git(['fetch', '-q', 'origin', zweig]); sha = git(['rev-parse', 'FETCH_HEAD']); } catch { }
+  if (!sha) throw new Error('Commit auf GitHub nicht ermittelbar – Bilder erst committen und pushen.');
+  try { git(['cat-file', '-e', `${sha}:${rel}`]); } catch { throw new Error(`Bild ${rel} ist noch nicht auf GitHub gepusht.`); }
+  return `https://raw.githubusercontent.com/${repo}/${sha}/${rel}`;
+}
+
 function logZaehlen() {
   if (!fs.existsSync(LOG_PATH)) return { tag: 0, woche: 0 };
   const jetzt = Date.now(), z = fs.readFileSync(LOG_PATH, 'utf8').split('\n').filter(l => /^\| \d{4}-/.test(l)).map(l => Date.parse(l.split('|')[1].trim()));
@@ -126,19 +150,34 @@ function logZaehlen() {
       if (e.status !== 'freigegeben') die(`Entwurf hat status "${e.status || 'leer'}" – Veröffentlichung nur mit status: freigegeben (durch Pascal).`);
       if (!/pascal/i.test(e.freigabe)) die('freigegeben_von muss Pascal nennen.');
     }
-    if (!/^https:\/\//.test(e.bild_url)) die('bild_url muss eine öffentliche https-Adresse sein (Instagram lädt das Bild selbst).');
+    const bilder = bilderVon(e);
+    let urls;
+    if (/^https:\/\//.test(e.bild_url)) urls = [e.bild_url];
+    else { try { urls = bilder.map(githubUrl); } catch (x) { die(x.message); } }
+    if (!urls.length) die('Keine Bilder gefunden.');
     const plan = [];
     if (/instagram/.test(e.kanal)) {
       if (!IG) die('ig_user_id fehlt in marketing/meta/config.json');
-      plan.push(['POST', `/${IG}/media`, { image_url: e.bild_url, caption: e.caption_ig, alt_text: e.alt }], ['POST', `/${IG}/media_publish`, { creation_id: '<aus Schritt 1>' }]);
+      if (urls.length === 1) plan.push(['POST', `/${IG}/media`, { image_url: urls[0], caption: e.caption_ig, alt_text: e.alt }]);
+      else { urls.forEach(u => plan.push(['POST', `/${IG}/media`, { image_url: u, is_carousel_item: 'true', alt_text: e.alt }]));
+             plan.push(['POST', `/${IG}/media`, { media_type: 'CAROUSEL', children: '<IDs der Seiten>', caption: e.caption_ig }]); }
+      plan.push(['POST', `/${IG}/media_publish`, { creation_id: '<aus dem letzten Schritt>' }]);
     }
+    e.bild_url = urls[0];
     if (/facebook/.test(e.kanal)) { if (!cfg.page_id) die('page_id fehlt'); plan.push(['POST', `/${cfg.page_id}/photos`, { url: e.bild_url, caption: e.text_fb || e.caption_ig }]); }
     if (!plan.length) die('kanal muss instagram und/oder facebook enthalten');
     console.log(SENDEN ? 'SENDEN:' : 'TROCKENLAUF (nichts wird gesendet):');
     for (const [m, p, b] of plan) console.log(` ${m} ${BASE}${p}\n   ${JSON.stringify(b).slice(0, 300)}`);
     if (!SENDEN) return console.log('\nZum Senden: denselben Befehl mit --senden (nur nach Freigabe; es folgt eine Bestätigungsabfrage).');
     const erg = [];
-    if (/instagram/.test(e.kanal)) { const c = await api(...plan[0]); // Container muss fertig verarbeitet sein (bei Bildern meist sofort, bei Videos länger)
+    const warten = async id => { for (let i = 0; i < 20; i++) { const st = await api('GET', '/' + id, { fields: 'status_code' }).catch(() => ({})); if (!st.status_code || st.status_code === 'FINISHED') return; if (st.status_code === 'ERROR') throw new Error('Container-Fehler bei Instagram'); await new Promise(r => setTimeout(r, 3000)); } };
+    if (/instagram/.test(e.kanal) && urls.length > 1) {
+      const kinder = [];
+      for (const u of urls) { const k = await api('POST', `/${IG}/media`, { image_url: u, is_carousel_item: 'true', alt_text: e.alt }); await warten(k.id); kinder.push(k.id); }
+      const c = await api('POST', `/${IG}/media`, { media_type: 'CAROUSEL', children: kinder.join(','), caption: e.caption_ig });
+      await warten(c.id);
+      const pub = await api('POST', `/${IG}/media_publish`, { creation_id: c.id }); erg.push('instagram:' + pub.id);
+    } else if (/instagram/.test(e.kanal)) { const c = await api(...plan[0]); // Container muss fertig verarbeitet sein (bei Bildern meist sofort, bei Videos länger)
       for (let i = 0; i < 20; i++) { const st = await api('GET', '/' + c.id, { fields: 'status_code' }).catch(() => ({})); if (!st.status_code || st.status_code === 'FINISHED') break; if (st.status_code === 'ERROR') throw new Error('Container-Fehler bei Instagram'); await new Promise(r => setTimeout(r, 3000)); }
       const pub = await api('POST', `/${IG}/media_publish`, { creation_id: c.id }); erg.push('instagram:' + pub.id); }
     if (/facebook/.test(e.kanal)) { const fbp = plan.find(x => x[1].endsWith('/photos')); const r = await api(...fbp); erg.push('facebook:' + (r.post_id || r.id)); }
