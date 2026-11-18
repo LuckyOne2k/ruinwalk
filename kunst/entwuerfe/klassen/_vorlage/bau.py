@@ -1,42 +1,50 @@
 #!/usr/bin/env python3
-"""Baukasten fuer die Klassenfiguren (64x64, blickt nach rechts, Licht oben links).
+"""Baukasten fuer die Klassenfiguren Ruin Walk (64x64, blickt nach rechts, Licht oben links) - Version 2 (Phase 1b).
 
-Zeichnet NICHTS automatisch "schoen" - alle Formen sind unten als ASCII-Stempel von Hand gesetzt.
-Automatisch sind nur zwei Hilfen:
-  1. aussenkontur(): 1 px Hauskontur #29190e um die Gesamtsilhouette (4er-Nachbarschaft).
-  2. Stempel werden in Reihenfolge (hinten -> vorne) uebereinandergelegt; '.' im Stempel = nichts setzen,
-     '_' = Pixel loeschen (transparent).
-Ergebnis ist eine Rasterdatei (.txt) = Quelle; Feinarbeit danach direkt im Raster.
+Alle Formen sind von Hand als Pixelzeilen gesetzt: Eintrag (y, x0, "pixel") = ab Spalte x0 in Zeile y.
+'.' bzw. ' ' = nichts setzen, '_' = Pixel loeschen. Automatisch sind nur:
+  kette()        Kettengeflecht aus Platzhaltern '#' (Licht) / '%' (Schatten)
+  aussenkontur() 1 px Hauskontur #29190e um die Silhouette (4er-Nachbarschaft) + Einzelloecher schliessen
+Ergebnis = Rasterdatei (.txt) als Quelle; Feinarbeit danach direkt im Raster erlaubt.
 
-Aufruf:  python3 bau.py <ausgabe.txt> <figur>      (figur: koerper, wanderer, krieger, bogen, magier, heiler)
+Aufruf:  python3 bau.py <ausgabe.txt> <figur>     figur: koerper | wanderer | krieger | bogen | magier | heiler
+Jede Figur in einem eigenen Prozess bauen (PAL wird je Figur ergaenzt).
 """
 import sys
 
-# ---------------- Hauspalette Klassenfiguren (verbindlich, siehe STIL.md) ----------------
 PAL = {
-    'k': '#29190e',                                                   # Aussenkontur
-    # Haut (4 Stufen)
-    '1': '#f9e0c4', '2': '#ecb98f', '3': '#c98a6b', '4': '#8f5545',
-    # Haare braun (4)
-    '5': '#c98a4e', '6': '#9c6136', '7': '#6e3f26', '8': '#4a2b1b',
-    # Augen
-    'W': '#fbf6ea', 'q': '#e98d7d', 'i': '#3b4f8c', 'I': '#7fa3e0',                                   # Glanzpunkt, Wangenroete
+    'k': '#29190e',                                                       # Aussenkontur
+    '1': '#f9e0c4', '2': '#ecb98f', '3': '#c98a6b', '4': '#8f5545',       # Haut
+    '5': '#c98a4e', '6': '#9c6136', '7': '#6e3f26', '8': '#4a2b1b',       # Haare (Standard braun)
+    'W': '#fbf6ea', 'i': '#3b4f8c', 'I': '#7fa3e0', 'q': '#e98d7d',       # Glanz, Iris dunkel/hell, Wange
+    'a': '#f3e8cf', 'b': '#d4c19b', 'c': '#a28b69', 'd': '#6e5a47',       # Leinen
+    'E': '#a9a4bd', 'e': '#837d9b', 'f': '#615673', 'g': '#3e3a52',       # Hose (Standard)
+    't': '#e0c290', 'l': '#ad7442', 'L': '#77492b', 'm': '#4a2b1b',       # Leder/Holz
+    'x': '#fff3b0', 'y': '#f2cf55', 'Y': '#c4942e', 'z': '#87601f',       # Gold
 }
+STAHL = {'S': '#f4f7fb', 's': '#c3cbd8', 'G': '#8a93a8', 'D': '#566282', 'T': '#3e3a52'}
 
 def leer():
     return [['.'] * 64 for _ in range(64)]
 
-def stempel(g, x, y, zeilen):
-    for dy, z in enumerate(zeilen):
-        for dx, ch in enumerate(z):
-            if ch == '.' or ch == ' ':
+def setze(g, zeilen):
+    """zeilen: Liste (y, x0, "pixel")."""
+    for y, x0, s in zeilen:
+        for i, ch in enumerate(s):
+            if ch in '. ':
                 continue
-            yy, xx = y + dy, x + dx
-            if 0 <= yy < 64 and 0 <= xx < 64:
-                g[yy][xx] = '.' if ch == '_' else ch
+            x = x0 + i
+            if 0 <= x < 64 and 0 <= y < 64:
+                g[y][x] = '.' if ch == '_' else ch
+
+def block(y0, x0, rows):
+    """Rechteckiger Stempel -> Zeilenliste."""
+    return [(y0 + i, x0, r) for i, r in enumerate(rows)]
+
+def faerbe(zeilen, abb):
+    return [(y, x, ''.join(abb.get(c, c) for c in s)) for y, x, s in zeilen]
 
 def kette(g):
-    """Kettengeflecht: '#' = Lichtseite, '%' = Schattenseite. Ringmuster mit Versatz je Zeile."""
     for y in range(64):
         for x in range(64):
             c = g[y][x]
@@ -47,7 +55,7 @@ def kette(g):
                 else:
                     g[y][x] = 'G' if m == 0 else ('T' if m == 2 and y % 2 else 'D')
 
-def aussenkontur(g, ausnahmen=()):
+def aussenkontur(g):
     neu = [r[:] for r in g]
     for y in range(64):
         for x in range(64):
@@ -58,717 +66,171 @@ def aussenkontur(g, ausnahmen=()):
                 if 0 <= xx < 64 and 0 <= yy < 64 and g[yy][xx] not in ('.', 'k'):
                     neu[y][x] = 'k'
                     break
-    # Einzelloecher (transparent, ringsum deckend) mit Kontur schliessen
     for y in range(1, 63):
         for x in range(1, 63):
             if neu[y][x] == '.' and all(neu[y + dy][x + dx] != '.' for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
                 neu[y][x] = 'k'
     return neu
 
-def schreibe(pfad, g, pal, kommentar=''):
+def schreibe(pfad, g, kommentar=''):
     benutzt = sorted({c for r in g for c in r if c != '.'})
     with open(pfad, 'w', encoding='utf-8') as f:
-        if kommentar:
-            for z in kommentar.strip().split('\n'):
+        for z in kommentar.strip().split('\n'):
+            if z:
                 f.write('# ' + z + '\n')
         f.write('palette:\n. transparent\n')
         for c in benutzt:
-            f.write(f'{c} {pal[c]}\n')
+            f.write(f'{c} {PAL[c]}\n')
         f.write('---\n')
         for r in g:
             f.write(''.join(r) + '\n')
 
-# =====================================================================================
-# GRUNDKOERPER (Fuellflaechen ohne Aussenkontur; Kontur kommt am Ende automatisch)
-# Koordinaten sind die linke obere Ecke des Stempels.
-# =====================================================================================
+# =====================================================================================================
+# KOPF  (Fuellung x21..42 / y4..24 = 22 x 21 px, Kontur y3; ca. 1/3 der Figurhoehe)
+# =====================================================================================================
+HAUT_KOPF = [
+    (4, 28, "22222222"),
+    (5, 25, "22222222222222"),
+    (6, 24, "2222222222222222"),
+    (7, 23, "222222222222222222"),
+    (8, 22, "22222222222222222222"),
+] + [(y, 21, "2222222222222222222222") for y in range(9, 19)] + [
+    (11, 28, "11"), (12, 28, "11"), (13, 28, "1"),
+] + [(y, 42, "3") for y in range(12, 19)] + [
+    (19, 25, "222222222222222223"),
+    (20, 26, "22222222222222233"),
+    (21, 27, "222222222222233"),
+    (22, 28, "22222222222333"),
+    (23, 29, "333222222333"),
+    (24, 31, "33333333"),
+]
 
-KOPF = (24, 6, [            # 18 x 17, Schaedel x24..41 / y6..22, Gesicht 3/4 nach rechts
-    "....666666666.....",
-    "..66555555566666..",
-    ".6655555555666666.",
-    "665555556666666667",
-    "655566666666666677",
-    "666666667667667777",
-    "666667733373337337",
-    "666677311222222222",
-    "66677312kk2222kk22",
-    "66672312Wi2222Wi22",
-    "66672322iI2222iI23",
-    "6677322qq222222222",
-    "677832222222222233",
-    ".7783222222442223.",
-    "..88322222222233..",
-    "...833222222233...",
-    "......33333333....",
-])
+# Frisuren: Hinterkopf + Pony. Haarrampe 5 (Licht) 6 7 8 (tief).
+HAAR_KURZ = [                       # Standard / Wanderer: kurz, zerzaust
+    (4, 28, "66666666"),
+    (5, 25, "66555555566666"),
+    (6, 24, "6555555555566666"),
+    (7, 23, "655555555555666666"),
+    (8, 22, "66555555556666666667"),
+    (9, 21, "6655555666666666666777"),
+    (10, 21, "6556666666666666667777"),
+    (11, 21, "6666666667666676677777"),
+    (12, 21, "666667776677667766777 "),
+    (13, 21, "666677.77...77...77..."),
+    (14, 21, "66667"), (15, 21, "66677"), (16, 21, "66677"), (17, 21, "6677"),
+    (18, 21, "6677"), (19, 22, "678"), (20, 23, "788"), (21, 25, "8"),
+]
+HAAR_PONY = [                       # nur Pony (unter Kapuze, Helm, Hut)
+    (11, 27, "6666766676677777"),
+    (12, 27, "77667766776677 7"),
+    (13, 28, "7...77...77"),
+]
 
-PAL.update({
-    # Leinen/Grundstoff (4)
-    'a': '#f3e8cf', 'b': '#d4c19b', 'c': '#a28b69', 'd': '#6e5a47',
-    # Hose neutral (4)
-    'E': '#a9a4bd', 'e': '#837d9b', 'f': '#615673', 'g': '#3e3a52',
-    # Leder (4)
-    't': '#e0c290', 'l': '#ad7442', 'L': '#77492b', 'm': '#4a2b1b',
-    # Gold (4)
-    'x': '#fff3b0', 'y': '#f2cf55', 'Y': '#c4942e', 'z': '#87601f',
-})
+# Gesichter (Ausdruck je Klasse). Augen 3x4: Wimper k, Glanz W, Iris i/I. Brauen in Haarfarbe 7/8.
+def gesicht(art):
+    z = []
+    # Ohr
+    z += [(17, 27, "23"), (18, 27, "33"), (19, 27, "2")]
+    auge_n = [(15, 30, "kkk"), (16, 30, "Wik"), (17, 30, "iIk"), (18, 30, "iI.")]
+    auge_f = [(15, 37, "kkk"), (16, 37, "Wik"), (17, 37, "iIk"), (18, 37, "iI.")]
+    if art == 'neutral':
+        z += [(14, 30, "777"), (14, 37, "777")]
+        z += auge_n + auge_f
+        z += [(19, 29, "qq"), (19, 41, "3"), (21, 34, "444")]
+    elif art == 'neugierig':        # Wanderer: Brauen hoch, Augen gross, Mund klein offen
+        z += [(13, 30, "777"), (13, 37, "777"), (14, 30, "..."), (14, 37, "...")]
+        z += auge_n + auge_f + [(18, 32, "k"), (18, 39, "k")]
+        z += [(19, 29, "qq"), (19, 41, "3"), (21, 35, "44"), (22, 35, "4")]
+    elif art == 'entschlossen':     # Krieger: Brauen zur Mitte gesenkt, fester Mund
+        z += [(13, 30, "7"), (14, 31, "88"), (14, 37, "88"), (13, 39, "7")]
+        z += [(15, 30, "kkk"), (16, 30, "Wik"), (17, 30, "iIk"), (18, 30, "...")]
+        z += [(15, 37, "kkk"), (16, 37, "Wik"), (17, 37, "iIk"), (18, 37, "...")]
+        z += [(19, 41, "3"), (21, 33, "4444")]
+    elif art == 'konzentriert':     # Magier: Brauen gerade tief, halbe Lider, kleiner Mund
+        z += [(14, 30, "888"), (14, 37, "888")]
+        z += [(15, 30, "kkk"), (16, 30, "Wik"), (17, 30, "iIk"), (18, 30, "...")]
+        z += [(15, 37, "kkk"), (16, 37, "Wik"), (17, 37, "iIk"), (18, 37, "...")]
+        z += [(19, 41, "3"), (21, 35, "44")]
+    elif art == 'sanft':            # Heiler: weiche hohe Brauen, Laecheln
+        z += [(13, 31, "77"), (14, 30, "7"), (13, 37, "77"), (14, 39, "7")]
+        z += auge_n + auge_f
+        z += [(19, 29, "qq"), (19, 40, "q"), (20, 33, "4"), (21, 34, "444"), (20, 37, "4")]
+    elif art == 'keck':             # Bogen: eine Braue hoch, schiefes Grinsen
+        z += [(14, 30, "777"), (13, 37, "77"), (14, 39, "7")]
+        z += auge_n + auge_f
+        z += [(19, 29, "qq"), (19, 41, "3"), (21, 34, "44"), (20, 36, "4")]
+    return z
 
-HALS = (30, 23, ["3344"])
+def kopf(g, haar=HAAR_KURZ, art='neutral'):
+    setze(g, HAUT_KOPF)
+    setze(g, haar)
+    setze(g, gesicht(art))
 
-ARM_HINTEN = (18, 26, [
-    "....cc.",
-    "...cccd",
-    "..ccccd",
-    ".cccccd",
-    ".cccccd",
-    ".cccccd",
-    ".cccccd",
-    ".dccccd",
-    ".ddddd.",
-])
-HAND_HINTEN = (19, 35, [
-    ".233.",
-    "22333",
-    "23334",
-    ".334.",
-])
+# =====================================================================================================
+# KOERPER (Fuellung, Licht oben links). Schulter y25, Guertel y36-37, Saum y40, Beine y41-54, Stiefel y55-61.
+# =====================================================================================================
+RUMPF = [
+    (25, 24, "aaaab44444bbcc"),
+    (26, 23, "aaaaaab444bbbbcc"),
+    (27, 23, "aaaabbbbbbbbbbcc"),
+    (28, 23, "aaabbbbbbbbbbbcc"),
+    (29, 23, "aabbbbbbbbbbbccc"),
+    (30, 23, "abbbbbbbbbbbbccc"),
+    (31, 24, "bbbbbbbbbbbbccd"),
+    (32, 24, "bbbbbbbbbbbcccd"),
+    (33, 24, "bbbbbbbbbbbccdd"),
+    (34, 24, "cbbbbbbbbbcccdd"),
+    (35, 24, "ccbbbbbbbbccddd"),
+    (36, 24, "tllllllyyYlllLL"),
+    (37, 24, "LLLLLLLYzzLLLmm"),
+    (38, 24, "abbbbbbbbbbccdd"),
+    (39, 23, "abbbbbbbbbbbcccdd"),
+    (40, 23, "cccccccccccccdddd"),
+]
+BEIN_HINTEN = [(41, 25, "efffff"), (42, 25, "efffff"), (43, 25, "effffg"), (44, 25, "effffg"),
+               (45, 24, "effffg"), (46, 24, "effffg"), (47, 24, "effffg"), (48, 24, "effffg"),
+               (49, 23, "effffg"), (50, 23, "effffg"), (51, 23, "effffg"), (52, 23, "effffg"),
+               (53, 22, "effffg"), (54, 22, "effffg")]
+BEIN_VORNE = [(41, 30, "eEEeeeeef"), (42, 31, "EEeeeeef"), (43, 32, "EEeeeef"),
+              (44, 33, "EEeeeef"), (45, 33, "EEeeeef"), (46, 33, "EEEeeef"), (47, 33, "EEEeeff"),
+              (48, 34, "EEeeeef"), (49, 34, "EEeeeef"), (50, 34, "Eeeeeef"), (51, 34, "Eeeeeff"),
+              (52, 35, "Eeeeeef"), (53, 35, "Eeeeeef"), (54, 35, "Eeeeeff")]
+STIEFEL_HINTEN = [(55, 22, "tlllLm"), (56, 22, "LLLLLm"), (57, 22, "lllLLm"), (58, 22, "lllLLmm"),
+                  (59, 21, "tllllLLLm"), (60, 21, "LLLLLLLLm"), (61, 21, "mmmmmmmmm")]
+STIEFEL_VORNE = [(55, 35, "ttllllL"), (56, 35, "LLLLLLL"), (57, 35, "tllllLL"), (58, 35, "tlllllLL"),
+                 (59, 35, "tlllllllLL"), (60, 35, "LLLLLLLLLLm"), (61, 35, "mmmmmmmmmmm")]
+ARM_HINTEN = [(26, 22, "cc"), (27, 21, "cccd"), (28, 20, "ccccd"), (29, 20, "ccccd"),
+              (30, 19, "cccccd"), (31, 19, "cccccd"), (32, 19, "cccccd"), (33, 19, "dddddd")]
+HAND_HINTEN = block(34, 19, [".233.", "22333", "23334", ".334."])           # Mitte x21,y35
+ARM_VORNE = [(26, 37, "bbbb"), (27, 36, "abbbbc"), (28, 36, "abbbbcc"), (29, 36, "abbbbbc"),
+             (30, 37, "bbbbbcc"), (31, 37, "cbbbbbcd"), (32, 38, "cbbbbcd"), (33, 39, "ddccdd")]
+FAUST = [".122.", "11223", "23333", "12223", ".233."]                          # x43..47 y30..34, Griff x45,y32
+def faust(g, x=43, y=30, haut=True):
+    z = FAUST if haut else [r.translate(str.maketrans('1234', 'tlLm')) for r in FAUST]
+    setze(g, block(y, x, z))
 
-BEINE = (24, 42, [
-    ".fffffgEEeeeeef.",
-    ".fffffgEEeeeeef.",
-    ".ffffgg.EEeeeeff",
-    ".ffffg..Eeeeeeff",
-    "ffffgg..Eeeeeeff",
-    "fffffg..EEeeeeff",
-    "fffggg..EEEeeeff",
-    "ffffgg..EEeeeeff",
-    "ffffgg..Eeeeefff",
-    "ffffgg..Eeeeeeff",
-    "fffffg..Eeeeeeff",
-    "fffffg..Eeeeeeff",
-    "fffffg..EEeeeeff",
-])
+def beine(g):
+    for t in (BEIN_HINTEN, STIEFEL_HINTEN, BEIN_VORNE, STIEFEL_VORNE):
+        setze(g, t)
+    setze(g, [(41, 29, "fg"), (42, 30, "g")])                                  # Schritt
 
-STIEFEL_HINTEN = (23, 55, [
-    ".tlllLm..",
-    ".LLLLLm..",
-    ".lllLLm..",
-    ".lllLLmm.",
-    "tllllLLLm",
-    "LLLLLLLLm",
-    "mmmmmmmmm",
-])
-STIEFEL_VORNE = (32, 55, [
-    "ttlllllL...",
-    "LLLLLLLL...",
-    "tllllLLL...",
-    "tlllllLLL..",
-    "tlllllllLL.",
-    "LLLLLLLLLLm",
-    "mmmmmmmmmmm",
-])
-
-RUMPF = (23, 24, [
-    "....aab3334bbc....",
-    "..aaaabb44bbbbcc..",
-    ".aaaaabbbbbbbbbcc.",
-    ".aabbbbbbbbbbbbcc.",
-    ".abbbbbbbbbbbbbcc.",
-    ".abbbbbbbbbbbbccc.",
-    ".abbbbbbbbbbbbccc.",
-    ".abbbbbbbbbbbbccc.",
-    ".bbbbbbbbbbbbcccd.",
-    ".bbbbbbbbbbbcccdd.",
-    ".bbbbbbbbbbbccddd.",
-    ".cbbbbbbbbbbccddd.",
-    ".ccbbbbbbbbcccddd.",
-    ".tllllllyyYllllLL.",
-    ".LLLLLLLYzzLLLLmm.",
-    ".abbbbbbbbbbccddd.",
-    "abbbbbbbbbbbcccddd",
-    "ccccccccccccdddddd",
-])
-
-ARM_VORNE = (36, 25, [
-    "..bbbb....",
-    ".abbbbc...",
-    "aabbbbcc..",
-    "abbbbbcc..",
-    "abbbbbcc..",
-    ".bbbbbccd.",
-    ".cbbbbbcd.",
-    "..cbbbbbcd",
-    "...ddcccdd",
-])
-HAND_VORNE = (42, 34, [
-    ".122.",
-    "11223",
-    "23333",
-    "12223",
-    ".233.",
-])
-
-def koerper(g, mit_haaren=True, arm_vorne=True):
-    for teil in (ARM_HINTEN, HAND_HINTEN, BEINE, STIEFEL_HINTEN, STIEFEL_VORNE, RUMPF, HALS):
-        stempel(g, *teil)
-    stempel(g, *KOPF)
+def koerper(g, haar=HAAR_KURZ, art='neutral', arm_vorne=True):
+    setze(g, ARM_HINTEN); setze(g, HAND_HINTEN)
+    beine(g)
+    setze(g, RUMPF)
+    kopf(g, haar, art)
     if arm_vorne:
-        stempel(g, *ARM_VORNE)
-        stempel(g, *HAND_VORNE)
+        setze(g, ARM_VORNE); faust(g)
 
 FIGUREN = {}
-
 def fig_koerper():
     g = leer(); koerper(g); return g
 FIGUREN['koerper'] = fig_koerper
 
-
-
-def umfaerben(teil, abb):
-    x, y, z = teil
-    return (x, y, [''.join(abb.get(c, c) for c in r) for r in z])
-
-STOFF = {'a': 'A', 'b': 'B', 'c': 'C', 'd': 'F'}     # Grundstoff -> Klassenstoff
-
-STAHL = {'S': '#f4f7fb', 's': '#c3cbd8', 'G': '#8a93a8', 'D': '#566282', 'T': '#3e3a52'}
-
-def kapuze(g):
-    """Kapuze ueber dem Kopf (Klassenstoff A-F). Gesicht x30..41 bleibt frei, Spitze hinten oben."""
-    stempel(g, 22, 4, [
-        "....CBBBBBBC.........",
-        "..CCBAAABBBBBBBC.....",
-        ".CBAAABBBBBBBBBBC....",
-        ".BAABBBBBBBBBBBBBBC..",
-        "CBABBBBBBBBBBBBBBBBC.",
-        "BAABBBBBBBBBBBBBBBBBC",
-        "BABBBBBBBBBBBBBBBBBBC",
-        "BABBBBBCFFFFFFFFFFFFC",
-        "BABBBBC3333333333333.",
-        "BABBBBC..............",
-        "BABBBBC..............",
-        "BABBBBC..............",
-        "BBBBBBC..............",
-        "BBBBBBC..............",
-        "CBBBBBC..............",
-        "CBBBBBBC.............",
-        ".CBBBBBC.............",
-        ".CBBBBBBC............",
-        ".CCBBBBBBC...........",
-        "..CCBBBBBBCCCCCCCC...",
-        "...CCBBBBBBBBBBBBC...",
-    ])
-
-def faust(g, x=42, y=34, haut=True):
-    z = [".122.", "11223", "23333", "12223", ".233."]
-    if not haut:
-        z = [r.translate(str.maketrans('1234', 'tlLm')) for r in z]
-    stempel(g, x, y, z)
-
-# ------------------------------------------------------------------ WANDERER
-def fig_wanderer():
-    PAL.update({'A': '#c4a57a', 'B': '#8f7150', 'C': '#644b38', 'F': '#40302b',      # Wollmantel braun
-                'N': '#a8ad74', 'O': '#7b824f', 'P': '#555c3b', 'R': '#383e2c'})     # Kittel oliv
-    g = leer()
-    # Mantel hinten
-    stempel(g, 17, 25, [
-        ".....CBB", "....CBBB", "...CBBBB", "...CBBBB", "..CBBBBB", "..CBBBBB", "..CBBBBB",
-        ".CBBBBBB", ".CBBBBBB", ".CBBBBBB", ".CBBBBBB", "CCBBBBBB", "CCBBBBBB", "CCBBBBBB",
-        "CCCBBBBB", "FCCBBBBB", "FCCCBBBB", "FFCCCBBB", "FFFCCCBB", "FFFFCCCC", ".FFFFCCC",
-        "..FFFFCC", "....FFF.",
-    ])
-    # Bettrolle
-    stempel(g, 14, 24, [
-        "..tttl..", ".ttllLl.", "ttlLlLLl", "tlLlLLmL", "llLmLLmL", ".LLLmmL.", "..LmmL..",
-    ])
-    koerper(g)
-    # Kittel (oliv)
-    stempel(g, 23, 25, [
-        "..NNNNb433OOOOP...",
-        ".NNNNOOb3bOOOOPP..",
-        ".NNOOOOObOOOOOPP..",
-        ".NOOOOOOOOOOOOPPP.",
-        ".NOOOOOOOOOOOOPPP.",
-        ".NOOOOOOOOOOOPPPR.",
-        ".OOOOOOOOOOOOPPPR.",
-        ".OOOOOOOOOOOPPPRR.",
-        ".OOOOOOOOOOOPPRRR.",
-        ".OOOOOOOOOOPPPRRR.",
-        ".POOOOOOOOOPPPRRR.",
-        ".PPOOOOOOOPPPRRRR.",
-        "..................",
-        "..................",
-        ".NOOOOOOOOOOPPRRR.",
-        "NOOOOOOOOOOOPPPRRR",
-        "OOOOOOOOOOOOPPRRRR",
-        "PPPPPPPPPPPPRRRRRR",
-    ])
-    stempel(g, *umfaerben(ARM_VORNE, {'a': 'N', 'b': 'O', 'c': 'P', 'd': 'R'}))
-    kapuze(g)
-    # Umhang auf den Schultern
-    stempel(g, 21, 24, [
-        "..CBBBBBBBC.........CC",
-        ".CBBBBBBBC.........CBB",
-        "CBBBBBBBC..........CBB",
-        "CBBBBBBC...........CBC",
-        "CBBBBBC.............C.",
-        "CCBBBC................",
-        ".CCC..................",
-    ])
-    stempel(g, 30, 25, ["yY", "Yz"])                     # Fibel
-    stempel(g, 28, 27, [                                  # Riemen der Bettrolle
-        "L.........", "LL........", ".LL.......", "..LL......", "...LL.....",
-        "....LL....", ".....LL...", "......LL..", ".......LL.", "........L.",
-    ])
-    stempel(g, 34, 39, ["tlL", "llL", "lLL", ".L."])     # Steinbeutel
-    # Gabelschleuder
-    stempel(g, 39, 20, [
-        "tl......tl",
-        "tlmmEEmmlL",
-        "tl..ee..lL",
-        "ll......lL",
-        ".l......L.",
-        ".tl....lL.",
-        "..tl..lL..",
-        "..tllllL..",
-        "...tlLL...",
-        "....lL....",
-        "....lL....",
-        "....lL....",
-        "....lL....",
-        "....lL....",
-    ])
-    faust(g)
-    stempel(g, 43, 39, [".lL", ".LL", "..m"])
-    return g
-FIGUREN['wanderer'] = fig_wanderer
-
-# ------------------------------------------------------------------ KRIEGER
-def fig_krieger():
-    PAL.update({'A': '#ee6f55', 'B': '#c63c3c', 'C': '#8c2436', 'F': '#56192b'})     # Waffenrock rot
-    PAL.update(STAHL)
-    g = leer()
-    koerper(g, arm_vorne=False)
-    # Kettenhemd-Aermel hinten
-    stempel(g, 18, 26, [
-        "....%%.", "...%%%%", "..%%%%%", ".%%%%%%", ".%%%%%%", ".%%%%%%", ".%%%%%%", ".DDDDDD", ".lllLL.",
-    ])
-    # Rumpf: Kettenhemd + Waffenrock (rot, Licht links, Falte rechts der Mitte)
-    stempel(g, 23, 24, [
-        "..###########%%...",
-        ".############%%%..",
-        ".###AABBBBBBC#%%..",
-        ".##AABBBBBCBBC%%..",
-        ".##ABBBBBBCABC%%..",
-        ".##ABBBBBBCABC%%..",
-        ".##ABBBBBBCABCC%..",
-        ".##ABBBBBBCBBCC%..",
-        ".##ABBBBBCBBBCC%..",
-        ".##BBBBBBCBBBCCF%.",
-        ".#%BBBBBBCBBCCCF%.",
-        ".%%CBBBBBCBBCCFF%.",
-        ".%%CBBBBBCBBCCFF%.",
-        ".tllllllyyYllllLL.",
-        ".LLLLLLLYzzLLLLmm.",
-        ".##%ABBBBCBBCCF%%.",
-        ".##%ABBBBCBBCCF%%.",
-        "###%ABBBBCBBCCF%%%",
-        "###%ABBBBCBBCCF%%%",
-        "##%%ABBBBCBBCCF%%%",
-        "DDDDABBBBCBBCCFDDD",
-        "....ABBBBCBBCCF...",
-        "....CCCCCFCCFFF...",
-    ])
-    # Helm + Kettenhaube
-    stempel(g, 21, 2, [
-        "........GssssGG.......",
-        "......GsSSssssGGD.....",
-        ".....GsSsssssssGGD....",
-        "....GsSsssssssssGGD...",
-        "....sSssssssssssGGGD..",
-        "...GsssssssssssssGGD..",
-        "...GsssssssssssssGGDD.",
-        "..GsssssssssssssGGGDD.",
-        "..DsssssssssssssssGGD.",
-        "..TGSGGGSGGGSGGGSGGDT.",
-        ".####%%T..............",
-        ".####%%D..............",
-        ".###%%%D..............",
-        ".###%%%D..............",
-        ".###%%%D..............",
-        ".###%%%D..............",
-        ".###%%%D..............",
-        ".###%%%D..............",
-        ".###%%%%D.............",
-        ".%##%%%%%D............",
-        "..%%%%%%%%DDDDDDDDD...",
-        "..##########%%%%%%%...",
-        "...%%%%%%%%%%%%%%%....",
-    ])
-    # Schulterstueck vorne
-    stempel(g, 36, 24, [
-        "..GGGGG..",
-        ".GsSSssG.",
-        "GsSsssGGD",
-        "sssssGGDD",
-        "DGGGGDDD.",
-    ])
-    # Arm vorne: Kettenaermel + Lederhandschuh
-    stempel(g, 37, 29, [
-        "####%%...",
-        "####%%%..",
-        ".###%%%%.",
-        "..lllllLL",
-        "..tlllLLm",
-    ])
-    kette(g)
-    # Schwert: Klinge, Parierstange, Knauf
-    stempel(g, 43, 9, [".S."] + ["sSG"] * 22)
-    stempel(g, 43, 8, [".s."])
-    stempel(g, 39, 31, [".GsssSsssGD", "DDGGGGGGGDD"])
-    faust(g, haut=False)
-    stempel(g, 43, 39, [".s.", "sGD", ".D."])
-    # Schild (Holz mit Stahlrand, Buckel) in der hinteren Hand
-    stempel(g, 10, 28, [
-        ".sssssssssssssG.",
-        "sStttmllllmlllGD",
-        "stttlmllllmlllLD",
-        "sttllmllllmlllLD",
-        "sttllmllllmllLLD",
-        "stlllmGsssGlLLLD",
-        "stlllGsSssGDLLLD",
-        "stlllsSsssGDLLLD",
-        "stlllsssGGGDLLLD",
-        "stlllGsGGGDDLLLD",
-        "stlllmGDDDDmLLLD",
-        "stlllmllllmlLLLD",
-        "stlllmllllmlLLmD",
-        ".stllmllllmlLLD.",
-        ".stllmllllmlLmD.",
-        ".GtllmllllmLLD..",
-        "..stlmllllmLmD..",
-        "..GtlmllllmLD...",
-        "...stmllllmLD...",
-        "...GtmlllLmD....",
-        "....GtllLLD.....",
-        ".....GtLmD......",
-        "......GDD.......",
-    ])
-    return g
-FIGUREN['krieger'] = fig_krieger
-
-
-def robe(g, saum='y', mitte='Y'):
-    """Langes Gewand (Klassenstoff A-F) von den Schultern bis y57, Saum y57 in Saumfarbe.
-    Oberteil von Hand; Rock: Breite waechst 16 -> 22 px, zwei Falten (hell/dunkel-Paar), Mittelborte x32."""
-    oben = [
-        ".......AAB3344BBC.......",
-        ".....AAAAB4433BBCC......",
-        "....AAAAABB43BBBBCC.....",
-        "....AAAABBBBmBBBBCC.....",
-        "....AABBBBBBmBBBBCCC....",
-        "....ABBBBBBBmBBBBCCC....",
-        "....ABBBBBBBmBBBBCCC....",
-        "....ABBBBBBBmBBBCCCC....",
-        "....ABBBBBBBmBBBCCCF....",
-        "....BBBBBBBBmBBCCCFF....",
-        "....BBBBBBBBmBBCCCFF....",
-        "....CBBBBBBBmBBCCFFF....",
-        "....CCBBBBBBmBCCCFFF....",
-        "....tllllllyyYllllLL....",
-        "....LLLLLLLYzzLLLLmm....",
-    ]
-    stempel(g, 20, 24, [r.replace('m', mitte) for r in oben])
-    breite = {39: (24, 39), 40: (23, 40), 41: (23, 40), 42: (23, 40), 43: (23, 40), 44: (22, 41),
-              45: (22, 41), 46: (22, 41), 47: (22, 41), 48: (22, 41), 49: (22, 41)}
-    for y in range(50, 58):
-        breite[y] = (21, 42)
-    for y, (x0, x1) in breite.items():
-        f1 = 28 if y < 47 else 27                       # Falte links (Lichtseite)
-        f2 = 36 if y < 49 else 37                       # Falte rechts (Schattenseite)
-        for x in range(x0, x1 + 1):
-            c = 'B'
-            if x <= x0 + 1: c = 'A' if x == x0 or y < 46 else 'B'
-            if x >= x1 - 3: c = 'C'
-            if x >= x1 - 1: c = 'F'
-            if y >= 42 and x == f1: c = 'C'
-            if y >= 42 and x == f1 + 1: c = 'A'
-            if y >= 44 and x == f2: c = 'F'
-            if y >= 44 and x == f2 + 1: c = 'B'
-            if x == 32: c = mitte
-            if y == 57: c = saum if x < x1 - 1 else 'z'
-            g[y][x] = c
-
-def aermel_weit(g, trim='y'):
-    """Weiter Aermel vorne (Klassenstoff) mit Saumborte; Hand kommt unten heraus."""
-    stempel(g, 36, 25, [
-        "..BBBB....",
-        ".ABBBBC...",
-        "AABBBBCC..",
-        "ABBBBBCC..",
-        "ABBBBBBCC.",
-        ".BBBBBBCCF",
-        ".CBBBBBCCF",
-        "..CBBBBBCF",
-        "..TTTTTTTU",
-    ])
-    stempel(g, 38, 33, ["TTTTTTTU".replace('T', trim).replace('U', 'z')])
-
-def aermel_hinten(g):
-    stempel(g, 17, 26, [
-        ".....CC.",
-        "....CCCF",
-        "...CCCCF",
-        "..CCCCCF",
-        "..CCCCCF",
-        ".CCCCCCF",
-        ".CCCCCCF",
-        ".CCCCCCF",
-        ".FFFFFFF",
-    ])
-
-# ------------------------------------------------------------------ BOGENSCHUETZE
-def fig_bogen():
-    PAL.update({'A': '#9fcf63', 'B': '#5f9c45', 'C': '#3b6b3b', 'F': '#25462f',      # Jaegergruen
-                'N': '#f1f1e6', 'O': '#c94a3c'})                                     # Federn
-    g = leer()
-    # Koecher hinten (schraeg), Pfeilfedern ueber der Schulter
-    stempel(g, 14, 14, [
-        ".N..O.N..",
-        "NNNOOONN.",
-        "NNtOOtNN.",
-        ".tNtOtN..",
-        "..t.t.t..",
-        "..t.t.t..",
-        "..LLLLLL.",
-        "..tllLLm.",
-        "..tllLLm.",
-        "..tllLLm.",
-        "..tlLLLm.",
-        "..tllLLm.",
-        "..tllLLm.",
-        "..tllLLm.",
-        "..tllLLm.",
-        "..tlLLLm.",
-        "..tllLLm.",
-        "..tllLLm.",
-        "..LLLLmm.",
-        "...mmmm..",
-    ])
-    koerper(g)
-    # Tunika gruen + Lederwams
-    stempel(g, 23, 24, [
-        "....AAb3344BBC....",
-        "..AAAAB4433BBBCC..",
-        ".AAAAtlLllLlLBCC..",
-        ".AABBtllllllLLBCC.",
-        ".ABBBtllllllLLBCC.",
-        ".ABBBtlllllLLmBCC.",
-        ".ABBBtlllllLLmCCC.",
-        ".ABBBtlllllLLmCCC.",
-        ".BBBBtllllLLLmCCF.",
-        ".BBBBtllllLLLmCFF.",
-        ".BBBBlllllLLLmCFF.",
-        ".CBBBlllllLLLmCFF.",
-        ".CCBBlllllLLmmCFF.",
-        "..................",
-        "..................",
-        ".ABBBBBBBBBBCCCFF.",
-        "AABBBBBBBBBBCCCFFF",
-        "CCCCCCCCCCCCFFFFFF",
-    ])
-    stempel(g, *umfaerben(ARM_VORNE, STOFF))
-    stempel(g, *umfaerben(ARM_HINTEN, {'c': 'C', 'd': 'F'}))
-    stempel(g, 39, 31, ["tllLL", "tlLLm"])               # Armschiene
-    kapuze(g)
-    # kurzer Kapuzenkragen auf den Schultern
-    stempel(g, 22, 23, [
-        "..CBBBBBBBBBBBBBBC..",
-        ".CBAABBBBBBBBBBBBBC.",
-        "CBAABBBCBBBBBBCBBBCF",
-        "CBBBBC..CBBBC..CBCF.",
-        ".CCC.....CCC....FF..",
-    ])
-    # Schnuerung am Wams
-    stempel(g, 29, 28, ["t", ".", "t", ".", "t"])
-    # Bogen: Sehne x42, Holz bogenfoermig bis x47
-    holz = {}
-    for y in range(16, 57):
-        d = min(y - 16, 56 - y)
-        x = 43 if d == 0 else 44 if d <= 2 else 45 if d <= 5 else 46 if d <= 9 else 47
-        holz[y] = x
-    for y, x in holz.items():
-        g[y][x - 1] = 't' if y < 36 else 'l'
-        g[y][x] = 'L'
-    for y in range(17, 56):
-        if g[y][42] == '.' or y in (17, 55):
-            g[y][42] = 'N'
-    for y in (15, 57):
-        g[y][43] = 'm'
-    faust(g)
-    return g
-FIGUREN['bogen'] = fig_bogen
-
-def hut_spitz(g):
-    """Spitzer Magierhut (Klassenstoff A-F), Spitze knickt nach hinten (links)."""
-    spannen = { 2: [(24, 34)], 3: [(21, 35)], 4: [(19, 22), (26, 36)],
-               5: [(26, 37)], 6: [(25, 37)], 7: [(25, 38)], 8: [(24, 38)]}
-    for y, sp in spannen.items():
-        for x0, x1 in sp:
-            for x in range(x0, x1 + 1):
-                if x <= x0 + 1 and y >= 4:
-                    c = 'A'
-                elif x >= x1 - 1:
-                    c = 'C'
-                else:
-                    c = 'B'
-                if x1 - x0 < 5 and x0 < 25:   # Knick-Spitze
-                    c = 'C' if x > x0 else 'F'
-                g[y][x] = c
-    stempel(g, 23, 9, ["yyyyxyyyyyyyyyYYz", "YYYYYYYYYYYYYYYzzz"])   # Hutband
-    stempel(g, 17, 11, [
-        "..AAAABBBBBBBBBBBBBBBBBBBBCCC",
-        "AABBBBBBBBBBBBBBBBBBBBBBBBCCCF",
-        ".FFCCCCCCCCCCCCCCCCCCCCCCCCFF.",
-    ])
-
-# ------------------------------------------------------------------ ELEMENTARMAGIER
-def fig_magier():
-    PAL.update({'A': '#7fb0f0', 'B': '#4377d6', 'C': '#2c4aa2', 'F': '#1f2c66',      # Magierblau
-                'u': '#effcff', 'v': '#8fe6f2', 'V': '#3fa6dc', 'X': '#2a5aa8'})     # Kristall
-    g = leer()
-    aermel_hinten(g)
-    stempel(g, *HAND_HINTEN)
-    stempel(g, *STIEFEL_HINTEN)
-    stempel(g, *STIEFEL_VORNE)
-    robe(g)
-    stempel(g, *HALS)
-    stempel(g, *KOPF)
-    hut_spitz(g)
-    # Stab: Schaft x44-45, Krallenkopf mit Kristall
-    for y in range(11, 62):
-        g[y][44] = 'l'; g[y][45] = 'L'
-    stempel(g, 41, 2, [
-        "...uv...",
-        "..uvVV..",
-        ".uvvVVX.",
-        ".vvVVXX.",
-        ".vVVVXX.",
-        "..VVXX..",
-        "...XX...",
-    ])
-    stempel(g, 41, 5, [
-        "t......L",
-        "tl....lL",
-        ".tl..lL.",
-        "..tllL..",
-        "...lL...",
-    ])
-    # Zauberbuch (Nebenhand laut CW: magier -> buch) in der hinteren Hand
-    stempel(g, 11, 31, [
-        "mmtttttt.",
-        "mLltllllb",
-        "mLlllllla",
-        "mLllyYlla",
-        "mLlyxyYla",
-        "mLllYzlla",
-        "mLlllllla",
-        "mLlllllLa",
-        "mLllllLLb",
-        "mLLLLLLLb",
-        ".mmmmmmm.",
-    ])
-    stempel(g, *HAND_HINTEN)
-    aermel_weit(g)
-    faust(g, 42, 35)
-    return g
-FIGUREN['magier'] = fig_magier
-
-# ------------------------------------------------------------------ HEILER
-def fig_heiler():
-    PAL.update({'A': '#fbf6ea', 'B': '#e6dfd0', 'C': '#bdb7c6', 'F': '#837d99',      # Gewand weiss
-                'N': '#b9ec8c', 'O': '#6cc35a', 'P': '#3f8a4a', 'R': '#245b39',      # Stola gruen
-                'u': '#fff6c4', 'v': '#f8e48a', 'V': '#e2bd52'})                     # Lichtscheibe
-    g = leer()
-    aermel_hinten(g)
-    stempel(g, *HAND_HINTEN)
-    stempel(g, *STIEFEL_HINTEN)
-    stempel(g, *STIEFEL_VORNE)
-    robe(g, saum='O', mitte='B')
-    # Kapuze liegt im Nacken (schmal, hinter dem Kopf)
-    stempel(g, 22, 20, [
-        "..CBB......",
-        ".CBBBC.....",
-        "CBBBBCC....",
-        "CBBBBBCCCC.",
-        ".CCBBBBBBC.",
-    ])
-    # Kraeuterbeutel am Guertel
-    stempel(g, 35, 39, ["tlL", "OlL", "lLL", ".L."])
-    stempel(g, *HALS)
-    stempel(g, *KOPF)
-    # Stola: zwei gruene Bahnen ueber die Brust bis zur Huefte
-    stempel(g, 26, 24, [
-        "NO........PO",
-        "NO........PO",
-        ".NO......PO.",
-        ".NO......PO.",
-        ".NO......PR.",
-        ".NO......PR.",
-        ".NO......PR.",
-        ".NO......PR.",
-        ".NO......PR.",
-        ".NO......PR.",
-        ".NO......PR.",
-        ".NO......PR.",
-        ".NO......PR.",
-        "..............",
-        "..............",
-        ".NO......PR.",
-        ".NO......PR.",
-        ".NO......PR.",
-        ".NO......PR.",
-        ".NO......PR.",
-        ".yY......yY.",
-        ".YY......Yz.",
-    ])
-    # Stab des Lichts: Schaft, goldener Ring, Lichtkugel
-    for y in range(13, 62):
-        g[y][44] = 'l'; g[y][45] = 'L'
-    stempel(g, 39, 2, [
-        "....yyyY....",
-        "..yyYvvvYz..",
-        ".yYvvuuvvYz.",
-        ".yvvuWWuvvz.",
-        "yYvuWWWuvvYz",
-        "yvvuWWuuvvVz",
-        "yYvvuuuvvVYz",
-        ".yvvvvvvVVz.",
-        ".YzvvvvVVzz.",
-        "..zYVVVVYz..",
-        "....YYYz....",
-        ".....yz.....",
-    ])
-    # Talisman (Nebenhand laut CW: heiler -> talisman) haengt an der hinteren Hand
-    stempel(g, 13, 38, [
-        "......R.",
-        ".....R..",
-        "...R.R..",
-        "..yyYY..",
-        ".yNNOPz.",
-        "yNNOOPPz",
-        "yNOOOPPz",
-        "YOOPPPRz",
-        ".YPPRRz.",
-        "..zzzz..",
-    ])
-    aermel_weit(g, trim='O')
-    faust(g, 42, 35)
-    return g
-FIGUREN['heiler'] = fig_heiler
-
 if __name__ == '__main__':
+    exec(open(__file__.replace('bau.py', 'klassen.py'), encoding='utf-8').read())
     aus, name = sys.argv[1], sys.argv[2]
     g = FIGUREN[name]()
+    kette(g)
     g = aussenkontur(g)
-    schreibe(aus, g, PAL, f'Ruin Walk Klassenfigur "{name}" - erzeugt mit _vorlage/bau.py, danach Feinarbeit im Raster')
+    schreibe(aus, g, f'Ruin Walk Klassenfigur "{name}" - erzeugt mit _vorlage/bau.py + klassen.py, Feinarbeit im Raster erlaubt')
