@@ -4,7 +4,7 @@ titel: Teaser – Deine Welt ist das Spielfeld
 kanal: instagram
 format: post
 geplant_fuer: vor Tag 1 (Rasterbeitrag 1)
-status: entwurf
+status: autonom
 freigegeben_von:
 freigegeben_am:
 bild: marketing/grafiken/entwuerfe/001_teaser.jpg
