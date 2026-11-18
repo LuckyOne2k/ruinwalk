@@ -27,7 +27,7 @@ Zeichen: ✅ erledigt und getestet · 🟡 lokal getestet, echter Nachweis offen
 ## C. Vor der Installation auf Dev prüfen (🟡/⬜)
 - ⬜ Dashboard: **Data API → Exposed schemas** enthält **nicht** `rwi` (nur im Dashboard sichtbar).
 - ⬜ Preflight (nur lesend) auf Dev ausführen und Ergebnis ansehen.
-- ⬜ Dev-Zustand unverändert wie am 17./18.11. dokumentiert (PG 17.12, `public` leer, kein Trigger auf `auth.users`, Probe-Migrationen vorhanden).
+- ⬜ Dev-Zustand unverändert gegenüber der Bestandsaufnahme (PG 17.12, `public` leer, kein Trigger auf `auth.users`, Probe-Migrationen vorhanden).
 - ⬜ Entscheidung, wie mit den zwei Probe-Migrationen und dem Vault-Überbleibsel `rwprobe_secret` umgegangen wird (nicht automatisch löschen).
 - ⬜ Ort für die echten Tests klären (meine Shell erreicht Dev nicht).
 
