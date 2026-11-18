@@ -2,6 +2,68 @@
 
 Stand: 18.11.2026. Branch `nacht/supabase-integration` (acht Commits auf Basis von `main`, nicht gemergt). **Auf dem Dev-Projekt wurde nichts installiert oder verändert, auf Produktion nichts angefasst, keine Secrets gelesen oder geschrieben.** Das Dev-Projekt wurde nur mit lesenden Katalogabfragen befragt (Rollen, Default-ACLs, Erweiterungen, Funktionsorte, Spalten; Vault nur Namen). `index.html`, GPS, Echtzeitkampf, `supabase/schema.sql` und alle beschlossenen Spiel- und Kampfregeln sind unverändert.
 
+## 00. Abschlussentscheidungen (18.11.2026) und Stand des Branches
+
+**Stand:** Branch `nacht/supabase-integration`, letzter Code-Commit `668de0e`. **Kein Merge nach `main`, keine Installation oder Änderung auf Dev oder Produktion, keine Secrets.** `index.html`, GPS/Echtzeit, Kampfregeln und `supabase/schema.sql` sind gegenüber `main` unverändert (leerer Diff). Auf diesem Stand warte ich auf deine nächste Entscheidung.
+
+### 00.1 Die fünf Entscheidungen und ihre Umsetzung
+| # | Entscheidung | Umsetzung | Tests |
+|---|---|---|---|
+| 1 | Ein Account stellt in einer Instanz dauerhaft nur einen Charakter; auch ausgetretene/automatisch entfernte zählen; andere Instanzen frei | strenge Zählung in `rwi.join`, `create_group`, Trigger `account_guard`, Unique-Index (`04_gruppe.sql`) – schon so implementiert, jetzt zusätzlich für **automatisch entfernte** Mitglieder (`abwesenheit`, `bereitschaft`), Warteliste mit Nachrücken + Entfernung, Client-Wrapper und Kontolöschung belegt | `konto-regel.mjs` 48 (vorher 31) |
+| 2 | Lösch­vorgang wird vollständig zurückgerollt, wenn auch die minimale Bereinigung scheitert; nie ein Geistermitglied | Zusätzlich verschärft: scheitert **die Folgeprüfung** (`after_auto_removal`: Abbruch/Nachrücken) nach Stufe 2, bricht jetzt ebenfalls alles ab (vorher nur Alarm). Dokument: `docs/LOESCHVORGANG.md` (abgefangen vs. abbrechend) | `loesch-trigger.mjs` 59 (vorher 56) |
+| 3 | Hotfix: neue Engine-Version nur über kontrollierte Wiederaufnahme | `stuck` ist gesperrt (`stuck_locked` für jeden direkten Commit); `resume_stuck` mit Begründung; Engine-Register `rwi.engine_versions` mit Zustandsschema; unbekannte/inkompatible Version abgelehnt; alt/neu in `rwi.ops_log`; nach Wiederaufnahme nur freigegebene Version (`engine_mismatch`); später Commit des alten Workers `superseded`; gleicher Snapshot/`input_hash`; frühere Runden byte-gleich; Replay bitgleich | `hotfix-resume.mjs` 34 (neu), `stuck.mjs` 46, `run.mjs` 45 |
+| 4 | F9: Slot 3 nachträglich gesperrt | Eigentum immer, Berechtigung nur bei Eintritt und noch nicht abgegebenem Ready (`own_character(…, p_need_entitlement)`); Profil je Mitglied in `rwi.members.profile` (beim Eintritt, bei Ready aktualisiert, danach eingefroren); `rwi.roster` liest nur das gespeicherte Profil | `slot3-f9.mjs` 26 (neu) |
+| 5 | Alarm: vorerst keine Zustellung, Datenbankalarm maßgeblich | unverändert genau ein Alarm je Übergang, keine Duplikate, Status/Historie, Protokoll von Wiederaufnahme/Beendigung; Erweiterungsvorschlag für E-Mail u. a. in `docs/STUCK_ABLAUF.md` | `stuck.mjs`, `hotfix-resume.mjs` |
+
+### 00.2 Wesentliche Änderungen an bestehenden Tests (nichts entfernt oder abgeschwächt)
+- `run.mjs` (Abschnitt 5): Der alte Test „Hotfix mit neuer engine_version löst die hängende Runde“ lief über einen direkten Commit. Beschluss 3 verbietet das. Der Test prüft jetzt dieselbe Aussage (neue Engine-Version löst die Runde, `engine_version` gespeichert), aber über `resume_stuck` und zusätzlich, dass der direkte Commit abgewiesen wird: 2 Prüfungen mehr (45 statt 43 bei gleichem Inhalt).
+- `stuck.mjs` Abschnitt 8: „auch bei 8 Fehlversuchen nur EIN Alarm“ bleibt (jetzt: sechs `invalid`, danach `stuck_locked`, ein Alarm); die Hotfix-Prüfung läuft über die Wiederaufnahme.
+- `installation.mjs`: Zählungen 17 Tabellen / 38 Funktionen in `public`; `worker-a1.mjs`: elf statt zehn Wrapper; `produktion.mjs`: Liste der Triggerfunktionen um `profile_snapshot` erweitert. Alles reine Erwartungsanpassungen an hinzugefügte Objekte.
+
+### 00.3 Exakte Commit-IDs seit `main` (15 Commits, Basis `8e423a3`)
+`2ff5b6a`, `ca46cba`, `12f8504`, `28438a2`, `052a6b3`, `1a3f0e9`, `a35108a`, `673fded` (Nachtauftrag) · `4e85377`, `ea92d86`, `f270633`, `7e3c99f`, `1e3e6ff` (Folgeauftrag 1) · **`8744b31`**, **`668de0e`** (dieser Auftrag), dazu der Commit mit diesem Bericht.
+
+### 00.4 Geänderte Dateien gegenüber `main` (37 Dateien, 27 neu, 10 geändert; `git diff --stat main...HEAD`)
+- **SQL** (`server/instance/sql/`): `01_proto.sql` (ohne pgcrypto), `03_windows.sql`, `04_gruppe.sql`, `05_produktion.sql`.
+- **Worker** (`server/instance/worker/`): `core.mjs`, `a1.mjs` (neu).
+- **Tests** (`server/instance/tests/`): neu `hotfix-resume`, `slot3-f9`, `loesch-trigger`, `konto-regel`, `konto-integration`, `worker-a1`, `worker`, `stuck`, `sa-untersuchung`, `installation`, `rechte-audit`, `prod-env`, `run-all-db.sh`; geändert `dev-umgebung`, `pg`, `produktion`, `run`.
+- **Dev-Skripte** (`supabase/dev/`, nicht ausgeführt): `00_preflight.sql`, `build.sh`, `rollback_dev.sql`, `cleanup_test_accounts.sql`; `supabase/tests/run.sh`.
+- **CI**: `.github/workflows/instance-tests.yml`.
+- **Doku** (`docs/`): Nachbericht, `SUPABASE_FREIGABE_CHECKLISTE.md`, `LOESCHVORGANG.md`, `STUCK_ABLAUF.md`, `WORKER_A1_SCHNITTSTELLE.md`, `SUPABASE_S-A_UNTERSUCHUNG.md`, `INSTANZKAMPF_WORKER_ARCHITEKTUR.md`; `server/instance/README.md`.
+- **Nicht angefasst:** `index.html`, `supabase/schema.sql`, Kampfregeln/Engine (`server/instance/engine/`), GPS-Echtzeit.
+
+### 00.5 Testergebnisse (Basislauf: `668de0e`)
+| Prüfung | Ergebnis |
+|---|---|
+| Sammellauf lokal, PostgreSQL 16.15 | `ALLES BESTANDEN` (25 Läufe) |
+| CI `database (16)` / `database (17)` (Run 44251214345) | beide `ALLES BESTANDEN`, 25 Läufe `exit=0`, identische Zahlen |
+| CI `vergleich-pg16-pg17`, `determinism`, `bestehende-tests` | alle `success` |
+| `npm test` | 229 bestanden, 0 fehlgeschlagen |
+| Determinismus Node / Bun | gleicher Digest `d0a464c6…` (Deno nur in der CI) |
+Zahlen je Test (PG16 = PG17): run 45, fenster 39, gruppe 157, eventende 32, semantik 27, produktion 222, dev-umgebung 22, konto-integration 63, konto-regel 48, loesch-trigger 59, installation 29, rechte-audit 29, worker 25, worker-a1 26, stuck 46, hotfix-resume 34, slot3-f9 26, sa-untersuchung 15, supabase-schema 245 je Modus, Dungeon-Seeds 3/4/5 und Weltboss-Ende ohne Probleme, K.2-Vergleich ohne Deadlocks.
+**Mutationsprüfung der neuen Tests:** ohne `stuck_locked`-Sperre scheitern 7 Prüfungen; ohne Kompatibilitätsprüfung 7; mit Berechtigungsprüfung bei jedem Aufruf 1; mit Live-Profil in `roster` 2.
+**Nicht belegt (lokal nicht möglich):** echtes GoTrue/PostgREST/JWT, echtes `delete_account` mit Passwortanmeldung, `supautils`-Besonderheiten, Dashboard-Einstellung der exponierten Schemas, Commit-Latenz auf Dev.
+
+### 00.6 Bekannte Einschränkungen
+- Die Alarmzustellung nach außen fehlt bewusst; Betreiberkennung ist freier Text, keine geprüfte Identität.
+- Die alte Engine-Version bei reinen Engine-Ausnahmen (`report_failure`) ist nicht immer bekannt und steht dann als `unbekannt` im Protokoll.
+- `state_schema` ist heute überall 1; eine Schemamigration des gespeicherten Kampfzustands ist nicht gebaut (die Prüfung lehnt Versionen mit anderem Schema nur ab).
+- F9: `rwi.players` (Profilquelle) wird noch nicht aus `public.characters` abgeleitet (F5, `derive-profile` fehlt). Der Schutz bezieht sich auf das gespeicherte Instanzprofil ab Eintritt/Ready.
+- Spieler ohne Charakterzuordnung (nur Prototypschlüssel) haben keine Kontokennung und werden nicht auf die Account-Regel geprüft.
+- Bei Entzug von Platz 3 vor dem Ready kann der Charakter bis zum Ready-Ablauf Mitglied bleiben (er kann nicht bereit werden, die Bereitschaftsfrist entfernt ihn nach der bestehenden Regel).
+- Aufrufe von Edge Function, Cron, `pg_net`, `dispatch_due`, Authentisierung/Ratenbegrenzung des Workers sind nicht gebaut.
+
+### 00.7 Offene Dev-Voraussetzungen
+Siehe `docs/SUPABASE_FREIGABE_CHECKLISTE.md` (Abschnitte C–F): Dashboard-Prüfung „Exposed schemas“, Preflight auf Dev, Umgang mit Probe-Migrationen und Vault-Überbleibsel, echte REST/JWT/GoTrue-Tests, `app_metadata`-Reihenfolge (S-A), `derive-profile`, Worker-Bereitstellung, Alarmzustellung.
+
+### 00.8 Sicherheitsbewertung
+- **Rechte:** `rwi` ist für `anon`/`authenticated` unerreichbar (kein USAGE, kein Tabellen-/Funktionsrecht); elf `service_role`-Wrapper (SECURITY INVOKER, fester `search_path`, Eingabeprüfung); Client-Wrapper erzwingen Eigentum aus `auth.uid()`; sechs SECURITY-DEFINER-Funktionen mit festem `search_path`, katalogisch geprüft. Neue Funktionen (`register_engine`, `profile_of`, `profile_snapshot`) sind klassifiziert und nicht client-ausführbar.
+- **Integrität:** Account-Regel in drei Schichten; stuck nicht durch Commit umgehbar; Wiederaufnahme nur durch `service_role` mit Protokoll; Lösch­vorgänge atomar.
+- **Restrisiken:** Der `service_role`-Schlüssel ist weiterhin allmächtig auf `public`; ein kompromittierter Worker kann Wiederaufnahmen und Engine-Registrierungen auslösen (nur protokolliert, kein Vier-Augen-Prinzip). Echte Plattformpfade sind ungetestet.
+
+### 00.9 Empfehlung zur Dev-Installation
+**Für eine spätere Dev-Installation – unter Vorbehalt, nicht jetzt.** Technisch spricht nach lokalem und CI-Nachweis (PG 16 und 17) nichts mehr gegen eine Installation auf dem **leeren** Dev-Projekt mit vorherigem Preflight und anschließender Katalogprüfung. Vorher sollten mindestens (1) die Dashboard-Einstellung der exponierten Schemas geprüft, (2) der Preflight gelesen und (3) entschieden sein, wer die echten REST/JWT-Tests ausführt, weil meine Umgebung Dev nicht erreicht. Ein Merge nach `main` empfehle ich erst nach den echten Dev-Tests, weil die kombinierte Installation Funktionen und Trigger in `public` anlegt, die auf Produktion nur mit eigener Migration kämen.
+
 ## 0. Nachtrag: Folgeauftrag „Kritische Review und Härtung“ (18.11.2026)
 
 Auch dieser Teil: nur auf dem Branch `nacht/supabase-integration`, kein Merge, **keine Änderung auf Dev oder Produktion**, keine Secrets, `index.html`, GPS und Kampfregeln unverändert, `supabase/schema.sql` unverändert.
@@ -26,19 +88,19 @@ Geprüft in `loesch-trigger.mjs` (56 Prüfungen): laufende Runde, bestätigte Ak
 - Laufende Auflösung: Lease, Token und Phase bleiben unverändert, der Commit mit dem vor dem Löschen eingefrorenen Snapshot ist gültig (genau ein Rundenergebnis). Sind danach alle ausgetreten, wird die Instanz abgebrochen und der späte Commit ohne Wirkung abgewiesen.
 - **Gefundener Fehler (jetzt behoben): Deadlock.** Zwei gleichzeitige Kontolöschungen mit Charakteren in denselben zwei Instanzen in gegenläufiger Reihenfolge verklemmten sich (im Kontrollversuch ohne Gegenmaßnahme: ein `deadlock detected` plus ein abgefangener Fehler). Gegenmaßnahme: `rwi.on_profile_deleting` sperrt vor der Kaskade alle aktiven Instanzen des Kontos aufsteigend nach ID. Danach gelingen beide Löschungen ohne Alarm.
 - **Gefundener Fehler (jetzt behoben): stilles Geistermitglied.** Der erste Entwurf fing jeden Fehler in `rwi.leave` ab und protokollierte nur. Danach blieb das Mitglied aktiv. Jetzt: Stufe 1 `rwi.leave`; scheitert sie, Stufe 2 ohne Spiellogik (Mitglied `left/freiwillig` mit denselben Endzuständen wie `drop_member`, Wartelisteneintrag storniert, Beute entfällt) plus Alarm `char_cleanup_failed`; scheitert auch das, läuft der Fehler heraus und die **gesamte** Löschung (Charakter, Konto, Sicherungen, Protokoll, Zahlungsereignisse) wird zurückgerollt und ist nach Behebung wiederholbar (getestet). Ein bei der ersten Stufe-2-Fassung gefundener Fehler (`leave_reason`-CHECK-Constraint lehnte den neuen Grund ab) zeigt den Wert der Fehlerinjektion.
-- Löschen scheitert damit nur noch, wenn selbst die minimale Bereinigung nicht möglich ist. Das ist eine bewusste Abwägung zwischen „Löschen darf nie blockieren“ (Datenschutz) und „keine inkonsistenten Instanzzustände“. **Entscheidung für dich, falls du es anders willst.**
+- Löschen scheitert nur, wenn selbst die minimale Bereinigung (oder ihre Folgeprüfung) nicht möglich ist; so entschieden am 18.11. (siehe `docs/LOESCHVORGANG.md`).
 
 ### 0.3 Account-Eindeutigkeit je Instanz
 **Regel:** Ein Account hat in einer Instanz höchstens eine Mitgliedszeile (in jedem Zustand) oder einen wartenden Eintrag. Verschiedene Instanzen dürfen verschiedene Charaktere desselben Accounts enthalten.
 **Umsetzung in drei Schichten:** (1) `rwi.join` und `rwi.create_group` melden `account_in_instance` / `account_duplicate`; `join` arbeitet unter der Instanzsperre, parallele Beitritte laufen nacheinander. (2) Trigger `account_guard` auf Mitgliedern und Warteliste mit Advisory-Sperre je (Instanz, Konto) prüft beide Tabellen gemeinsam, deckt also jeden Schreibweg (`promote_waitlist`, direkte Inserts). (3) Partieller Unique-Index auf `rwi.members (instance_id, account)`. Die Kontokennung `account` wird vom Trigger über den Hook `rwi.account_of(player)` gesetzt (Produktion: aus `public.characters`; Prototypspieler ohne Charakter bleiben unbeschränkt) und bei Kontolöschung aus den Zeilen entfernt.
-**Strenge Zählung (meine Auslegung, bitte bestätigen):** Auch ein ausgetretener oder entfernter Charakter zählt. Der Account kann also nicht mit einem anderen Charakter in dieselbe Instanz nachtreten (gleiche Logik wie „kein Wiederbeitritt“ für denselben Charakter). Wenn „teilnehmend“ nur aktive Mitglieder meinen soll, ist es eine Zeile in `account_conflict` und im Trigger.
+**Strenge Zählung (am 18.11. bestätigt):** Auch ein ausgetretener oder entfernter Charakter zählt. Der Account kann also nicht mit einem anderen Charakter in dieselbe Instanz nachtreten (gleiche Logik wie „kein Wiederbeitritt“ für denselben Charakter). Wenn „teilnehmend“ nur aktive Mitglieder meinen soll, ist es eine Zeile in `account_conflict` und im Trigger.
 **Tests (`konto-regel.mjs`):** nacheinander, gleichzeitig (8 Läufe mit je drei Beitritten, 6 Läufe über die Client-Wrapper mit `auth.uid()`), zwei verschiedene Accounts gleichzeitig (5 Läufe, beide erfolgreich), Beitritt gleichzeitig mit Nachrücken (5 Läufe), mehrere Instanzen mit drei Charakteren eines Accounts, Warteliste (Mitglied, wartend, Rückzug, Nachrücken), Gruppenwechsel, `create_group`, direkte Inserts, Unique-Index ohne Trigger. Der Fund aus `produktion.mjs` (alte Tests erwarteten zwei Charaktere desselben Kontos in einer Instanz) wurde an die Regel angepasst, nicht abgeschwächt: Die Prüfungen „A kann zweiten Charakter beitreten lassen“ und „`ambiguous_character`“ gelten nicht mehr; stattdessen wird `account_in_instance` und die eindeutige Ableitung geprüft; die Weltboss-Gruppe nutzt sechs verschiedene Konten.
 
 ### 0.4 A1-Schnittstelle
 Siehe `docs/WORKER_A1_SCHNITTSTELLE.md` (Berechtigungsmatrix, Eingabeprüfung, Rückgabefelder, offene Punkte). Kurz: zehn Wrapper `rw_worker_*` und `rw_ops_*` in `public`, je genau eine `rwi`-Funktion, `SECURITY INVOKER`, `search_path = pg_catalog, pg_temp`, nur `service_role` darf ausführen. `anon` und `authenticated` scheitern im tatsächlichen Aufruf mit „permission denied“. Selbst bei versehentlich vergebenem EXECUTE würden sie am fehlenden `USAGE` auf `rwi` scheitern (Mutationsprüfung). Ein kompletter Worker-Tick läuft ausschließlich über die Wrapper. Neu dafür: `rwi.fight_rounds`.
 
 ### 0.5 stuck und Alarmierung
-Siehe `docs/STUCK_ABLAUF.md`. Geprüft: `report_failure` war korrekt (5/10/20/40/60 s, Übergang bei `max_attempts`), aber (a) weitere Meldungen und weitere ungültige Commits erhöhten den Zähler und erzeugten jeweils einen weiteren Alarm, (b) ein Claim bei abgelaufener Lease hätte einen stuck-Kampf erneut zugeteilt, (c) es gab keine kontrollierte Wiederaufnahme. Behoben: genau ein Alarm je Übergang (eindeutiger Schlüssel), `already_stuck`, Claim bei `engine_stuck` abgewiesen, Watchdog legt fehlende Alarme einmal nach und schließt Alarme beendeter Instanzen, `resume_stuck` / `terminate_stuck` mit Pflichtbegründung und Betriebsprotokoll `rwi.ops_log`. Der bestehende Hotfix-Weg (Commit mit neuer Engine-Version) funktioniert unverändert weiter; offene Entscheidung dazu steht in `docs/STUCK_ABLAUF.md`. **Eine Benachrichtigung nach außen gibt es nicht.**
+Siehe `docs/STUCK_ABLAUF.md`. Geprüft: `report_failure` war korrekt (5/10/20/40/60 s, Übergang bei `max_attempts`), aber (a) weitere Meldungen und weitere ungültige Commits erhöhten den Zähler und erzeugten jeweils einen weiteren Alarm, (b) ein Claim bei abgelaufener Lease hätte einen stuck-Kampf erneut zugeteilt, (c) es gab keine kontrollierte Wiederaufnahme. Behoben: genau ein Alarm je Übergang (eindeutiger Schlüssel), `already_stuck`, Claim bei `engine_stuck` abgewiesen, Watchdog legt fehlende Alarme einmal nach und schließt Alarme beendeter Instanzen, `resume_stuck` / `terminate_stuck` mit Pflichtbegründung und Betriebsprotokoll `rwi.ops_log`. **Überholt durch den Beschluss vom 18.11.:** Ein direkter Commit auf einen stuck-Auftrag ist jetzt gesperrt; Hotfix nur über `resume_stuck` mit Engine-Prüfung (Abschnitt 00, `docs/STUCK_ABLAUF.md`). **Eine Benachrichtigung nach außen gibt es nicht.**
 
 ### 0.6 S-A (nur untersucht)
 Siehe `docs/SUPABASE_S-A_UNTERSUCHUNG.md`. **Empfehlung:** sicherheitstechnisch vertretbar (Marker in einem Feld, das Spieler nicht schreiben können; typstreng; Bestandskonten unberührt), aber **erst nach Prüfung gegen echtes GoTrue** umsetzen, ob `app_metadata` bei `admin.createUser` schon im INSERT geschrieben wird. Wenn nicht, bleibt S-C (heutiges Verhalten). Nichts an `schema.sql` geändert.

@@ -1,27 +1,28 @@
 # Freigabe-Checkliste vor einer Dev-Installation
 
-Stand: Branch `nacht/supabase-integration`, Commit `f270633` (CI grün auf PostgreSQL 16.16 und 17.12). **Nichts davon wurde auf Dev oder Produktion ausgeführt.**
+Stand: Branch `nacht/supabase-integration`, Code-Commit `668de0e` (CI-Run 44251214345 grün auf PostgreSQL 16 und 17, alle fünf Jobs). **Nichts davon wurde auf Dev oder Produktion ausgeführt.**
 Zeichen: ✅ erledigt und getestet · 🟡 lokal getestet, echter Nachweis offen · ⬜ offen · 🧑 deine Entscheidung.
 
 ## A. Entscheidungen (🧑)
+Entschieden am 18.11.2026 und umgesetzt: strenge Account-Regel · Lösch-Rollback inkl. Folgeprüfung · Hotfix nur über `resume_stuck` mit Engine-Prüfung · F9 (Profil je Instanz, Berechtigung nur bei Eintritt/Ready) · Datenbankalarm ohne externe Zustellung.
+Weiter offen:
 - ⬜ Dev-Installation freigeben (ausdrücklich, als **eine** Migration aus `supabase/dev/build.sh`).
 - ⬜ Merge in `main` (bisher ausdrücklich nicht).
-- ⬜ Account-Regel: **strenge Zählung** (auch ausgetretene Charaktere zählen) bestätigen oder auf „nur aktive“ ändern.
-- ⬜ Lösch-Bereinigung: Löschen scheitert und wird zurückgerollt, **wenn selbst die minimale Bereinigung fehlschlägt** (statt Geistermitglied). Bestätigen?
-- ⬜ Hotfix-Weg bei stuck (Commit mit neuer Engine-Version ohne `resume_stuck`) beibehalten oder nur über `resume_stuck`? (`docs/STUCK_ABLAUF.md`)
-- ⬜ F9: nachträglich gesperrter Platz-3-Charakter in laufender Instanz.
-- ⬜ Zustellung des stuck-Alarms (wohin, wer).
+- ⬜ Zustellung des stuck-Alarms später (Vorschlag in `docs/STUCK_ABLAUF.md`).
 - ⬜ S-A: erst nach Prüfung gegen echtes GoTrue umsetzen? (`docs/SUPABASE_S-A_UNTERSUCHUNG.md`)
 - ⬜ Änderungen an `supabase/schema.sql` (F6, F10, S-A) betreffen die Produktion.
+- ⬜ Wer darf Wiederaufnahmen/Engine-Registrierungen auslösen (Betreiberidentität, Vier-Augen-Prinzip)?
 
 ## B. Technisch bereit (lokal und CI)
 - ✅ Kombinierte Installation `schema.sql` + `01`–`05` in einer Transaktion, Preflight, zweiter Versuch blockiert, Rollback, Neuinstallation (`installation.mjs`).
 - ✅ Rechte aus dem Katalog: `anon` nur `username_available`; `authenticated` nur Client-Wrapper; `service_role` nur Serverfunktionen (`rechte-audit.mjs`, `produktion.mjs`).
 - ✅ RLS auf allen Tabellen (zweite Schicht), SECURITY DEFINER mit festem `search_path`.
-- ✅ Lösch-Trigger: 9 Szenarien, Deadlock-Schutz, Rollback (`loesch-trigger.mjs`).
+- ✅ Lösch-Trigger: 9 Szenarien, Deadlock-Schutz, Rollback inkl. Fehler in der Folgeprüfung (`loesch-trigger.mjs`, `docs/LOESCHVORGANG.md`).
 - ✅ Account-Eindeutigkeit je Instanz inkl. Parallelität (`konto-regel.mjs`).
 - ✅ A1-Wrapper: Rechtematrix, Eingabeprüfung, `anon`/`authenticated` abgewiesen (`worker-a1.mjs`).
-- ✅ stuck: Alarm genau einmal, keine automatische Wiederholung, kontrollierte Wiederaufnahme (`stuck.mjs`).
+- ✅ stuck: Alarm genau einmal, keine automatische Wiederholung, kontrollierte Wiederaufnahme, Sperre direkter Commits (`stuck.mjs`).
+- ✅ Hotfix-Wiederaufnahme mit Engine-Register, Kompatibilitätsprüfung, Protokoll alt/neu, keine Doppelverarbeitung (`hotfix-resume.mjs`).
+- ✅ F9: Slot-3-Entzug vor/nach Ready, während des Kampfes, neue Instanz, erneute Freischaltung (`slot3-f9.mjs`).
 - ✅ PostgreSQL 16 und 17 mit identischen Ergebnissen; Determinismus Node/Bun (Deno in der CI); `npm test`.
 
 ## C. Vor der Installation auf Dev prüfen (🟡/⬜)
@@ -45,7 +46,7 @@ Zeichen: ✅ erledigt und getestet · 🟡 lokal getestet, echter Nachweis offen
 - ⬜ Commit-Latenz auf Dev messen (ohne daraus eine Commit-vor-Deadline-Garantie abzuleiten).
 
 ## F. Nicht Teil dieser Freigabe (gebaut ist es nicht)
-- ⬜ `derive-profile` (Spielerprofil aus `public.characters`) – ohne ihn kann kein echter Spieler einer Instanz beitreten.
+- ⬜ `derive-profile` (Spielerprofil aus `public.characters` nach `rwi.players`, F5) – ohne ihn kann kein echter Spieler einer Instanz beitreten; erst damit wirkt F9 gegenüber echten Charakterdaten.
 - ⬜ Cron-Zeitgeber, `pg_net`, Edge Function, Secrets, Deployment des Workers, Ratenbegrenzung.
 - ⬜ Benachrichtigung bei stuck.
 - ⬜ Ableitung der Betreiberidentität bei Wiederaufnahme.
