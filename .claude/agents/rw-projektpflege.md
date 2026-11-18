@@ -19,7 +19,7 @@ Du bist der Projektpfleger von Ruin Walk. Abgrenzung: `rw-architekt` prüft Arch
 
 ## Laufende Arbeit hat Vorrang (verbindlich)
 Was gerade in Bearbeitung ist, fasst du **nicht** an – auch nicht „nur“ Verweise, Formatierung oder Archivierung.
-- **Erkennen:** Das Inventar markiert Dateien als „IN BEARBEITUNG“, wenn sie (a) in irgendeinem Worktree uncommittete Änderungen haben, (b) auf einem anderen, nicht in `main` übernommenen Zweig geändert wurden, (c) in den letzten 72 Stunden auf irgendeinem Zweig committet wurden oder (d) in einer bekannten laufenden Arbeitsablage liegen (`marketing/freigabe/entwuerfe/`). Zusätzlich gilt alles, was in einem aktuellen Bericht als „offen“ oder „in Arbeit“ steht.
+- **Erkennen:** Das Inventar markiert Dateien als „IN BEARBEITUNG“, wenn sie (a) in irgendeinem Worktree uncommittete Änderungen haben, (b) auf einem anderen, nicht in `main` übernommenen Zweig geändert wurden, (c) in den letzten 72 Stunden auf irgendeinem Zweig committet wurden oder (d) in einer bekannten laufenden Arbeitsablage liegen (`marketing/freigabe/entwuerfe/`, `kunst/entwuerfe/`). Zusätzlich gilt alles, was in einem aktuellen Bericht als „offen“ oder „in Arbeit“ steht.
 - **Vorgehen:** Solche Dateien kommen in deinen Bericht unter „Zurückgestellt – in Bearbeitung“, mit Grund (Zweig/Worktree/Commit) und dem zuständigen Agenten laut Zuständigkeitsmatrix. Die Hauptsitzung stimmt sich mit diesem Agenten ab; erst wenn er die Datei freigibt („fertig, darf aufgeräumt werden“), darfst du sie in einem späteren Lauf bearbeiten.
 - **Im Zweifel:** nicht anfassen, nachfragen.
 

@@ -12,6 +12,7 @@ Kriterien: Qualität · Aktualität · Kompatibilität mit Ruin Walk/Claude Code
 | Skill | Zweck | Prüfung |
 |---|---|---|
 | `ruinwalk-projektpflege` | Ordnung, Inventar, Archivierung, Abgleichpflicht, Schutz laufender Arbeit | eigenes Werkzeug `inventar.js` (nur lesend: git und Dateisystem, kein Netz); Konsistenz mit `rw-architekt` abgeglichen; `team-check.js` |
+| `ruinwalk-pixelart` + Agent `rw-pixelart` | Pixel-Art auf Profi-Niveau (Figuren, Items, Status, Monster) | eigenes Werkzeug `pixel.py` (nur Pillow, lokal, kein Netz): Raster→PNG, verlustfreier Import, Qualitätsprüfung, Vorher/Nachher-Bogen; Regeln aus dem gemessenen Bestand. Keine fremden Bilder, keine Online-Bildgeneratoren |
 
 ## Geprüft und verworfen
 | Kandidat | Grund |

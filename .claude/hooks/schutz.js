@@ -47,7 +47,7 @@ process.stdin.on('end', () => {
       const seg = (c.match(/\bcommit\b([^;&|]*)/) || ['', ''])[1], ct = toks(seg), skip = new Set(['-m', '--message', '-F', '--file', '-C', '-c', '--author', '--date', '--fixup', '--squash', '-t', '--template', '--trailer']);
       for (let i = 0; i < ct.length; i++) { if (skip.has(ct[i])) { i++; continue; } if (!ct[i].startsWith('-') && !ct[i].includes('$(')) files.push(ct[i]); }
       if (/(?:^|\s)(-a|--all|-a[a-zA-Z]*)(?=\s|$)/.test(seg)) files = files.concat(g(['diff', '--name-only']).split('\n'));
-      const relevant = [...new Set(files.filter((x) => /^(index\.html|landingpage\.html|package\.json|pxdom\.js|sprites[\w-]*\.js|CLAUDE\.md)$|^(supabase|server|tests|tools|\.github|\.claude)\//.test(x)))];
+      const relevant = [...new Set(files.filter((x) => /^(index\.html|landingpage\.html|package\.json|pxdom\.js|sprites[\w-]*\.js|CLAUDE\.md)$|^(supabase|server|tests|tools|\.github|\.claude|figs|items|status|assets)\//.test(x)))];
       let msg = c;
       const fM = c.match(/\s(?:-F|--file)[= ]("[^"]+"|'[^']+'|\S+)/);
       if (fM && unq(fM[1]) !== '-') { try { msg += fs.readFileSync(path.resolve(dir, unq(fM[1])), 'utf8'); } catch {} }
