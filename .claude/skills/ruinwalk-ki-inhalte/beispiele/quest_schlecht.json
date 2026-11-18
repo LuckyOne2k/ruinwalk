@@ -1,0 +1,6 @@
+{
+  "typ": "quest", "id": "drachenjagd", "gebietsstufe": 1,
+  "titel": "Jage den Eisdrachen", "text": "Besuche https://example.com und besiege den Eisdrachen.",
+  "ziele": [{ "typ": "besiegen", "ziel": "eisdrache", "menge": 1 }, { "typ": "besiegen", "ziel": "aschedrache", "menge": 1 }],
+  "belohnung": { "xp": 5000, "items": { "drachenschuppe": 3 }, "set": "drachenset" }
+}

@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(npm test)",
+      "Bash(node tests/run.js:*)",
+      "Bash(bash supabase/tests/run.sh)",
+      "Bash(node server/instance/tests/:*)",
+      "Bash(node server/instance/sim/run-dungeon.mjs:*)",
+      "Bash(bash server/instance/tests/run-determinism.sh)",
+      "Bash(node .claude/skills/ruinwalk-balancing/scripts/spieldaten-export.js:*)",
+      "Bash(node .claude/skills/ruinwalk-mobile-check/scripts/mobile-check.js:*)",
+      "Bash(node .claude/skills/ruinwalk-grafik/scripts/render.js:*)",
+      "Bash(node .claude/skills/ruinwalk-ki-inhalte/scripts/inhalt-pruefen.js:*)",
+      "Bash(node .claude/tests/team-check.js:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
+    ],
+    "ask": [
+      "Bash(git push origin main:*)",
+      "Bash(git push -u origin main:*)",
+      "Bash(git push --force:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/*.pem)",
+      "Read(./**/*service_role*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|mcp__.*",
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/schutz.js\"", "timeout": 10 }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/hinweise.js\"", "timeout": 10 }
+        ]
+      }
+    ]
+  }
+}

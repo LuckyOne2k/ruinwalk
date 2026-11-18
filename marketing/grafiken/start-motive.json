@@ -1,0 +1,157 @@
+[
+ {
+  "datei": "001_teaser.jpg",
+  "format": "post",
+  "layout": "titel",
+  "hintergrund": "assets/bg_login.jpg",
+  "kicker": "Ein GPS-Fantasy-RPG",
+  "titel": "Deine Welt ist das Spielfeld.",
+  "text": "Verlass die bekannten Wege. Jeder Spaziergang kann Beute, Kreaturen oder Ruinen bringen."
+ },
+ {
+  "datei": "002_karussell_1.jpg",
+  "format": "post",
+  "layout": "titel",
+  "hintergrund": "assets/bg_create.jpg",
+  "kicker": "Was ist Ruin Walk?",
+  "titel": "Ein Rollenspiel für draußen.",
+  "text": "Echte Kartendaten bestimmen, welche Kreaturen dir begegnen. Im Browser, ohne App. Wisch dich durch 👉"
+ },
+ {
+  "datei": "002_karussell_2.jpg",
+  "format": "post",
+  "layout": "screenshot",
+  "hintergrund": "assets/bg_chars.jpg",
+  "kicker": "1 · Wachsen",
+  "titel": "Dein Charakter, deine Ausrüstung.",
+  "bild": "marketing/grafiken/screenshots/spiel_char.png",
+  "unterschrift": "Zehn Ausrüstungsplätze, Sets und Verbesserung bis +10."
+ },
+ {
+  "datei": "002_karussell_3.jpg",
+  "format": "post",
+  "layout": "screenshot",
+  "hintergrund": "assets/bg_chars.jpg",
+  "kicker": "2 · Sammeln & Herstellen",
+  "titel": "Aus Ast und Stein wird Werkzeug.",
+  "bild": "marketing/grafiken/screenshots/spiel_craft.png",
+  "unterschrift": "Spielansicht (Testmodus)"
+ },
+ {
+  "datei": "002_karussell_4.jpg",
+  "format": "post",
+  "layout": "screenshot",
+  "hintergrund": "assets/bg_chars.jpg",
+  "kicker": "3 · Aufgaben",
+  "titel": "Quests weisen den Weg.",
+  "bild": "marketing/grafiken/screenshots/spiel_quests.png",
+  "unterschrift": "Die ersten Schritte führen dich durch Sammeln, Herstellen und Kämpfen."
+ },
+ {
+  "datei": "002_karussell_5.jpg",
+  "format": "post",
+  "layout": "liste",
+  "hintergrund": "assets/bg_login.jpg",
+  "logo": true,
+  "kicker": "So startest du",
+  "titel": "Drei Schritte.",
+  "punkte": [
+   {
+    "icon": "1",
+    "text": "Link in der Bio im Handy-Browser öffnen"
+   },
+   {
+    "icon": "2",
+    "text": "Standort freigeben – oder erst im Testmodus schauen"
+   },
+   {
+    "icon": "3",
+    "text": "Rausgehen und entdecken"
+   }
+  ]
+ },
+ {
+  "datei": "003_klassen.jpg",
+  "format": "post",
+  "layout": "klasse",
+  "hintergrund": "assets/bg_create.jpg",
+  "kicker": "Wähle deinen Weg",
+  "titel": "Vier Klassen. Zwölf Pfade.",
+  "text": "Du beginnst als Wanderer. Ab Stufe 5 wählst du deine Klasse, ab 15 deinen Pfad.",
+  "figuren": [
+   {
+    "bild": "figs/krieger.png",
+    "name": "Krieger"
+   },
+   {
+    "bild": "figs/bogen.png",
+    "name": "Bogenschütze"
+   },
+   {
+    "bild": "figs/magier.png",
+    "name": "Magier"
+   },
+   {
+    "bild": "figs/heiler.png",
+    "name": "Heiler"
+   }
+  ],
+  "chips": [
+   "Krieger",
+   "Bogenschütze",
+   "Elementarmagier",
+   "Heiler"
+  ]
+ },
+ {
+  "datei": "004_story_umfrage_klasse.jpg",
+  "format": "story",
+  "layout": "frage",
+  "hintergrund": "assets/bg_chars.jpg",
+  "logo": true,
+  "kicker": "Eure Wahl",
+  "titel": "Welchen Weg gehst du?",
+  "optionen": [
+   "Krieger",
+   "Bogenschütze",
+   "Elementarmagier",
+   "Heiler"
+  ]
+ },
+ {
+  "datei": "005_story_devupdate.jpg",
+  "format": "story",
+  "layout": "liste",
+  "hintergrund": "assets/bg_chars.jpg",
+  "logo": true,
+  "kicker": "Entwickler-Update #1",
+  "titel": "Was zuletzt entstand",
+  "punkte": [
+   {
+    "icon": "✅",
+    "text": "Gebietsstufen: Randland bis Ruinenreich"
+   },
+   {
+    "icon": "✅",
+    "text": "Heimat-Schutzring für Einsteiger"
+   },
+   {
+    "icon": "✅",
+    "text": "Cloud-Speicher und drei Charakterplätze"
+   },
+   {
+    "icon": "🔧",
+    "text": "Gruppen-Dungeons – in Entwicklung"
+   }
+  ]
+ },
+ {
+  "datei": "006_facebook_titelbild.jpg",
+  "format": "banner",
+  "layout": "banner",
+  "hintergrund": "assets/bg_login.jpg",
+  "kicker": "Ein GPS-Fantasy-RPG im Browser",
+  "titel": "Deine Welt ist das Spielfeld.",
+  "text": "In Entwicklung · gemacht in Augsburg"
+ }
+]

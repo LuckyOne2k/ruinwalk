@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<style>
+:root{--bg:#120f0d;--panel:#211812;--gold:#d8a45d;--gold2:#f0c982;--text:#f3e8d8;--muted:#c0ad99;--glut:#ff7a2f;--line:rgba(216,164,93,.35)}
+*{box-sizing:border-box;margin:0}
+html,body{background:var(--bg)}
+#c{position:relative;overflow:hidden;color:var(--text);font-family:'Crimson Text',Georgia,serif;background:var(--bg)}
+#c.post{width:1080px;height:1350px}#c.story{width:1080px;height:1920px}#c.quadrat{width:1080px;height:1080px}#c.banner{width:1640px;height:624px}
+.banner .inner{padding:70px 110px;flex-direction:row;align-items:center;gap:70px}.banner .logo{width:500px;align-self:center}
+.banner .txt{flex:1}.banner h1{font-size:64px}.banner p.t{font-size:34px}.banner .foot,.banner .grow{display:none}
+.bg{position:absolute;inset:0;background-size:cover;background-position:center}
+.bg:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,#0a0807e6 0%,#0a080766 38%,#0a0807cc 72%,#0a0807f7 100%)}
+.frame{position:absolute;inset:28px;border:2px solid var(--line);pointer-events:none}
+.frame:after{content:"";position:absolute;inset:10px;border:1px solid #f0c98222}
+.inner{position:absolute;inset:0;padding:96px 92px;display:flex;flex-direction:column}
+.logo{width:420px;align-self:center;filter:drop-shadow(0 8px 24px #000)}
+.kicker{font:700 30px Cinzel,serif;letter-spacing:.2em;color:var(--gold2);text-transform:uppercase;margin-top:28px}
+h1{font:700 82px/1.1 Cinzel,serif;margin:18px 0 22px;text-shadow:0 4px 20px #000}
+.story h1{font-size:96px}
+/* Story-Sicherheitszonen: oben ~250 px und unten ~300 px verdecken Profilzeile bzw. Antwortfeld */
+.story .inner{padding:250px 92px 300px}
+p.t{font-size:42px;line-height:1.35;color:#e6d6c4;max-width:880px}
+.grow{flex:1}
+.foot{display:flex;justify-content:space-between;align-items:center;font:600 26px Cinzel,serif;letter-spacing:.12em;color:var(--gold)}
+.badge{font:600 24px Cinzel,serif;letter-spacing:.1em;border:2px solid var(--glut);color:#ffd9bf;padding:10px 18px;border-radius:4px;background:#ff7a2f22}
+.list{list-style:none;padding:0;margin-top:10px}
+.list li{font-size:40px;line-height:1.3;padding:20px 0 20px 64px;position:relative;border-bottom:1px solid #d8a45d2a}
+.list li:before{content:attr(data-i);position:absolute;left:0;top:18px;font-size:40px}
+.fig{display:flex;justify-content:center;gap:40px;align-items:flex-end;margin:10px 0 20px}
+.fig img{image-rendering:pixelated;filter:drop-shadow(0 18px 30px #000c)}
+.fig .main{width:448px;height:448px}.fig .small{width:224px;height:224px;opacity:.9}
+.fig.many{gap:24px}.fig.many .main{width:320px;height:320px}.fig.many .small{width:160px;height:160px}
+.fig figure{text-align:center}.fig figcaption{font:600 26px Cinzel,serif;color:var(--muted);margin-top:6px}
+.chips{display:flex;flex-wrap:wrap;gap:16px;margin-top:18px}
+.chips span{font-size:34px;padding:10px 22px;border:1px solid var(--line);background:#211812cc;border-radius:3px}
+.opt{display:flex;flex-direction:column;gap:22px;margin-top:20px}
+.opt div{font-size:44px;padding:26px 34px;border:2px solid var(--line);background:#211812dd;border-radius:4px}
+.opt b{font-family:Cinzel,serif;color:var(--gold2);margin-right:18px}
+.phone{align-self:center;border:14px solid #2b211b;border-radius:48px;overflow:hidden;box-shadow:0 30px 80px #000c,0 0 0 2px var(--line)}
+.phone img{display:block}
+.post .phone img{height:740px}.story .phone img{height:1180px}.quadrat .phone img{height:600px}
+.cap{text-align:center;font-size:38px;color:#e6d6c4;margin-top:30px}
+</style></head>
+<body><div id="c"></div>
+<script>
+/* Daten kommen aus window.RW_DATA (vom Render-Skript gesetzt). Nur textContent, nie innerHTML mit Daten. */
+const D = window.RW_DATA || {}, c = document.getElementById('c');
+c.className = D.format || 'post';
+const el = (tag, cls, txt, parent) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; (parent || c).appendChild(e); return e; };
+if (D.hintergrund) { const b = el('div', 'bg'); b.style.backgroundImage = 'url("/' + D.hintergrund + '")'; }
+el('div', 'frame');
+const I = el('div', 'inner');
+const logo = () => { const l = el('img', 'logo', null, I); l.src = '/assets/logo.png'; };
+const kopf = () => { if (D.kicker) el('div', 'kicker', D.kicker, I); if (D.titel) el('h1', null, D.titel, I); if (D.text) el('p', 't', D.text, I); };
+const fuss = () => { el('div', 'grow', null, I); const f = el('div', 'foot', null, I); el('span', null, 'Ruin Walk · The Forgotten World', f); if (D.badge !== '') el('span', 'badge', D.badge || 'In Entwicklung', f); };
+if (D.format === 'story' && D.layout && D.layout !== 'titel') el('div', 'grow', null, I);
+switch (D.layout) {
+  case 'klasse': {
+    kopf(); const f = el('div', (D.figuren || []).length > 3 ? 'fig many' : 'fig', null, I);
+    (D.figuren || []).forEach((g, i) => { const fg = el('figure', null, null, f); const im = el('img', i === 0 ? 'main' : 'small', null, fg); im.src = '/' + g.bild; if (g.name) el('figcaption', null, g.name, fg); });
+    const ch = el('div', 'chips', null, I); (D.chips || []).forEach(t => el('span', null, t, ch));
+    break; }
+  case 'liste': { if (D.logo) logo(); kopf(); const ul = el('ul', 'list', null, I); (D.punkte || []).forEach(p => { const li = el('li', null, p.text, ul); li.dataset.i = p.icon || '✦'; }); break; }
+  case 'frage': { if (D.logo) logo(); kopf(); const o = el('div', 'opt', null, I); (D.optionen || []).forEach((t, i) => { const d = el('div', null, null, o); el('b', null, String.fromCharCode(65 + i), d); d.appendChild(document.createTextNode(t)); }); break; }
+  case 'screenshot': { kopf(); const ph = el('div', 'phone', null, I); const im = el('img', null, null, ph); im.src = '/' + D.bild; if (D.unterschrift) el('div', 'cap', D.unterschrift, I); break; }
+  case 'banner': { logo(); const t = el('div', 'txt', null, I); if (D.kicker) el('div', 'kicker', D.kicker, t); if (D.titel) el('h1', null, D.titel, t); if (D.text) el('p', 't', D.text, t); break; }
+  default: { el('div', 'grow', null, I); logo(); kopf(); }
+}
+fuss();
+</script></body></html>
