@@ -13,7 +13,7 @@ Stand: 18.11.2026. **Reine Analyse.** Es wurde keine Datei verschoben, keine Fun
 ### 2.1 Dateien und Auslieferung
 | Datei | Rolle |
 |---|---|
-| `index.html` | CSS (Z. 9–180, ca. 170 Zeilen), HTML-Gerüst (Z. 181–239, ca. 100 DOM-IDs), Inline-Skript (Z. 251–3108) |
+| `index.html` | CSS (Z. 9–180, ca. 170 Zeilen), HTML-Gerüst (Z. 181–239, ca. 40 feste DOM-IDs, weitere entstehen dynamisch), Inline-Skript (Z. 251–3108) |
 | `pxdom.js` | ersetzt Emoji-Token (`:i_stock:` …) im DOM durch Pixelbilder (klassisches Skript, Globals `PX_*`) |
 | `sprites*.js`, `figs/manifest.js`, `items/manifest.js` | Bilddaten (Globals), mit `?v=n` zur Cache-Erneuerung |
 | Leaflet 1.9.4 | von `unpkg.com`, Global `L` |
