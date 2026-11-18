@@ -13,7 +13,7 @@ steht in `docs/ki-team/UEBERSICHT.md`.
 - **Backend:** Supabase (Projekt `malbiahllucctiafzydv`), Schema `supabase/schema.sql` (Konten, Charaktere, Plätze, Sicherungen, Audit, RLS). Migrationen liegen als SQL-Dateien daneben (kein Supabase-CLI-Projekt).
 - **Instanzkampf (Prototyp):** `server/instance/` – Schema `rwi`, deterministische Engine (`engine/*.mjs`), SQL `sql/01–05`, Tests gegen temporäres lokales Postgres. **Nicht** live, **nicht** im Client eingebunden.
 - **Tests:** `npm test` (Playwright, Spiel in Chromium), `bash supabase/tests/run.sh` (SQL), `server/instance/tests/*.mjs`. CI: `.github/workflows/instance-tests.yml`. Deployment: GitHub Pages bei Push auf `main` (`pages.yml`).
-- **Marketing:** `marketing/` (Strategie, Kalender, Vorlagen, Meta-Anbindung, Freigaben). Instagram: **@ruinwalk.official** (Business-Konto, Modus `autonom`). Bilder für Instagram liegen öffentlich über raw.githubusercontent.com (gepushter Commit, kein Push auf `main` nötig). Noch keine Facebook-Seite.
+- **Marketing:** `marketing/` (Strategie, Kalender, Vorlagen, Meta-Anbindung, Freigaben). Instagram: **@ruinwalk.official** (Business-Konto, Modus `autonom`). Bilder für Instagram liegen öffentlich über raw.githubusercontent.com (gepushter Commit, kein Push auf `main` nötig). Noch keine Facebook-Seite. **Das Spiel ist noch nicht öffentlich** (Entscheidung Pascal 18.11.2026): keine Links zum Spiel, keine Aufforderung zum Spielen/Testen – Ziel ist Folgen und Neugier (`config.json` → `spiel_oeffentlich: false`, von `meta-api.js pruefen` erzwungen).
 
 ## Grundregeln (gelten für alle Agenten)
 

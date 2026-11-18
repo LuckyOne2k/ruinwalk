@@ -26,9 +26,9 @@ Hinter dem nächsten Feldweg beginnt eine vergessene Welt.
 
 Ruin Walk ist ein Fantasy-Rollenspiel, das deine echte Umgebung zum Spielfeld macht. Du gehst raus, entdeckst Kreaturen, sammelst Rohstoffe und wirst mit jedem Weg stärker.
 
-Läuft direkt im Handy-Browser. Noch in Entwicklung – und du kannst mitreden.
+Es läuft im Handy-Browser, ganz ohne App, und ist noch in Entwicklung. Hier zeige ich, wie es entsteht.
 
-Mehr über das Spiel in den nächsten Beiträgen. Link in der Bio.
+Folge @ruinwalk.official, um von Anfang an dabei zu sein.
 
 #ruinwalk #gpsrpg #standortspiel #pixelartgame #rpg
 
@@ -37,9 +37,7 @@ Hinter dem nächsten Feldweg beginnt eine vergessene Welt.
 
 Ruin Walk ist ein Fantasy-Rollenspiel für draußen: Deine echte Umgebung wird zum Spielfeld. Wälder, Wiesen, Sümpfe, Felsen und Ruinen aus echten Kartendaten bestimmen, welche Kreaturen dir begegnen. Du sammelst Rohstoffe, stellst Werkzeug und Ausrüstung her und entwickelst deinen Charakter vom Wanderer zu einer von vier Klassen weiter.
 
-Das Spiel läuft direkt im Handy-Browser, ohne App. Es ist noch in Entwicklung, und ich freue mich über jedes ehrliche Feedback.
-
-👉 [Link zur Landingpage]
+Das Spiel läuft im Handy-Browser, ohne App. Es ist noch in Entwicklung – hier zeige ich, wie es entsteht.
 
 ## Hashtags
 #ruinwalk #gpsrpg #standortspiel #pixelartgame #rpg
@@ -48,5 +46,5 @@ Das Spiel läuft direkt im Handy-Browser, ohne App. Es ist noch in Entwicklung, 
 Logo „Ruin Walk – The Forgotten World“ vor einer dunklen, gemalten Waldruine. Text: Ein GPS-Fantasy-RPG. Deine Welt ist das Spielfeld.
 
 ## Notizen für Pascal
-- Link zur Landingpage (GitHub-Pages-Adresse) bitte bestätigen.
+- Spiel noch nicht öffentlich (Entscheidung Pascal 18.11.2026): kein Link, keine Aufforderung zum Spielen.
 - Impressum vor dem ersten Beitrag klären.

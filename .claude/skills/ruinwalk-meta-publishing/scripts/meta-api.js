@@ -72,6 +72,9 @@ function pruefen(e) {
   if (!e.fakten || !/→/.test(e.fakten)) f.push('Faktenprüfung fehlt (Aussage → Beleg → Status)');
   if (/→[^→\n]*→\s*in entwicklung\b/i.test(e.fakten) && !/in entwicklung/i.test(e.caption_ig + e.text_fb)) f.push('Faktenprüfung nennt etwas „in Entwicklung“, der Text sagt das nicht');
   for (const r of VERBOTEN) if (r.test(e.caption_ig + '\n' + e.text_fb)) f.push('unzulässige Formulierung/Link: ' + r);
+  // Spiel noch nicht öffentlich (config.json spiel_oeffentlich=false): kein Link, keine Aufforderung zum Spielen/Testen
+  if (cfg.spiel_oeffentlich === false && /(link in (der )?bio|jetzt (testen|spielen|ausprobieren)|(probier|teste|spiel)\w* (es )?(jetzt|sofort|gleich)|zum (spiel|testen)\b|ausprobieren willst|so startest du|testmodus)/i.test(e.caption_ig + '\n' + e.text_fb))
+    f.push('Spiel ist noch nicht öffentlich: keine Links und keine Aufforderung zum Spielen/Testen');
   const bilder = bilderVon(e);
   if (!bilder.length) f.push('Bilddatei fehlt');
   for (const b of bilder) if (!fs.existsSync(path.join(ROOT, b))) f.push('Bilddatei fehlt: ' + b);

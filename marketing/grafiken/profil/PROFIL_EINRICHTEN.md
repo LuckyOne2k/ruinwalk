@@ -7,14 +7,14 @@ Die Instagram-API kann Profildaten nicht ändern – das macht Pascal einmalig i
 | Profilbild | `marketing/grafiken/profil/profilbild_1080.jpg` (wird rund zugeschnitten) |
 | Name | `Ruin Walk · GPS-Fantasy-RPG` |
 | Bio | siehe unten |
-| Link | Landingpage bzw. Spiel (GitHub-Pages-Adresse) |
+| Link | **vorerst keiner** – Spiel noch nicht öffentlich (Entscheidung Pascal 18.11.2026) |
 | Kategorie | Videospiel |
 
-Bio (149 Zeichen):
+Bio (solange das Spiel nicht öffentlich ist):
 ```
 Deine Welt ist das Spielfeld. 🗺️
-GPS-Fantasy-RPG im Browser – keine App nötig.
+Ein GPS-Fantasy-RPG für draußen.
 In Entwicklung · gemacht in Augsburg
-⬇️ Jetzt testen
+🔔 Folge uns und sei beim Start dabei
 ```
 Impressum: Hinweis/Link ergänzen, sobald geklärt.

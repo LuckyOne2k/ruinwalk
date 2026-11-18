@@ -15,7 +15,7 @@
   "hintergrund": "assets/bg_create.jpg",
   "kicker": "Was ist Ruin Walk?",
   "titel": "Ein Rollenspiel für draußen.",
-  "text": "Echte Kartendaten bestimmen, welche Kreaturen dir begegnen. Im Browser, ohne App. Wisch dich durch 👉"
+  "text": "Echte Kartendaten bestimmen, welche Kreaturen dir begegnen. Wisch dich durch 👉"
  },
  {
   "datei": "002_karussell_2.jpg",
@@ -53,20 +53,20 @@
   "layout": "liste",
   "hintergrund": "assets/bg_login.jpg",
   "logo": true,
-  "kicker": "So startest du",
-  "titel": "Drei Schritte.",
+  "kicker": "Wie es weitergeht",
+  "titel": "Noch in Entwicklung.",
   "punkte": [
    {
-    "icon": "1",
-    "text": "Link in der Bio im Handy-Browser öffnen"
+    "icon": "🔧",
+    "text": "Ruin Walk entsteht gerade – Schritt für Schritt"
    },
    {
-    "icon": "2",
-    "text": "Standort freigeben – oder erst im Testmodus schauen"
+    "icon": "👀",
+    "text": "Hier siehst du, wie das Spiel wächst"
    },
    {
-    "icon": "3",
-    "text": "Rausgehen und entdecken"
+    "icon": "🔔",
+    "text": "Folge uns, um beim Start dabei zu sein"
    }
   ]
  },
@@ -150,7 +150,7 @@
   "format": "banner",
   "layout": "banner",
   "hintergrund": "assets/bg_login.jpg",
-  "kicker": "Ein GPS-Fantasy-RPG im Browser",
+  "kicker": "Ein GPS-Fantasy-RPG",
   "titel": "Deine Welt ist das Spielfeld.",
   "text": "In Entwicklung · gemacht in Augsburg"
  }

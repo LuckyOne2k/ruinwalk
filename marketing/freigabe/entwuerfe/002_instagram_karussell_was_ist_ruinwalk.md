@@ -30,9 +30,9 @@ Was ist Ruin Walk? Fünf Seiten, ein Überblick 👉
 2 Dein Charakter wächst mit Ausrüstung, Sets und Verbesserungen.
 3 Aus Ast und Stein wird Werkzeug.
 4 Erste Aufgaben führen dich ins Spiel.
-5 Und so startest du – ohne App, im Browser.
+5 Und was als Nächstes kommt.
 
-Speicher dir den Beitrag, wenn du es beim nächsten Spaziergang ausprobieren willst.
+Noch ist Ruin Walk in Entwicklung. Folge uns, wenn du dabei sein willst, sobald es losgeht.
 
 #ruinwalk #gpsrpg #browserspiel #pixelrpg #indiegame
 

@@ -7,5 +7,6 @@
   "instagram_handle": "ruinwalk.official",
   "_hinweis": "Nur öffentliche Angaben, NIEMALS Tokens. Token (EAA…, Facebook-Login/Unified login) liegt als Netzwerk-Geheimnis für graph.facebook.com in der Umgebung.",
   "business_portfolio_id": "1921253375559066",
-  "app_id": "1448021485066115"
+  "app_id": "1448021485066115",
+  "spiel_oeffentlich": false
 }

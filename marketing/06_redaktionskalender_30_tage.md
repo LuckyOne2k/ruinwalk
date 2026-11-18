@@ -1,5 +1,7 @@
 # Redaktionskalender – die ersten 30 Tage
 
+> **Stand 18.11.2026:** Das Spiel ist noch nicht öffentlich. Alle Aufrufe „Link in Bio“, „So startest du“ und der Testspieler-Aufruf (Tag 20) entfallen bis zur Freigabe durch Pascal; stattdessen „Folge uns“ bzw. eine Community-Frage. Veröffentlicht wird Mo/Mi/Fr ca. 17:35 per geplantem Auftrag.
+
 **Tag 1 = erster öffentlicher Tag** nach Einrichtung der Accounts (Datum legt Pascal fest). Rhythmus: Instagram-Feed Mo/Mi/Fr, Facebook Di/Do (+ Crossposting der Reels), Stories fast täglich kurz. Jeder Eintrag wird vor Veröffentlichung als Entwurf in `freigabe/entwuerfe/` vorbereitet und von Pascal freigegeben. Nummern = Ideen aus `07_content_ideen.md`.
 
 ## Vor Tag 1 (Profilaufbau)
