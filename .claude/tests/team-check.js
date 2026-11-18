@@ -91,6 +91,44 @@ for (let [inp, soll] of FAELLE) {
   check(ist === soll, `schutz.js: ${inp.tool_name} ${JSON.stringify(inp.tool_input).slice(0, 70)} → ${soll ? 'Rückfrage' : 'frei'}`);
 }
 
+// Abgleichpflicht beim Commit (in einem temporären Repo)
+{
+  const os = require('os'), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rw-abgleich-'));
+  const sh = (a) => cp.execSync(a, { cwd: tmp, stdio: 'ignore' });
+  sh('git init -q && git config user.email t@t && git config user.name t'); fs.mkdirSync(path.join(tmp, 'server')); fs.mkdirSync(path.join(tmp, 'marketing'));
+  fs.writeFileSync(path.join(tmp, 'server/x.sql'), 'select 1;'); fs.writeFileSync(path.join(tmp, 'marketing/a.md'), 'x');
+  const h = (cmd) => /"permissionDecision":"deny"/.test(hook({ tool_name: 'Bash', tool_input: { command: cmd }, cwd: tmp }));
+  sh('git add server/x.sql');
+  check(h('git commit -m "Neu"'), 'Abgleich: Commit an server/ ohne Abgleich-Zeile wird verweigert');
+  check(!h('git commit -m "Neu\n\nAbgleich: rw-qa – ok"'), 'Abgleich: Commit an server/ mit Abgleich-Zeile ist erlaubt');
+  check(h(`cd ${tmp} && git commit -q -m "x"`), 'Abgleich: auch mit vorangestelltem cd erkannt');
+  sh('git reset -q && git add marketing/a.md');
+  check(!h('git commit -m "Marketing"'), 'Abgleich: reine Marketing-Commits brauchen keine Abgleich-Zeile');
+  sh('git add -A && git commit -q -m init && echo y >> server/x.sql');
+  check(h('git commit -am "geändert"'), 'Abgleich: git commit -am mit geänderter server-Datei ohne Abgleich verweigert');
+  // Nachbesserung nach Abgleich mit rw-architekt
+  sh('git checkout -q -- . && git reset -q'); fs.writeFileSync(path.join(tmp, 'server/neu.sql'), 'select 2;'); fs.writeFileSync(path.join(tmp, 'marketing/b.md'), 'y');
+  check(h('git add server/neu.sql && git commit -m "neu"'), 'Abgleich: git add <datei> && git commit ohne Abgleich verweigert (Hauptlücke)');
+  check(h('git add -A && git commit -m "alles"'), 'Abgleich: git add -A && git commit ohne Abgleich verweigert');
+  check(h('git commit -m "pfad" server/x.sql'), 'Abgleich: Pfadangabe nach git commit wird erkannt');
+  check(!h('git add marketing/b.md && git commit -m "Instagram"'), 'Abgleich: Instagram-Lauf (nur marketing/) bleibt frei, obwohl Code-Dateien ungetrackt herumliegen');
+  check(!h('git log --grep=commit') && !h('git config commit.gpgsign false'), 'Abgleich: lesende Befehle mit dem Wort commit lösen keinen Fehlalarm aus');
+  sh('git add server/neu.sql');
+  check(!h('git log --oneline && git status'), 'Abgleich: kein Fehlalarm ohne Commit, auch wenn Code vorgemerkt ist');
+  sh('git commit -q -m "neu\n\nAbgleich: rw-qa – ok"');
+  check(!h('git commit --amend --no-edit'), 'Abgleich: --amend ohne neue Nachricht übernimmt die alte Abgleich-Zeile');
+  const sub = path.join(tmp, 'sub'); fs.mkdirSync(sub);
+  fs.writeFileSync(path.join(tmp, 'server/rel.sql'), 'select 3;');
+  const hSub = (cmd) => /"permissionDecision":"deny"/.test(hook({ tool_name: 'Bash', tool_input: { command: cmd }, cwd: sub }));
+  check(hSub('cd .. && git add server/rel.sql && git commit -m "rel"'), 'Abgleich: relatives cd (aus Unterordner) wird gegen das Arbeitsverzeichnis aufgelöst');
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
+
+// Projektpflege-Inventar: läuft, erkennt laufende Arbeit
+{ const inv = cp.execFileSync('node', [path.join(C, 'skills/ruinwalk-projektpflege/scripts/inventar.js')], { cwd: ROOT }).toString();
+  check(/IN BEARBEITUNG – nicht anfassen/.test(inv) && /Tote Pfadverweise: \d+/.test(inv), 'inventar.js läuft und weist laufende Arbeit aus');
+  check(/marketing\/freigabe\/entwuerfe\/[^\n]*laufender Entwurf/.test(inv) || !fs.readdirSync(path.join(ROOT, 'marketing/freigabe/entwuerfe')).some((x) => x.endsWith('.md')), 'inventar.js schützt laufende Marketing-Entwürfe'); }
+
 console.log('Wissensbasis und Doku');
 for (const f of ['CLAUDE.md', 'docs/ki-team/UEBERSICHT.md', 'docs/ki-team/ABSCHLUSSBERICHT.md', 'marketing/README.md', 'marketing/meta/ANBINDUNG.md', 'marketing/freigabe/VORLAGE_BEITRAG.md'])
   check(fs.existsSync(path.join(ROOT, f)), `${f} existiert`);

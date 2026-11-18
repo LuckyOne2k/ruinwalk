@@ -8,6 +8,11 @@ Kriterien: Qualität · Aktualität · Kompatibilität mit Ruin Walk/Claude Code
 | `supabase` | github.com/supabase/agent-skills (Commit c9be0e9, 02.10.2026) | MIT | nur Markdown, keine Skripte; offizielle Supabase-Quelle; Sicherheits-Checkliste (RLS, SECURITY DEFINER, Views, Tokens) deckt sich mit Projektpraxis | Ruin-Walk-Hinweis vorangestellt (kein CLI-Projekt, keine schreibenden Live-Aufrufe ohne Freigabe); Feedback-Funktion entfernt, weil sie Issues in einem fremden Repo anlegen würde |
 | `supabase-postgres-best-practices` | dto. | MIT | 35 Referenzdateien, nur Markdown; Regeln zu RLS-Performance, Locks, SKIP LOCKED, Indizes passen direkt zu `schema.sql` und `rwi` | Hinweis auf `ruinwalk-db-aenderung` vorangestellt |
 
+## Selbst erstellt nach der ständigen Erlaubnis (18.11.2026)
+| Skill | Zweck | Prüfung |
+|---|---|---|
+| `ruinwalk-projektpflege` | Ordnung, Inventar, Archivierung, Abgleichpflicht, Schutz laufender Arbeit | eigenes Werkzeug `inventar.js` (nur lesend: git und Dateisystem, kein Netz); Konsistenz mit `rw-architekt` abgeglichen; `team-check.js` |
+
 ## Geprüft und verworfen
 | Kandidat | Grund |
 |---|---|
