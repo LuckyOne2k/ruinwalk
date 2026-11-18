@@ -7,10 +7,10 @@ Stand: 18.11.2026 abends. Kurz halten (≤ 80 Zeilen). Pflege: Hauptsitzung nach
 - **Zweig-Ordner** `/home/user/ruinwalk-nacht`, Zweig `nacht/operator-edge-function` (Kopf `ce29fd0`) mit **nicht committeten** Korrekturen der Dev-Installation. Kein Commit/Push ohne Pascals Freigabe.
 - Weitere Remote-Zweige (Arbeit aus Pascals normalem Chat): `nacht/supabase-integration`, `analyse/client-modularisierung` – nur lesen.
 
-## Laufender Auftrag
+## Letzter Auftrag
 Folgeauftrag „Rollback und Cleanup gegen Transaktions-Pooling absichern“ (Zweig-Ordner, ohne Commit):
 - Umgesetzt: gemeinsame Schutzlogik `supabase/dev/_ziel_wrapper.sh`; `install_dev.sh`, neu `rollback_dev.sh`, `cleanup_dev.sh` (Referenz + Bestätigung als `set local` nach `begin;`, nur Port 5432, PG-Umgebung bereinigt, `psql -X`, SHA-Pflicht); `lock_timeout` 5 s in Rollback/Cleanup; Doku in `docs/DEV_INSTALLATIONSFREIGABE.md`.
-- `installation.mjs`: **188/188** (vorher 151). Vollständige Testreihe `run-all-db.sh` lief zuletzt; danach Mutationsproben und Abschlussbericht an Pascal.
+- **Abgeschlossen, Bericht an Pascal erstattet – wartet auf seine Entscheidung (Commit/Push).** `installation.mjs` 188/188, `run-all-db.sh` (PG16) ALLES BESTANDEN, 11/11 Mutationsproben erkannt, `index.html`/`schema.sql` unverändert.
 - SHA-256 `install_dev.sql`: `2206042d22f047044f6a7813bcfa6eea9d778c3fd376033042bf454000adebf3`.
 
 ## Offene Entscheidungen (Pascal)
