@@ -17,3 +17,4 @@
 | `tests/README.md` | Playwright-Tests des Spiels |
 | `ki-team/UEBERSICHT.md` | KI-Team: Agenten, Skills, Abläufe |
 | `ki-team/ABSCHLUSSBERICHT.md` | Aufbaubericht des KI-Teams |
+| `ki-team/CLAUDE_PROJEKT_CHAT.md` | Vorlage für das Claude-Projekt im normalen Chat |
