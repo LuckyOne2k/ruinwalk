@@ -4,7 +4,7 @@ titel: Karussell – Was ist Ruin Walk?
 kanal: instagram
 format: karussell
 geplant_fuer: vor Tag 1 (Rasterbeitrag 2)
-status: entwurf
+status: autonom
 freigegeben_von:
 freigegeben_am:
 bild: marketing/grafiken/entwuerfe/002_karussell_1.jpg (+ _2 bis _5)
