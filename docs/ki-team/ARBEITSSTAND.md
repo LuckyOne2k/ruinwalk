@@ -25,5 +25,5 @@ Folgeauftrag „Rollback und Cleanup gegen Transaktions-Pooling absichern“ (Zw
 - Abgleichpflicht vor jedem Commit (Matrix Skill `ruinwalk-ablauf`), Zeile `Abgleich: …` – Hook erzwingt.
 - Ständige Erlaubnis: Agenten/Skills anlegen/verbessern ohne Rückfrage; NICHT für Live-DB, Installation/Deploy, `main`, Secrets, Veröffentlichungsmodus, eingefrorenen Instanzkampf.
 - `rw-projektpflege` fasst nichts an, was IN BEARBEITUNG ist.
-- Instagram @ruinwalk.official: Modus `autonom`, Mo/Mi/Fr 17:35, Spiel noch nicht öffentlich (keine Links). Teaser 001 online (https://www.instagram.com/p/Df48x9TFzFk/); nächste: 002 Fr, 003 Mo, 004 Mi. Token läuft ~17.01.2027 ab (Erinnerung 07.01.).
+- Instagram @ruinwalk.official: Modus `autonom`, täglich Mo–So 17:35 (seit 19.11.2026, vorher Mo/Mi/Fr), Spiel noch nicht öffentlich (keine Links). Teaser 001 online (https://www.instagram.com/p/Df48x9TFzFk/); nächste: 002 Fr, 003 Mo, 004 Mi. Token läuft ~17.01.2027 ab (Erinnerung 07.01.).
 - Kontext: Auto-Komprimieren ab 80 % (`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`), Sicherung per PreCompact-/SessionStart-Hook (`.claude/hooks/kontext-sicherung.js`).

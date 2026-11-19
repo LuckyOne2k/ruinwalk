@@ -1,9 +1,9 @@
 {
   "_hinweis": "Steuert, ob rw-marketing selbstständig veröffentlicht. Änderungen an dieser Datei bestätigt nur Pascal (Hook fragt nach).",
   "modus": "autonom",
-  "entschieden_von": "Pascal (Chat, 18.11.2026)",
+  "entschieden_von": "Pascal (Chat, 18.11.2026); täglicher Rhythmus Mo–So: Pascal (Chat, 19.11.2026)",
   "erlaubte_kanaele": ["instagram"],
   "max_beitraege_pro_tag": 1,
-  "max_beitraege_pro_woche": 4,
+  "max_beitraege_pro_woche": 7,
   "kommentare_und_nachrichten": false
 }

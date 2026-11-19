@@ -23,7 +23,7 @@
 | Einzelbild | Ankündigung, Atmosphäre, Zitat | 0–1×/Woche |
 | Stories | Nähe, Umfragen, Fragen, Hinter den Kulissen, Weiterleitung neuer Beiträge | 3–5×/Woche |
 
-**Frequenz zum Start:** 3 Feed-Beiträge pro Woche (Mo/Mi/Fr oder Di/Do/So) + Stories. Konstanz ist wichtiger als Menge. Nach 4 Wochen anhand der Daten anpassen.
+**Frequenz (Entscheidung Pascal, 19.11.2026):** 1 Feed-Beitrag **täglich, Montag bis Sonntag, immer zur selben Abendzeit (17:35 Uhr)**. Beitragsart frei wählbar (Post, Karussell, Reel-Teaser, Umfrage …), solange Qualitätsprüfung und Markenregeln eingehalten sind. Stories zusätzlich nach Bedarf. Nach 4 Wochen anhand der Daten prüfen.
 **Zeiten (Annahme, mit Insights prüfen):** werktags 18–20 Uhr, Wochenende 10–12 Uhr (Spaziergangszeiten).
 
 ## Raster
