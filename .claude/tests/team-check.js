@@ -49,7 +49,7 @@ for (const a of agents) {
   check(/Deutsch/.test(f._body), `${a}: Antwortsprache festgelegt`);
   descs.push(f.name);
 }
-check(agents.length === 8, `8 Agenten (${agents.length})`);
+check(agents.length >= 8, `mindestens 8 Agenten (${agents.length})`);
 const marketing = frontmatter(path.join(C, 'agents/rw-marketing.md'));
 check(marketing && !/mcp__Supabase/.test(marketing.tools) && /modus\.json/.test(marketing._body), 'rw-marketing: keine DB-Werkzeuge, Veröffentlichungsmodus geregelt');
 const arch = frontmatter(path.join(C, 'agents/rw-architekt.md'));
@@ -91,6 +91,46 @@ for (let [inp, soll] of FAELLE) {
   check(ist === soll, `schutz.js: ${inp.tool_name} ${JSON.stringify(inp.tool_input).slice(0, 70)} → ${soll ? 'Rückfrage' : 'frei'}`);
 }
 
+// Abgleichpflicht beim Commit (in einem temporären Repo)
+{
+  const os = require('os'), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rw-abgleich-'));
+  const sh = (a) => cp.execSync(a, { cwd: tmp, stdio: 'ignore' });
+  sh('git init -q && git config user.email t@t && git config user.name t'); fs.mkdirSync(path.join(tmp, 'server')); fs.mkdirSync(path.join(tmp, 'marketing'));
+  fs.writeFileSync(path.join(tmp, 'server/x.sql'), 'select 1;'); fs.writeFileSync(path.join(tmp, 'marketing/a.md'), 'x');
+  const h = (cmd) => /"permissionDecision":"deny"/.test(hook({ tool_name: 'Bash', tool_input: { command: cmd }, cwd: tmp }));
+  sh('git add server/x.sql');
+  check(h('git commit -m "Neu"'), 'Abgleich: Commit an server/ ohne Abgleich-Zeile wird verweigert');
+  check(!h('git commit -m "Neu\n\nAbgleich: rw-qa – ok"'), 'Abgleich: Commit an server/ mit Abgleich-Zeile ist erlaubt');
+  check(h(`cd ${tmp} && git commit -q -m "x"`), 'Abgleich: auch mit vorangestelltem cd erkannt');
+  sh('git reset -q && git add marketing/a.md');
+  check(!h('git commit -m "Marketing"'), 'Abgleich: reine Marketing-Commits brauchen keine Abgleich-Zeile');
+  sh('git add -A && git commit -q -m init && echo y >> server/x.sql');
+  check(h('git commit -am "geändert"'), 'Abgleich: git commit -am mit geänderter server-Datei ohne Abgleich verweigert');
+  // Nachbesserung nach Abgleich mit rw-architekt
+  sh('git checkout -q -- . && git reset -q'); fs.writeFileSync(path.join(tmp, 'server/neu.sql'), 'select 2;'); fs.writeFileSync(path.join(tmp, 'marketing/b.md'), 'y');
+  check(h('git add server/neu.sql && git commit -m "neu"'), 'Abgleich: git add <datei> && git commit ohne Abgleich verweigert (Hauptlücke)');
+  check(h('git add -A && git commit -m "alles"'), 'Abgleich: git add -A && git commit ohne Abgleich verweigert');
+  check(h('git commit -m "pfad" server/x.sql'), 'Abgleich: Pfadangabe nach git commit wird erkannt');
+  check(!h('git add marketing/b.md && git commit -m "Instagram"'), 'Abgleich: Instagram-Lauf (nur marketing/) bleibt frei, obwohl Code-Dateien ungetrackt herumliegen');
+  fs.mkdirSync(path.join(tmp, 'figs')); fs.writeFileSync(path.join(tmp, 'figs/neu.png'), 'x');
+  check(h('git add figs/neu.png && git commit -m "Grafik"'), 'Abgleich: Spielgrafik (figs/) ohne Abgleich-Zeile verweigert');
+  check(!h('git log --grep=commit') && !h('git config commit.gpgsign false'), 'Abgleich: lesende Befehle mit dem Wort commit lösen keinen Fehlalarm aus');
+  sh('git add server/neu.sql');
+  check(!h('git log --oneline && git status'), 'Abgleich: kein Fehlalarm ohne Commit, auch wenn Code vorgemerkt ist');
+  sh('git commit -q -m "neu\n\nAbgleich: rw-qa – ok"');
+  check(!h('git commit --amend --no-edit'), 'Abgleich: --amend ohne neue Nachricht übernimmt die alte Abgleich-Zeile');
+  const sub = path.join(tmp, 'sub'); fs.mkdirSync(sub);
+  fs.writeFileSync(path.join(tmp, 'server/rel.sql'), 'select 3;');
+  const hSub = (cmd) => /"permissionDecision":"deny"/.test(hook({ tool_name: 'Bash', tool_input: { command: cmd }, cwd: sub }));
+  check(hSub('cd .. && git add server/rel.sql && git commit -m "rel"'), 'Abgleich: relatives cd (aus Unterordner) wird gegen das Arbeitsverzeichnis aufgelöst');
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
+
+// Projektpflege-Inventar: läuft, erkennt laufende Arbeit
+{ const inv = cp.execFileSync('node', [path.join(C, 'skills/ruinwalk-projektpflege/scripts/inventar.js')], { cwd: ROOT }).toString();
+  check(/IN BEARBEITUNG – nicht anfassen/.test(inv) && /Tote Pfadverweise: \d+/.test(inv), 'inventar.js läuft und weist laufende Arbeit aus');
+  check(/marketing\/freigabe\/entwuerfe\/[^\n]*laufender Entwurf/.test(inv) || !fs.readdirSync(path.join(ROOT, 'marketing/freigabe/entwuerfe')).some((x) => x.endsWith('.md')), 'inventar.js schützt laufende Marketing-Entwürfe'); }
+
 console.log('Wissensbasis und Doku');
 for (const f of ['CLAUDE.md', 'docs/ki-team/UEBERSICHT.md', 'docs/ki-team/ABSCHLUSSBERICHT.md', 'marketing/README.md', 'marketing/meta/ANBINDUNG.md', 'marketing/freigabe/VORLAGE_BEITRAG.md'])
   check(fs.existsSync(path.join(ROOT, f)), `${f} existiert`);
@@ -107,6 +147,64 @@ for (const k of ['const CLASSES', 'const PATHS', 'const MOBS', 'function mobOf',
 const files = cp.execSync('git ls-files -co --exclude-standard .claude marketing docs/ki-team CLAUDE.md', { cwd: ROOT }).toString().split('\n').filter(Boolean);
 for (const f of files) { if (/\.(png|jpg|woff2)$/.test(f)) continue; const s = fs.readFileSync(path.join(ROOT, f), 'utf8');
   check(!/(EAA[A-Za-z0-9]{20,}|sb_secret_[A-Za-z0-9_]{10,}|service_role"\s*:\s*"ey|IGQV[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,})/.test(s), `${f}: keine Zugangsschlüssel`); }
+
+console.log('Kontextsicherung (Komprimieren)');
+const stg = JSON.parse(fs.readFileSync(path.join(C, 'settings.json'), 'utf8'));
+check(stg.env && stg.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE === '80', 'settings.json: Auto-Komprimieren ab 80 %');
+check(JSON.stringify(stg.hooks.PreCompact || '').includes('kontext-sicherung.js\\" vorher'), 'settings.json: PreCompact → kontext-sicherung.js vorher');
+check((stg.hooks.SessionStart || []).some(h => h.matcher === 'compact' && JSON.stringify(h).includes('kontext-sicherung.js\\" nachher')), 'settings.json: SessionStart/compact → kontext-sicherung.js nachher');
+check(fs.existsSync(path.join(ROOT, 'docs/ki-team/ARBEITSSTAND.md')), 'docs/ki-team/ARBEITSSTAND.md existiert');
+check(fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8').includes('.claude/arbeitsstand/'), '.gitignore schließt .claude/arbeitsstand/ aus');
+{ // in einer Wegwerf-Kopie ausführen, damit der echte Schnappschuss unberührt bleibt
+  const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'rw-ks-'));
+  cp.execSync('git init -q && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m start', { cwd: tmp });
+  fs.mkdirSync(path.join(tmp, 'docs/ki-team'), { recursive: true });
+  fs.writeFileSync(path.join(tmp, 'docs/ki-team/ARBEITSSTAND.md'), '# Übergabe\nMARKE-123\n' + 'x'.repeat(30000));
+  const lauf = (m) => cp.execFileSync('node', [path.join(C, 'hooks/kontext-sicherung.js'), m], { input: JSON.stringify({ trigger: 'auto' }), env: { ...process.env, CLAUDE_PROJECT_DIR: tmp } }).toString();
+  const vor = lauf('vorher');
+  check(vor.length > 0 && vor.length <= 10000, `kontext-sicherung vorher: Anweisung ≤ 10.000 Zeichen (${vor.length})`);
+  check(vor.includes('MARKE-123'), 'kontext-sicherung vorher: enthält Übergabe-Auszug');
+  check(fs.existsSync(path.join(tmp, '.claude/arbeitsstand/schnappschuss.md')), 'kontext-sicherung vorher: Schnappschuss geschrieben');
+  let j = {}; try { j = JSON.parse(lauf('nachher')); } catch {}
+  const ac = (j.hookSpecificOutput || {}).additionalContext || '';
+  check(j.hookSpecificOutput && j.hookSpecificOutput.hookEventName === 'SessionStart' && ac.includes('MARKE-123') && ac.includes('Schnappschuss'), 'kontext-sicherung nachher: gültiges JSON mit Übergabe + Schnappschuss');
+  let leer = ''; try { leer = cp.execFileSync('node', [path.join(C, 'hooks/kontext-sicherung.js'), 'nachher'], { input: 'kein json', env: { ...process.env, CLAUDE_PROJECT_DIR: path.join(tmp, 'gibtsnicht') } }).toString(); check(true, 'kontext-sicherung: blockiert nie (Exit 0 bei Fehleingaben)'); } catch { check(false, 'kontext-sicherung: blockiert nie (Exit 0 bei Fehleingaben)'); }
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
+
+console.log('Pixel-Art-Werkzeug');
+{
+  const os = require('os'), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rw-px-')), PX = path.join(C, 'skills/ruinwalk-pixelart/scripts/pixel.py');
+  const py = (args) => cp.spawnSync('python3', [PX, ...args], { encoding: 'utf8' });
+  // sauberes 32x32-Symbol: Raute mit Hauskontur, 3 Farben
+  const N = 32, rows = [];
+  for (let y = 0; y < N; y++) { let r = ''; for (let x = 0; x < N; x++) { const d = Math.abs(x - 15.5) + Math.abs(y - 15.5); r += d < 11 ? (x + y < 28 ? 'y' : 'Y') : d < 12.5 ? 'k' : '.'; } rows.push(r); }
+  fs.writeFileSync(path.join(tmp, 'gut.txt'), 'palette:\n. transparent\nk #29190e\ny #f4d03f\nY #b8902a\n---\n' + rows.join('\n') + '\n');
+  const r1 = py(['render', path.join(tmp, 'gut.txt'), path.join(tmp, 'gut.png')]);
+  check(r1.status === 0 && fs.existsSync(path.join(tmp, 'gut.png')), 'pixel.py render: Raster → PNG');
+  const p1 = py(['pruefen', path.join(tmp, 'gut.png'), '--typ', 'status']);
+  check(p1.status === 0 && /Außenkontur dunkel: 100 %/.test(p1.stdout), 'pixel.py pruefen: sauberes Symbol besteht (Kontur 100 %)', p1.stdout.slice(0, 80));
+  check(py(['pruefen', path.join(tmp, 'gut.png'), '--typ', 'item']).status === 1, 'pixel.py pruefen: falsche Größe für den Typ ist ein Fehler');
+  // Streupixel + falsche Zeilenlänge
+  fs.writeFileSync(path.join(tmp, 'streu.txt'), 'palette:\nk #29190e\ny #f4d03f\nY #b8902a\n---\n' + rows.map((r, i) => i === 0 ? 'y' + r.slice(1) : r).join('\n') + '\n');
+  py(['render', path.join(tmp, 'streu.txt'), path.join(tmp, 'streu.png')]);
+  const p2 = py(['pruefen', path.join(tmp, 'streu.png'), '--typ', 'status']);
+  check(p2.status === 1 && /Streupixel/.test(p2.stdout), 'pixel.py pruefen: Streupixel wird als Fehler erkannt');
+  fs.writeFileSync(path.join(tmp, 'kaputt.txt'), 'palette:\nk #29190e\n---\nkk\nk\n');
+  check(py(['render', path.join(tmp, 'kaputt.txt'), path.join(tmp, 'k.png')]).status !== 0, 'pixel.py render: ungleiche Zeilenlängen werden abgelehnt');
+  fs.writeFileSync(path.join(tmp, 'unbekannt.txt'), 'palette:\nk #29190e\n---\nkq\n');
+  check(py(['render', path.join(tmp, 'unbekannt.txt'), path.join(tmp, 'u.png')]).status !== 0, 'pixel.py render: Zeichen ohne Palette wird abgelehnt');
+  // verlustfreier Import eines echten Spielbilds
+  const st = path.join(ROOT, 'status/feuer.png');
+  if (fs.existsSync(st)) {
+    py(['import', st, path.join(tmp, 'feuer.txt')]); py(['render', path.join(tmp, 'feuer.txt'), path.join(tmp, 'feuer.png')]);
+    const gleich = cp.spawnSync('python3', ['-c', 'import sys;from PIL import Image\na,b=[Image.open(f).convert("RGBA") for f in sys.argv[1:]]\nprint(a.size==b.size and a.tobytes()==b.tobytes())', st, path.join(tmp, 'feuer.png')], { encoding: 'utf8' }).stdout.trim();
+    check(gleich === 'True', 'pixel.py import → render: echtes Spielbild verlustfrei');
+  }
+  const v = py(['vergleich', path.join(tmp, 'v.png'), '--alt', path.join(tmp, 'gut.png'), '--neu', path.join(tmp, 'gut.png')]);
+  check(v.status === 0 && fs.existsSync(path.join(tmp, 'v.png')), 'pixel.py vergleich: Vorher/Nachher-Bogen wird erzeugt');
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
 
 console.log(`\nErgebnis: ${ok} bestanden, ${bad} fehlgeschlagen`);
 process.exit(bad ? 1 : 0);

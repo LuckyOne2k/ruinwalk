@@ -43,5 +43,14 @@ können selbst keine weiteren Subagenten starten – die Koordination liegt dahe
 | `rw-qa` | Tests, Regression, Sicherheitsprüfung, CI, Codequalität – prüft kritisch und unabhängig |
 | `rw-mobile-ux` | Mobile Bedienung, Hochformat, Touch, Responsive, Performance im Browser |
 | `rw-marketing` | Marke, Instagram/Facebook, Content, Redaktionsplan, Community, Marketinganalyse |
+| `rw-pixelart` | Pixel-Art: Spielfiguren, Items, Status-Symbole, Monster – zeichnen, überarbeiten, Stil einheitlich halten (Entwürfe, Einbau nach Freigabe) |
+| `rw-projektpflege` | Ordnung und Kompaktheit: Doku, Wissensbasis, Archiv, Verweise, Zweig-Übersicht (kein Spielcode) |
 
 Standardabläufe (Feature, Bugfix, DB-Änderung, Marketing-Beitrag, Release): Skill `ruinwalk-ablauf`.
+
+## Abgleichpflicht (Pascal, 18.11.2026)
+Jede Änderung wird vor dem Commit automatisch mit den fachlich betroffenen Agenten auf Plausibilität abgeglichen (Matrix: Skill `ruinwalk-ablauf`, Abschnitt „Abgleich“). Ergebnis als letzte Zeile der Commit-Nachricht: `Abgleich: <Agenten> – <Ergebnis>` bzw. `Abgleich: nicht nötig – <Grund>`. Der Hook verweigert Commits an Code/Schema/Server/Tests/KI-Team-Dateien ohne diese Zeile. Das Projekt hält `rw-projektpflege` geordnet und kompakt.
+
+## Ständige Erlaubnis: Agenten und Skills (Pascal, 18.11.2026)
+Ohne Rückfrage erlaubt: neue Experten-Agenten anlegen, bestehende Agenten verbessern, Skills selbst erstellen oder aus seriösen Quellen herunterladen – immer dann, wenn es das Projekt verbessert.
+Dabei gilt weiterhin: fremde Skills vor der Übernahme vollständig lesen (Skripte, Netzaufrufe, Datenabfluss) und in `docs/ki-team/SKILL_BEWERTUNG.md` bewerten; keine doppelten Zuständigkeiten; `docs/ki-team/UEBERSICHT.md` und `node .claude/tests/team-check.js` aktuell halten. Die Erlaubnis gilt **nicht** für die übrigen Grenzen (Live-Datenbank, Installation/Deployment, Push auf `main`, Secrets, Veröffentlichungsmodus, eingefrorene Instanzkampf-Architektur) – dort bleiben Pascals Freigaben nötig.

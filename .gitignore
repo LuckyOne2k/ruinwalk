@@ -4,3 +4,4 @@ node_modules/
 # Standard-Ausgabeordner der KI-Team-Werkzeuge (nur bei Bedarf gezielt committen)
 docs/mobile-check/
 docs/balancing/export/
+.claude/arbeitsstand/

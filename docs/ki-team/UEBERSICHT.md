@@ -22,9 +22,11 @@ Du entscheidest und gibst frei. Ohne deine Freigabe passiert nichts an der Live-
 | `rw-welt-ki` | Welt, Quests, NPCs, Geschichten, KI-generierte Inhalte mit Validierung | Vorschläge/Dateien erstellen | projektwissen, ki-inhalte, balancing |
 | `rw-qa` | Tests, Regression, Review, Mutationsproben, CI, Sicherheitsprüfung – unabhängig | Tests schreiben, alles prüfen | projektwissen, tests, instanzkampf, mobile-check |
 | `rw-mobile-ux` | Hochformat, Touch, Responsive, Performance, Screenshots | UI/CSS ändern | projektwissen, mobile-check, tests |
+| `rw-projektpflege` | Ordnung, Sortierung, Kompaktheit: Inventar, Verweise, Archiv, Wissensbasis, Zweig-Übersicht | Doku/Wissensbasis ändern, kein Spielcode | projektwissen, projektpflege, ablauf |
+| `rw-pixelart` | Pixel-Art auf Profi-Niveau: Figuren 64×64, Items 48×48, Status 32×32, Monster; Stil/Palette einheitlich, besser als der Bestand | Entwürfe in `kunst/entwuerfe/`; Live-Grafiken erst nach Freigabe | pixelart, projektwissen |
 | `rw-marketing` | Marke, Instagram/Facebook, Content, Grafiken, Kalender, Community, Analyse | Entwürfe erstellen; Instagram-Beiträge selbst posten im Modus `autonom` | projektwissen, marke, social-content, grafik, meta-publishing |
 
-**Bewusst keine eigenen Agenten** für Economy, Balancing, Doku, Release, Analytics, Community: Das sind Teilaufgaben bestehender Agenten (gamedesign, architekt, qa, marketing). Eigene Agenten würden doppelte Zuständigkeiten erzeugen.
+**Bewusst keine eigenen Agenten** für Economy, Balancing, Release, Analytics, Community: Teilaufgaben bestehender Agenten (gamedesign, qa, marketing). Abgrenzung Pflege/Architektur: `rw-architekt` prüft nur lesend, `rw-projektpflege` pflegt Ordnung, Doku und Wissensbasis schreibend – und fasst nichts an, woran gerade gearbeitet wird (Abstimmung mit dem zuständigen Agenten).
 
 ## Skills (`.claude/skills/`)
 | Skill | Art | Inhalt | Werkzeug |
@@ -40,6 +42,8 @@ Du entscheidest und gibst frei. Ohne deine Freigabe passiert nichts an der Live-
 | `ruinwalk-marke` | Leitfaden | Positionierung, Ton, Farben, Schriften, Wahrheitsregeln | – |
 | `ruinwalk-social-content` | Arbeitsablauf | vom Thema zur Freigabe, Caption-Aufbau, Regeln | – |
 | `ruinwalk-grafik` | Werkzeug | Post/Story/Quadrat/Banner aus echten Assets | `scripts/render.js`, `scripts/sprites-export.js`, `vorlagen/vorlage.html` |
+| `ruinwalk-projektpflege` | Werkzeug + Regeln | Inventar, tote/zweigübergreifende Verweise, Archivierung, Abgleichpflicht | `scripts/inventar.js` |
+| `ruinwalk-pixelart` | Werkzeug + Handwerk | Formate, gemessener Stil, 14 Pixel-Art-Regeln, Ablauf, Abnahme | `scripts/pixel.py` (Raster→PNG, Import, Prüfung, Vorher/Nachher-Bogen) |
 | `ruinwalk-meta-publishing` | Werkzeug + Anleitung | Meta-Anbindung, Status, Insights, Veröffentlichen mit Freigabesperre | `scripts/meta-api.js` |
 | `supabase` | extern (Supabase, MIT) | Plattformwissen, Sicherheits-Checkliste | – |
 | `supabase-postgres-best-practices` | extern (Supabase, MIT) | Postgres-Regeln (RLS, Locks, Indizes …) | – |
@@ -55,8 +59,17 @@ Global (in Claude eingebaut, nicht im Repo): `skill-creator`, `code-review`, `se
 |---|---|---|
 | `hooks/schutz.js` | vor Bash-, Datei- und MCP-Aufrufen | Rückfrage an dich bei: Änderung des Veröffentlichungsmodus, Meta-Schreibzugriff außerhalb des Modus `autonom`, schreibendem SQL/Migration/Edge Function am Live-Supabase, `git push` auf `main` |
 | `hooks/hinweise.js` | nach Dateiänderungen | erinnert Claude an die passenden Tests/Regeln (Instanzkampf, SQL, index.html, Freigaben, Team-Dateien) |
+| `hooks/kontext-sicherung.js` | vor dem Komprimieren (PreCompact) und beim Neustart danach (SessionStart, matcher `compact`) | schreibt einen Schnappschuss nach `.claude/arbeitsstand/` (nicht eingecheckt), gibt der Zusammenfassung Anweisungen mit und lädt danach `ARBEITSSTAND.md` + Schnappschuss wieder ein; blockiert nie |
+
+Auto-Komprimieren ab 80 % Kontext (`env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` in `settings.json`). Übergabedatei: `docs/ki-team/ARBEITSSTAND.md` (pflegt die Hauptsitzung).
 
 Selbsttest des ganzen Systems: `node .claude/tests/team-check.js`
+
+## Abgleichpflicht (18.11.2026)
+Jede Änderung wird vor dem Commit von den fachlich betroffenen Agenten auf Plausibilität geprüft (Matrix im Skill `ruinwalk-ablauf`). Commits an Code, Schema, Server, Tests oder KI-Team-Dateien brauchen eine Zeile `Abgleich: …` – sonst blockiert der Hook.
+
+## Ständige Erlaubnis (18.11.2026)
+Claude darf ohne Rückfrage Agenten anlegen/verbessern und Skills erstellen oder (nach Prüfung) herunterladen. Jede solche Änderung wird hier und in `SKILL_BEWERTUNG.md` nachgetragen.
 
 ## Freigaben, die nur du erteilst
 1. Den Veröffentlichungsmodus (`marketing/meta/modus.json`: `autonom` | `freigabe` | `pause`). Aktuell `autonom` für Instagram; Facebook, Kommentare und Nachrichten weiter nur mit deiner Freigabe.
