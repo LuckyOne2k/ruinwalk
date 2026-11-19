@@ -1,0 +1,11 @@
+# Dependabot: hält die auf Commit-SHAs angehefteten GitHub Actions aktuell (öffnet PRs, merged nie selbst).
+# Hinweis: Dependabot liest diese Datei nur vom Standardzweig (main) – wirksam erst nach dem Merge.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "CI"
