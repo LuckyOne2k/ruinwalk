@@ -9,8 +9,8 @@ freigegeben_von:
 freigegeben_am:
 bild: marketing/grafiken/entwuerfe/002_karussell_1.jpg (+ _2 bis _5)
 bild_url:
-veroeffentlicht_am:
-link:
+veroeffentlicht_am: 2026-11-19T16:45:05Z (17:45 Uhr MEZ), Modus autonom
+link: https://www.instagram.com/p/Df7iimeHPOe/
 ---
 
 ## Ziel
