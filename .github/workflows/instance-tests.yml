@@ -1,7 +1,9 @@
 name: instance-tests
 on:
   push:
-    paths: ['server/instance/**', 'supabase/schema.sql', 'supabase/tests/**', 'tests/**', 'index.html', 'sprites*.js', 'pxdom.js', 'package.json', '.github/workflows/instance-tests.yml']
+    paths: ['server/instance/**', 'supabase/schema.sql', 'supabase/tests/**', 'tests/**', 'index.html', 'sprites*.js', 'pxdom.js', 'package.json', '.github/workflows/instance-tests.yml',
+            # Pages-Positivliste (Roadmap Phase 2A): Skript, Liste, Tests, Pages-Workflow und alle ausgelieferten Spielbereiche
+            'tools/pages/**', 'tests/pages/**', '.github/workflows/pages.yml', 'landingpage.html', 'figs/**', 'items/**', 'status/**', 'assets/**']
   # Pull Requests: ohne Pfadfilter – jeder PR wird vollständig geprüft (Spielcode, Tests, Server), damit Pflicht-Prüfungen im Ruleset immer berichten.
   pull_request:
 # Kleinste Rechte: nur Lesen des Repositorys.
@@ -64,6 +66,19 @@ jobs:
           a=$(node server/instance/sim/run-dungeon.mjs --seed 3 | grep -v "Worker-Absturz" | md5sum)
           b=$(node server/instance/sim/run-dungeon.mjs --seed 3 | grep -v "Worker-Absturz" | md5sum)
           echo "$a / $b"; [ "$a" = "$b" ]
+  pages-positivliste:
+    # Roadmap Phase 2A: dieselben Prüfungen wie im Pages-Workflow, aber schon im PR – Fehler fallen vor dem Merge auf.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 22 }
+      - name: Tests der Pages-Positivliste
+        run: node --test tests/pages/site.test.mjs
+      - name: Positivliste gegen Repository und Spielcode prüfen
+        run: node tools/pages/site.mjs pruefen
   bestehende-tests:
     # Die schon vorhandenen Tests (Spiellogik und Supabase-Schema) laufen hier zusätzlich; pages.yml bleibt unberührt.
     runs-on: ubuntu-latest
