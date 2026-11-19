@@ -18,3 +18,4 @@
 | `ki-team/UEBERSICHT.md` | KI-Team: Agenten, Skills, Abläufe |
 | `ki-team/ABSCHLUSSBERICHT.md` | Aufbaubericht des KI-Teams |
 | `ki-team/CLAUDE_PROJEKT_CHAT.md` | Vorlage für das Claude-Projekt im normalen Chat |
+| `ki-team/ARBEITSSTAND.md` | Übergabe: laufender Auftrag, offene Entscheidungen; wird nach dem Komprimieren automatisch geladen (pflegt die Hauptsitzung) |
