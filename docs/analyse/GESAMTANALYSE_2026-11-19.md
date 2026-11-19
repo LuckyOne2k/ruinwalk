@@ -2,7 +2,7 @@
 
 - **Erstellt:** 19.11.2026 (Claude Code, Hauptsitzung mit 7 Fachagenten)
 - **Analysierter Stand:** `main` @ `ed05927` (Repository `LuckyOne2k/ruinwalk`)
-- **Abgelegt auf:** Zweig `ccr-2e014f58-1i6nm4` (nicht auf `main`)
+- **Abgelegt:** erstellt auf dem Arbeitszweig `ccr-2e014f58-1i6nm4`, mit der Arbeitsgrundlage (Roadmap Phase 1) nach `main` übernommen
 - **Art:** reine Bestandsaufnahme – keine Code-, Test-, Schema- oder Einstellungsänderungen. Tests liefen auf einer Kopie von `main` außerhalb des Repositorys.
 - **Zeilenangaben** beziehen sich auf `main` @ `ed05927`. Mit ✔︎ markierte Befunde wurden von der Hauptsitzung zusätzlich selbst nachgeprüft.
 - **Statuswerte:** FERTIG · TEILWEISE · IN ARBEIT / UNVOLLSTÄNDIG · NICHT VORHANDEN · NICHT NACHWEISBAR
