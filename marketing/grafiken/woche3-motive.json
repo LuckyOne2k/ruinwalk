@@ -1,0 +1,50 @@
+[
+ {
+  "datei": "005_umfrage_gebietsstufen.jpg",
+  "format": "post",
+  "layout": "frage",
+  "hintergrund": "assets/bg_login.jpg",
+  "kicker": "Fünf Gebietsstufen",
+  "titel": "Wie weit wagst du dich?",
+  "text": "Nahe der Heimat ist es ruhig. Je weiter du gehst, desto gefährlicher.",
+  "optionen": [
+   "Randland – bleib nah dran",
+   "Wildland – ein Stück hinaus",
+   "Fernmark – weit draußen",
+   "Ruinenreich – bis ganz ans Ende"
+  ]
+ },
+ {
+  "datei": "006_gebietsbosse.jpg",
+  "format": "post",
+  "layout": "klasse",
+  "hintergrund": "assets/bg_create.jpg",
+  "kicker": "Gebietsbosse",
+  "titel": "Lies den Angriff.",
+  "text": "Gebietsbosse kündigen ihre Angriffe an. Wucht wehrst du ab, Zauber unterbrichst du.",
+  "figuren": [
+   {
+    "bild": "marketing/grafiken/sprites/m_aschedrache.png",
+    "name": "Aschedrache"
+   },
+   {
+    "bild": "marketing/grafiken/sprites/m_baumriese.png",
+    "name": "Uralter Baumriese"
+   },
+   {
+    "bild": "marketing/grafiken/sprites/m_urmammut.png",
+    "name": "Urmammut"
+   },
+   {
+    "bild": "marketing/grafiken/sprites/m_sumpfsaurier.png",
+    "name": "Sumpfsaurier"
+   }
+  ],
+  "chips": [
+   "🔥 Feuerodem",
+   "🌿 Wurzeln",
+   "🐘 Ansturm",
+   "☠️ Giftwolke"
+  ]
+ }
+]
