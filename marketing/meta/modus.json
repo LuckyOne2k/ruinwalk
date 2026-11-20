@@ -5,5 +5,16 @@
   "erlaubte_kanaele": ["instagram"],
   "max_beitraege_pro_tag": 1,
   "max_beitraege_pro_woche": 7,
-  "kommentare_und_nachrichten": false
+  "kommentare_und_nachrichten": false,
+  "antworten_auf_eigene_kommentare": {
+    "erlaubt": true,
+    "entschieden_von": "Pascal (Chat, 20.11.2026)",
+    "max_pro_tag": 10,
+    "regeln": [
+      "nur Antworten auf Kommentare unter eigenen Beiträgen; kein Kommentieren woanders, keine Likes, kein Folgen, keine Direktnachrichten",
+      "kurz, freundlich, im Markenton",
+      "keine Zusagen zu Termin, Preis oder Funktionen; keine Links; keine Aufforderung zum Spielen oder Testen",
+      "heikle Kommentare (Kritik, Beleidigung, Fragen zu Daten oder Geld) nicht beantworten, sondern Pascal melden"
+    ]
+  }
 }
