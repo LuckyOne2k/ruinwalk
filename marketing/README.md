@@ -15,6 +15,7 @@ Arbeitsgrundlage des Agenten `rw-marketing`. Stand: 18.11.2026. **Status: Instag
 | `09_hashtags_keywords.md` | Hashtag- und Keyword-Strategie |
 | `10_community_aufbau.md` | Erste Community, Feedback, Bindung |
 | `11_gameplay_und_updates.md` | Plan für Gameplay-Veröffentlichung und Entwickler-Updates |
+| `12_reichweite_analyse.md` | Reichweiten-Analyse Instagram (20.11.2026), Maßnahmen, 14-Tage-Vorschlag |
 | `meta/` | Anbindung an Instagram/Facebook, Berechtigungen, Konfiguration |
 | `freigabe/` | Freigabeprozess: `entwuerfe/` → `freigegeben/` → `veroeffentlicht/` |
 | `grafiken/` | Entwürfe (gerendert aus echten Assets), Screenshots |
