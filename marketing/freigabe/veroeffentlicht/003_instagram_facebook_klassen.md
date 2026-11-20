@@ -9,8 +9,8 @@ freigegeben_von:
 freigegeben_am:
 bild: marketing/grafiken/entwuerfe/003_klassen.jpg
 bild_url:
-veroeffentlicht_am:
-link:
+veroeffentlicht_am: 2026-11-20T17:23:41Z (18:23 Uhr MEZ), Modus autonom
+link: https://www.instagram.com/p/Df-LwmlEV40/
 ---
 
 ## Ziel
