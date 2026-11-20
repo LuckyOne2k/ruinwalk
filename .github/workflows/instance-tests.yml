@@ -57,6 +57,8 @@ jobs:
         run: |
           node server/instance/tests/k2-compare.mjs skip 15
           node server/instance/tests/k2-compare.mjs skip 15 nosweep
+      - name: Diagnoseausgabe bei Datenbankfehlern (Deadlock-Meldung mit SQLSTATE/DETAIL/CONTEXT, Serverlog)
+        run: node server/instance/tests/diagnose-test.mjs
       - name: Dungeon-Kämpfe über die komplette Auftragskette
         run: |
           for s in 3 4 5; do node server/instance/sim/run-dungeon.mjs --seed $s --ruhig || exit 1; done

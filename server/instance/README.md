@@ -19,7 +19,8 @@ Alle Inhalte (Klassen, Boss, Zahlen) sind **Testwerte**, keine Spielbalance.
 | Todesfenster, Annahme in Zeit, Wipe-Halt, Niederlage nach Ablauf, Gruppenpause, Eventende je Eingangsfunktion (39) | `node server/instance/tests/fenster.mjs` |
 | Datenbank-Tests: Claim, Commit, Lease, Eventende, Störungsfenster, Aktion, Watchdog (43) | `node server/instance/tests/run.mjs` |
 | K.2 Regel 4a–4d: Watchdog-Sperrreihenfolge, interne Sweeps (SKIP LOCKED), Endzustand nach Eventende, keine Anlage nach Eventende, parallele Rennen (32) | `node server/instance/tests/eventende.mjs` |
-| K.2-Vergleich der Eventende-Varianten | `node server/instance/tests/k2-compare.mjs old\|eigene\|skip 30 [nosweep]` |
+| K.2-Vergleich der Eventende-Varianten; bei Fehlern vollständige PostgreSQL-Meldung (SQLSTATE, DETAIL, HINT, CONTEXT, LOCATION) und Serverlog der Testinstanz auf stderr | `node server/instance/tests/k2-compare.mjs old\|eigene\|skip 30 [nosweep]` |
+| Diagnoseausgabe bei Datenbankfehlern: echter, deterministisch erzeugter Deadlock (40P01), Fehlerblock und Serverlog vollständig, Kürzen langer Logs (19); Hintergrund: `docs/K2_DEADLOCK_DIAGNOSE.md` | `node server/instance/tests/diagnose-test.mjs` |
 | Gleiches Ergebnis in Node, Bun, Deno (Phase-0-Engine und Engine v1 mit echten Teams, Wiederbelebung, Ausfall, Austritt) | `bash server/instance/tests/run-determinism.sh` |
 
 Voraussetzung: Node 22, PostgreSQL-Binaries (`initdb`, `pg_ctl`, `psql`, `pgbench`) und pgcrypto. CI: `.github/workflows/instance-tests.yml`.

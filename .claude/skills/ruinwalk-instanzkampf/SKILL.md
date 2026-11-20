@@ -42,6 +42,7 @@ node server/instance/tests/struktur.mjs && node server/instance/tests/trennung.m
 node server/instance/tests/run.mjs && node server/instance/tests/fenster.mjs && node server/instance/tests/gruppe.mjs
 node server/instance/tests/eventende.mjs && node server/instance/tests/semantik.mjs && node server/instance/tests/produktion.mjs
 node server/instance/tests/k2-compare.mjs skip 15
+node server/instance/tests/diagnose-test.mjs        # Diagnoseausgabe bei DB-Fehlern (Deadlock 40P01, Serverlog), siehe docs/K2_DEADLOCK_DIAGNOSE.md
 for s in 3 4 5; do node server/instance/sim/run-dungeon.mjs --seed $s --ruhig || exit 1; done
 ```
 Reproduzierbarkeit: zwei Läufe `run-dungeon.mjs --seed 3` müssen identische Ausgabe liefern (md5).

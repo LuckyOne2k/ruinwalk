@@ -6,15 +6,16 @@ import { dirname, join } from 'node:path';
 import { startCluster } from './pg.mjs';
 import { resolveRound, ENGINE_VERSION } from '../engine/engine.mjs';
 import { makeFight } from './scenarios.mjs';
+import { PSQL_VERBOSE, SERVER_VERBOSE, formatPgError, serverLogReport } from './diagnose.mjs';   // nur Diagnoseausgabe (stderr), keine Testlogik
 const variant = process.argv[2] || 'skip', N = +(process.argv[3] || 20), here = dirname(fileURLToPath(import.meta.url));
 let sql = readFileSync(join(here, '../sql/01_proto.sql'), 'utf8');
 // Varianten: skip = Stand der Datei (eigene Instanz + SKIP-LOCKED-Sweep); eigene = nur die eigene Instanz; old = Phase-0-Stand (blockierender Sweep unter eigener Sperre)
 if (variant === 'old') sql = sql.replaceAll('perform rwi.end_instance(i.id); perform rwi.sweep_event(i.event_id, true);', 'perform rwi.sweep_event(i.event_id);');
 if (variant === 'eigene') sql = sql.replaceAll(' perform rwi.sweep_event(i.event_id, true);', '');
 const NOSWEEP = process.argv[4] === 'nosweep';   // ohne zusätzliche Sweeps im Lauf: misst, wie viele Instanzen ohne Watchdog noch „aktiv“ bleiben
-const cl = await startCluster(54350 + { old: 1, eigene: 2, skip: 3 }[variant]);
+const cl = await startCluster(54350 + { old: 1, eigene: 2, skip: 3 }[variant], SERVER_VERBOSE);
 const q = async (s) => { const r = await cl.psql(s); if (r.code) throw new Error(r.err); return r.out; };
-let activeBefore = 0, dead = 0, errs = 0, late = 0, winAndEnded = 0, rewardNoWin = 0, notEnded = 0, runs = 0;
+let failed = true, activeBefore = 0, dead = 0, errs = 0, late = 0, winAndEnded = 0, rewardNoWin = 0, notEnded = 0, runs = 0;
 try {
   await q(sql);
   for (let it = 0; it < N; it++) {
@@ -33,7 +34,8 @@ try {
     const at = await q(`select to_char('${X}'::timestamp ${NOSWEEP ? '+ interval \'5 milliseconds\'' : `- interval '${(it % 9) * 2} milliseconds'`}, 'YYYY-MM-DD HH24:MI:SS.US')`);
     const w = (NOSWEEP ? cs.slice(0, 3) : cs).map((x) => `select pg_sleep_until('${at}'::timestamp::timestamptz); select rwi.commit_round(${x.fid},1,'${x.c.token}',${x.c.round_version},'${x.c.input_hash}','p',$j$${JSON.stringify(x.res)}$j$::jsonb);`);
     if (!NOSWEEP) for (let k = 0; k < 4; k++) w.push(`select pg_sleep_until('${at}'::timestamp::timestamptz + interval '${k * 8} milliseconds'); select rwi.sweep_event(${ev});`);
-    const r = await Promise.all(w.map((s) => cl.psql(s))); runs++;
+    const r = await Promise.all(w.map((s) => cl.psql(s, 'rwi', PSQL_VERBOSE))); runs++;
+    r.forEach((x, k) => { if (x.code) console.error(formatPgError(`Variante ${variant}, Durchlauf ${it + 1}, Event ${ev}, ${k < cs.length && (!NOSWEEP || k < 3) ? `commit_round(Kampf ${cs[k].fid})` : `sweep_event Nr. ${k - cs.length + 1} (Start +${(k - cs.length) * 8} ms)`}`, x)); });
     dead += r.filter((x) => /deadlock/i.test(x.err)).length; errs += r.filter((x) => x.code).length;
     await new Promise((s) => setTimeout(s, 1700));
     activeBefore += +(await q(`select count(*) from rwi.instances where event_id=${ev} and status='active' and ends_at <= clock_timestamp()`));   // Zustand vor dem Watchdog
@@ -43,6 +45,7 @@ try {
     rewardNoWin += +(await q(`select count(*) from rwi.rewards r join rwi.instances i on i.id=r.instance_id where i.event_id=${ev} and not exists (select 1 from rwi.round_results rr join rwi.fights f on f.id=rr.fight_id where f.instance_id=i.id)`));
     notEnded += +(await q(`select count(*) from rwi.instances where event_id=${ev} and status='active'`));
   }
-} finally { cl.stop(); }
+  failed = !!(dead || errs || late || winAndEnded || rewardNoWin || notEnded);
+} finally { if (failed) console.error(serverLogReport(cl.tmp)); cl.stop(); }   // Serverlog nur bei Fehlschlag oder Abbruch, vor dem Löschen der Testinstanz
 console.log(JSON.stringify({ variante: variant, durchlaeufe: runs, deadlocks: dead, fehler_gesamt: errs, ergebnis_nach_eventende: late, sieg_und_event_ended: winAndEnded, belohnung_ohne_sieg: rewardNoWin, nach_watchdog_noch_aktiv: notEnded, aktiv_nach_ende_vor_watchdog: activeBefore }));
 process.exit(dead || errs || late || winAndEnded || rewardNoWin || notEnded ? 1 : 0);
