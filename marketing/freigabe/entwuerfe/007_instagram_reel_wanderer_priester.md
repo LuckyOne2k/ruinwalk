@@ -5,8 +5,8 @@ kanal: instagram
 format: reel
 geplant_fuer: nach Freigabe durch Pascal (Vorschlag 14-Tage-Plan: So 22.11.2026 oder Di 24.11.2026, 17:35)
 status: entwurf
-freigegeben_von:
-freigegeben_am:
+freigegeben_von: Pascal
+freigegeben_am: 2026-11-21 (Chat: „Reel 007 freigegeben“)
 video: marketing/grafiken/entwuerfe/007_reel_wanderer_priester.mp4
 video_url:
 vorschau_ms: 5300
