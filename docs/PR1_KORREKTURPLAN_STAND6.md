@@ -1,7 +1,7 @@
 # Korrigierter Plan PR 1 – Stand 6 (21.11.2026)
 
 > Nur Plan. Keine Code-, SQL-, Test-, Workflow- oder Konfigurationsänderung, kein Commit, keine Datenbankaktion, keine Installation.
-> Stand 6 ersetzt Stand 5 (`docs/PR1_KORREKTURPLAN_STAND5.md`, nicht committet) vollständig. Stand 5 ersetzte Stand 4 (`docs/PR1_KORREKTURPLAN_STAND4.md`, Commit `e996bea`).
+> Stand 6 ersetzt Stand 5 (`docs/PR1_KORREKTURPLAN_STAND5.md`, Commit `a1e6bdb`) vollständig. Stand 5 ersetzte Stand 4 (`docs/PR1_KORREKTURPLAN_STAND4.md`, Commit `e996bea`).
 > Änderungen gegenüber Stand 5: Abschnitt 0.4. Grundlage: Prüfberichte zu Stand 5 (E14/S-B, K1-9, Vollständigkeit) und zu K1-9g (Sperrreihenfolgen, B-2) vom 21.11.2026.
 > Bezug: lokaler Zweig `integration/nacht-nach-main` in `/home/user/ruinwalk-pr1` (Basis `main` `c9b351a` + `nacht/operator-edge-function` `2cd72e5`, nicht gepusht).
 > Fundstellen: `server/instance/sql/0X_*.sql:Zeile` = `0X:Zeile`.
@@ -51,6 +51,9 @@
 | S6-5 | Regeln 8.1 und 8.2 präzisiert; Regel 8.7 (B-2) neu | 8 | Prüfbericht zu Stand 5, V-2/V-5; B-2 |
 | S6-6 | **B-2** als offener, bestehender Fehler (Wettlauf Beitritt ↔ Charakterlöschung); **kein** Fix festgelegt; der früher genannte `FOR SHARE`-Ansatz ist verworfen (Deadlock mit der Kontolöschung, 2.7.4) | 2.7.3, 2.7.4, 14.4 | Prüfbericht K1-9g; Hinweis Pascal 21.11.2026 |
 | S6-7 | Korrektur einer Aussage im Prüfbericht K1-9g: „kein Deadlock mit `FOR SHARE`“ galt nur für die Charakterlöschung, **nicht** für die Kontolöschung | 2.7.4 | Hinweis Pascal 21.11.2026, nachvollzogen |
+| S6-8 | Versionsbezeichnungen bereinigt (Kopf, 2.2; 9.1, 11.1, 13 geprüft) | Kopf, 2.2 | Korrekturauftrag Pascal 21.11.2026, Befund 1 |
+| S6-9 | Regel 8.1 als **betriebliche Vorgabe** gekennzeichnet; technisch erzwungen ist nur der Ausschluss von `anon`/`authenticated` | 8 | Korrekturauftrag Pascal 21.11.2026, Befund 2 |
+| S6-10 | K1-9g4 als **dokumentierter, erwarteter Ist-Fehler**: bestanden bei exakt dokumentiertem Zustand, getrennt gezählt, jede Abweichung rot | 2.7.5, 9.1, 11.1 | Korrekturauftrag Pascal 21.11.2026, Befund 3 |
 
 E11, E12 und E14 sind unverändert. Phase 2 bleibt gesperrt.
 
@@ -78,7 +81,7 @@ E11, E12 und E14 sind unverändert. Phase 2 bleibt gesperrt.
 - Probe P4 (lokale Wegwerf-Datenbank, 20.11.2026): Charakter mit ungültigem Spielstand. Einfügen **mit** Profil → gelingt, gesetztes Profil gespeichert. Einfügen **ohne** Profil → `profile_invalid:path_class_mismatch`. Damit ist belegt: Bei gesetztem Profil wird `profile_of` nicht aufgerufen.
 - Absicherung als Regressionstest K1-8 und Mutationsprobe ②.
 
-### 2.2 Ablauf (Stand 5)
+### 2.2 Ablauf (Stand 6; inhaltlich unverändert seit Stand 5)
 
 ```
 exit when active_count >= max_size                         -- unverändert
@@ -212,7 +215,16 @@ B-2 bleibt ein offener Punkt (14.4). Ein Fix braucht eine eigene Analyse aller S
   2. J: `group_join(I_einkampf, W)` wartet nach `eligible`.
   3. D′: `delete_character(W)` bestätigt sofort (kein Bezug zu I).
   4. Sperre freigeben, J fügt ein.
-  Erwartung (Ist-Zustand, **dokumentiert als bekannter Fehler B-2**): aktives Mitglied W mit `profile` NULL und `account` NULL, INV-1 = 1; S-B: `terminate_stuck` auf dieser Instanz → `phase_locked`. Variante Mehrkampf-Dungeon: Wartender mit `account` NULL; nächstes Nachrücken storniert ihn `not_eligible`. Der Test wird **nicht** abgeschaltet und ist ausdrücklich als Abbildung eines bekannten Fehlers gekennzeichnet; ändert sich das Ergebnis (z. B. durch einen späteren Fix), muss er bewusst angepasst werden.
+  **Art des Tests: dokumentierter, erwarteter Ist-Fehler (bekannter Fehler B-2).** Der Test weist den fehlerhaften Zustand gezielt nach. Trifft genau dieser Zustand ein, gilt der Test als **bestanden** (Ergebnis „bekannter Fehler bestätigt“), nicht als Suite-Fehler.
+  Erwarteter Ist-Zustand (alle Punkte müssen zutreffen):
+  - Einkampf-Instanz: genau ein aktives Mitglied W mit `profile` NULL und `account` NULL, keine Charakterzeile zu W; INV-1 = 1 (nur W);
+  - `terminate_stuck` auf dieser Instanz (nach Herstellen von stuck) → `phase_locked` (S-B fail-closed);
+  - Variante Mehrkampf-Dungeon: genau ein Wartender W mit `account` NULL ohne Charakter; das nächste Nachrücken storniert ihn mit `not_eligible`, ohne Alarm; danach INV-1 = 0;
+  - kein Deadlock (40P01), kein anderer Fehler in J oder D′.
+
+  **Abweichungen werden weiterhin erkannt:** Jede Abweichung vom erwarteten Ist-Zustand macht den Test **rot** – sowohl ein „besseres“ Ergebnis (z. B. J endet mit `forbidden`, INV-1 = 0, weil B-2 unbemerkt behoben oder der Hook wirkungslos wurde) als auch ein „schlechteres“ (z. B. INV-1 > 1, gesetzter `account`, Profil mit `src`, `terminate_stuck` ≠ `phase_locked`, Deadlock). Ein späterer Fix von B-2 muss den Test deshalb bewusst auf die neue Erwartung umstellen.
+
+  **Ausweisung in der Suite:** Der Test läuft in `korrekturen-pr1.mjs` mit eigener Kennzeichnung (z. B. Präfix `BEKANNT B-2:`) und wird in der Zusammenfassung getrennt gezählt („bekannte Fehler bestätigt: 1“). Er wird **nicht** übersprungen, **nicht** abgeschaltet und zählt **nicht** als unerwarteter Fehler. Der Exit-Code der Suite ist 0, solange alle übrigen Tests grün sind und der bekannte Fehler exakt wie dokumentiert auftritt.
 
 **INV-1:** `select count(*) from rwi.members m where m.mstate = 'active' and m.player ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' and not exists (select 1 from public.characters c where c.character_id::text = lower(m.player))`.
 
@@ -324,7 +336,10 @@ Ersetzte Funktionen behalten ihre Eigenschaften (INVOKER, kein `SET`).
 - Testlader: keine Änderung nötig (alle 15 Lader laden 03/04/05 direkt).
 
 ## 8. Sicherheits- und Betriebsregeln (neu, E14)
-1. **Vertrauensgrenze `src`:** `members.profile->>'src'` ist gegenüber Clients verlässlich, nicht gegenüber `service_role`/`postgres`. `members.profile` wird **ausschließlich** geschrieben über den Trigger beim Einfügen (`04:73`), über `promote_waitlist` (ausdrücklich gesetztes Profil aus `profile_of`) und über `set_ready` (`04:260`). Direkte Tabellenschreibzugriffe von `service_role`/`postgres` auf `rwi.members.profile`, `rwi.members.account`, `rwi.waitlist.account` und `rwi.players` sind untersagt.
+1. **Vertrauensgrenze `src` (betriebliche Vorgabe, keine technische Sperre):** `members.profile->>'src'` ist gegenüber Clients verlässlich, nicht gegenüber `service_role`/`postgres`.
+   - **Technisch erzwungen** (durch PostgreSQL-Rechte und RLS) ist nur: `anon` und `authenticated` können diese Spalten und Tabellen weder lesen noch schreiben (`05:368–371`, `05:385–387`; Test P2-13).
+   - **Nicht technisch erzwungen**, sondern **betriebliche Vorgabe**: `members.profile` wird nur über den Trigger beim Einfügen (`04:73`), über `promote_waitlist` (ausdrücklich gesetztes Profil aus `profile_of`) und über `set_ready` (`04:260`) geschrieben. Direkte Tabellenschreibzugriffe von `service_role`/`postgres` auf `rwi.members.profile`, `rwi.members.account`, `rwi.waitlist.account` und `rwi.players` sind **untersagt**. PostgreSQL verhindert sie **nicht**: `service_role` hat Schreibrechte auf alle `rwi`-Tabellen (`05:378`) und umgeht RLS, `postgres` ist Eigentümer.
+   - Einhaltung: organisatorisch (Betreiberregeln, Code-Review, keine Ad-hoc-SQL-Änderungen an diesen Spalten); Verstöße fallen nur über Audit/Prüfung auf, nicht über eine Datenbankfehlermeldung.
 2. **Kein Missbrauch der Bot-Kennzeichnung:** `rwi.players` (Prototyp-Profile) wird nur in Test- und Dev-Umgebungen befüllt, nie auf Produktion. **Folge:** Auf Produktion ist `technical_end` über `terminate_stuck` nicht erreichbar (4.2, P2-18).
 3. **Phase 2 bleibt gesperrt.** Voraussetzungen für eine spätere Freigabe: Entscheidung E13 (bei Option a auch D1), unabhängige Prüfung, ausdrückliche Freigabe durch Pascal. S-B ist für Phase 2 kein ausreichender alleiniger Schutz.
 4. **Betreiberberechtigung:** Der Umfang `terminate` bleibt Pflicht (`check_operator`); S-B ist eine zusätzliche, datenbasierte Sperre.
@@ -355,7 +370,7 @@ Neue Testdatei `server/instance/tests/korrekturen-pr1.mjs`, eingetragen in `serv
 | **K1-9g1** | Charakterlöschung, P hält I zuerst (2.7.5) | kein 40P01; W `left/freiwillig`; INV-1 = 0 |
 | **K1-9g2** | Kontolöschung, P hält I zuerst | wie g1, `account` NULL |
 | **K1-9g3** | Löschung hält I zuerst, P wartet | W nicht nachgerückt; INV-1 = 0 |
-| **K1-9g4** | Ist-Zustand B-2: Beitritt ↔ Charakterlöschung | bekannter Fehler dokumentiert: Mitglied ohne Charakter (`profile`/`account` NULL), INV-1 = 1; `terminate_stuck` → `phase_locked` |
+| **K1-9g4** | **dokumentierter, erwarteter Ist-Fehler B-2:** Beitritt ↔ Charakterlöschung (2.7.5) | bestanden, wenn genau der dokumentierte Zustand eintritt (Mitglied ohne Charakter, `profile`/`account` NULL, INV-1 = 1, `terminate_stuck` → `phase_locked`); getrennt gezählt als „bekannter Fehler bestätigt“; jede Abweichung (besser oder schlechter) → rot |
 | N-1 | Wartender unter Level 5 | storniert `not_eligible`, kein Alarm |
 | N-2 | „Gruppe voll“ (zwei Sitzungen) | Eintrag bleibt `waiting` |
 | N-4 | gültiger Stand < Level 5 zwischen `eligible` und `profile_of` | bleibt `waiting`, glog |
@@ -470,6 +485,7 @@ Neue Testdatei `server/instance/tests/korrekturen-pr1.mjs`, eingetragen in `serv
 | **㊳** | `is_bot_*` (05) ohne `search_path` bzw. INVOKER | R-1 |
 | **㊴** | UUID-Regel in `is_bot_waiting` entfernt | P2-15, P2-16 |
 | **㊵** | Lösch-Schleife erfasst nur aktive Mitglieder, nicht Wartende (`05:206–210`, Bedingung zu `waitlist` entfernt) | K1-9g1, K1-9g3 (INV-1 bzw. Eintrag bleibt `waiting`) |
+| **㊶** | Hook in K1-9g4 wirkungslos (wartet nicht) bzw. B-2 unbemerkt verändert | K1-9g4 (Ist-Zustand tritt nicht ein → rot; Nachweis, dass auch eine „bessere“ Abweichung erkannt wird) |
 
 ### 11.2 Entfernte Mutationsproben
 
@@ -515,7 +531,9 @@ Z. 399–403 und 468–472 (gemessen 7412–7953 ms gegen 8000 ms): Sperrhalter 
 | Sperrreihenfolgen Löschung/Nachrücken | Prüfbericht K1-9g | 2.7, K1-9g1–K1-9g3, ㊵ |
 | B-2: Beitritt ↔ Charakterlöschung | Prüfbericht K1-9g | offen, dokumentiert (2.7.3, Regel 8.7, K1-9g4); kein Fix |
 | `FOR SHARE`-Vorschlag für B-2 | Prüfbericht K1-9g, Hinweis Pascal | verworfen (Deadlock mit Kontolöschung, 2.7.4) |
-| Konsistenz Stand 5 → 6 | – | Testnummern K1-9a–K1-9g4, P2-1–P2-18, N-1–N-10 (ohne N-3), Mutationen ①–㊵ geprüft; keine doppelten Nummern; alle neuen Tests in 9.1, 9.4 und 14.3 genannt |
+| Regel 8.1 als technische Sperre missverständlich | Korrekturauftrag Pascal 21.11.2026 | als betriebliche Vorgabe gekennzeichnet (S6-9) |
+| K1-9g4 könnte als Suite-Fehler gelten | Korrekturauftrag Pascal 21.11.2026 | erwarteter Ist-Fehler mit exakter Erwartung, getrennt gezählt, Abweichungen rot, ㊶ (S6-10) |
+| Konsistenz Stand 5 → 6 | – | Testnummern K1-9a–K1-9g4, P2-1–P2-18, N-1–N-10 (ohne N-3), Mutationen ①–㊶ geprüft; keine doppelten Nummern; alle neuen Tests in 9.1, 9.4 und 14.3 genannt; Versionsbezeichnungen in Kopf, 2.2, 9.1, 11.1, 13 auf Stand 6 bzw. als Historie korrekt |
 
 ## 14. Zusammenfassung
 
@@ -527,7 +545,7 @@ G-1, G-2, G-3, G-4 (→ N-9), G-5, G-7, I-1, I-2, I-3, I-5, I-6, I-7, I-8, I-9, 
 
 ### 14.3 Neu hinzugefügte Tests
 - In Stand 5: N-6, N-7, N-8, N-9, N-10, P2-13, R-2 (neu gefasst), R-3 (neu gefasst), R-4. Mutationsproben ㉜ ㉝ ㉞ ㉟ ㊱ ㊲ ㊳; ㉘ und ㉙ neu gefasst.
-- In Stand 6: K1-9d, K1-9e, K1-9f, K1-9g1, K1-9g2, K1-9g3, K1-9g4, P2-14, P2-15, P2-16, P2-17, P2-18; K1-9a–K1-9c präzisiert. Mutationsproben ㊴ ㊵; ② präzisiert (Nachweis über K1-9c). Invariante INV-1.
+- In Stand 6: K1-9d, K1-9e, K1-9f, K1-9g1, K1-9g2, K1-9g3, K1-9g4, P2-14, P2-15, P2-16, P2-17, P2-18; K1-9a–K1-9c präzisiert. Mutationsproben ㊴ ㊵ ㊶; ② präzisiert (Nachweis über K1-9c). Invariante INV-1. K1-9g4 ist ein dokumentierter, erwarteter Ist-Fehler (getrennt gezählt).
 
 ### 14.4 Verbleibende offene Punkte
 - **E4:** Profilableitung V1 oder V2 (Bericht L bis dahin vorläufig).
