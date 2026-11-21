@@ -3,7 +3,8 @@ import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, readdirSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-const binDir = () => { const b = readdirSync('/usr/lib/postgresql').sort().pop(); return `/usr/lib/postgresql/${b}/bin`; };
+// PG_MAJOR (z. B. 17) wählt die Hauptversion ausdrücklich; ohne Angabe die höchste installierte. Eine nicht installierte gewünschte Version ist ein Fehler (kein stilles Ausweichen).
+const binDir = () => { const want = process.env.PG_MAJOR; const have = readdirSync('/usr/lib/postgresql').sort((a, b) => +a - +b); if (want && !have.includes(want)) throw new Error(`PG_MAJOR=${want} ist nicht installiert (vorhanden: ${have.join(', ')})`); return `/usr/lib/postgresql/${want || have.pop()}/bin`; };
 export async function startCluster(port = 54331, extra = '') {
   const BIN = binDir(), tmp = mkdtempSync(join(tmpdir(), 'rwi-')); chmodSync(tmp, 0o755);
   const root = process.getuid && process.getuid() === 0, pre = root ? ['runuser', '-u', 'postgres', '--'] : [];
@@ -14,7 +15,7 @@ export async function startCluster(port = 54331, extra = '') {
   const base = ['-h', tmp, '-p', String(port), '-U', 'postgres', '-X', '-q', '-v', 'ON_ERROR_STOP=1'];
   const psql = (sql, db = 'rwi', extra = []) => new Promise((res) => {
     const p = spawn(`${BIN}/psql`, [...base, '-d', db, '-At', ...extra], { stdio: ['pipe', 'pipe', 'pipe'] }); let o = '', e = '';
-    p.stdout.on('data', (d) => (o += d)); p.stderr.on('data', (d) => (e += d)); p.on('close', (code) => res({ code, out: o.trim(), err: e.trim() })); p.stdin.end(sql);
+    p.stdout.on('data', (d) => (o += d)); p.stderr.on('data', (d) => (e += d)); p.on('close', (code) => res({ code, out: o.trim(), err: e.trim() })); p.stdin.on('error', () => {});   /* psql darf vorzeitig enden (z. B. Preflight-Abbruch); das Ergebnis steht in code/err */ p.stdin.end(sql);
   });
   await psql('create database rwi', 'postgres');
   const stop = () => { run(`${BIN}/pg_ctl`, ['-D', `${tmp}/data`, '-m', 'immediate', 'stop']); rmSync(tmp, { recursive: true, force: true }); };

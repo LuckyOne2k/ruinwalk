@@ -1,7 +1,7 @@
 name: instance-tests
 on:
   push:
-    paths: ['server/instance/**', 'supabase/schema.sql', 'supabase/tests/**', 'tests/**', 'index.html', 'sprites*.js', 'pxdom.js', 'package.json', '.github/workflows/instance-tests.yml',
+    paths: ['server/instance/**', 'supabase/schema.sql', 'supabase/migration_*.sql', 'supabase/rollback_*.sql', 'supabase/tests/**', 'supabase/dev/**', 'supabase/functions/**', 'supabase/config.toml', 'tests/**', 'index.html', 'sprites*.js', 'pxdom.js', 'package.json', '.github/workflows/instance-tests.yml',
             # Pages-Positivliste (Roadmap Phase 2A): Skript, Liste, Tests, Pages-Workflow und alle ausgelieferten Spielbereiche
             'tools/pages/**', 'tests/pages/**', '.github/workflows/pages.yml', 'landingpage.html', 'figs/**', 'items/**', 'status/**', 'assets/**']
   # Pull Requests: ohne Pfadfilter – jeder PR wird vollständig geprüft (Spielcode, Tests, Server), damit Pflicht-Prüfungen im Ruleset immer berichten.
@@ -23,6 +23,10 @@ jobs:
         env:
           REQUIRE_RUNTIMES: node bun deno
         run: bash server/instance/tests/run-determinism.sh
+      - name: Edge Function operator - Typprüfung unter Deno (deno check)
+        run: deno check supabase/functions/operator/index.ts
+      - name: Edge Function operator - Smoke-Test von index.ts unter Bun mit Deno-Attrappe (SIMULIERT, kein Deno-Lauf)
+        run: bun server/instance/tests/operator-index.bun.mjs
       - name: Engine v1 (Node) - Referenzkämpfe, Kernregeln, Klassenstruktur und Wiederbelebung
         run: |
           node server/instance/tests/golden.mjs
@@ -53,6 +57,34 @@ jobs:
         run: node server/instance/tests/semantik.mjs
       - name: Produktionssicherheit - Spieleridentität und Rechte mit echten Datenbankrollen (anon, authenticated, service_role; Modus neu und legacy)
         run: node server/instance/tests/produktion.mjs
+      - name: Kombinierte Installation (schema.sql + rwi 01-05) - Dev-Nachbau, Installation/Rollback, Rechte-Audit
+        run: |
+          node server/instance/tests/dev-umgebung.mjs
+          node server/instance/tests/installation.mjs
+          node server/instance/tests/rechte-audit.mjs
+      - name: Konto, Charakter, Löschvorgang, Sperrreihenfolge B-2/B-3, Profilableitung (F5/F9), Platz 3
+        run: |
+          node server/instance/tests/konto-integration.mjs
+          node server/instance/tests/konto-regel.mjs
+          node server/instance/tests/loesch-trigger.mjs
+          node server/instance/tests/b2-sperren.mjs
+          node server/instance/tests/profil-ableitung.mjs
+          node server/instance/tests/slot3-f9.mjs
+      - name: Worker-Kern, Schnittstelle A1, stuck und kontrollierte Wiederaufnahme
+        run: |
+          node server/instance/tests/worker.mjs
+          node server/instance/tests/worker-a1.mjs
+          node server/instance/tests/stuck.mjs
+          node server/instance/tests/hotfix-resume.mjs
+      - name: Betreiber (Operatoren, Edge Function operator, Grenzwerte, Parallelität)
+        run: |
+          node server/instance/tests/operatoren.mjs
+          node server/instance/tests/operator-edge.mjs
+          node server/instance/tests/operator-korrekturen.mjs
+          node server/instance/tests/operatoren-limit.mjs
+          node server/instance/tests/operatoren-parallel.mjs
+      - name: S-A-Untersuchung (nur Analyse)
+        run: node server/instance/tests/sa-untersuchung.mjs
       - name: K.2-Vergleich (neue Variante muss fehlerfrei sein)
         run: |
           node server/instance/tests/k2-compare.mjs skip 15
@@ -68,6 +100,47 @@ jobs:
           a=$(node server/instance/sim/run-dungeon.mjs --seed 3 | grep -v "Worker-Absturz" | md5sum)
           b=$(node server/instance/sim/run-dungeon.mjs --seed 3 | grep -v "Worker-Absturz" | md5sum)
           echo "$a / $b"; [ "$a" = "$b" ]
+  database-pg17:
+    # Zusätzlich (keine Pflichtprüfung): alle Datenbanktests auf PostgreSQL 17 wie auf Supabase (ruinwalk 17.11, ruinwalk-dev 17.12).
+    # Die Hauptversion wird ausdrücklich gewählt (PG_MAJOR); ist sie nicht installiert, bricht der Lauf ab, statt eine andere zu nehmen.
+    runs-on: ubuntu-latest
+    env:
+      PG_MAJOR: '17'
+      RESULTS: results/pg17
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: 22 }
+      - name: PostgreSQL 17 (PGDG)
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-17 postgresql-contrib-17 || sudo apt-get install -y postgresql-17
+          sudo systemctl stop postgresql || true
+          /usr/lib/postgresql/17/bin/postgres --version
+      - name: Alle Datenbanktests auf PostgreSQL 17 (Protokoll je Test unter results/)
+        run: bash server/instance/tests/run-all-db.sh
+      - name: Reproduzierbarkeit (gleicher Seed = identisches Kampfprotokoll)
+        run: |
+          a=$(node server/instance/sim/run-dungeon.mjs --seed 3 | grep -v "Worker-Absturz" | md5sum)
+          b=$(node server/instance/sim/run-dungeon.mjs --seed 3 | grep -v "Worker-Absturz" | md5sum)
+          echo "$a / $b"; [ "$a" = "$b" ]
+      - name: Protokolle bei Fehlern ausgeben
+        if: ${{ failure() }}
+        run: for f in "$RESULTS"/*.log; do echo "===== $f"; tail -n 200 "$f"; done
+      - name: Erzeugte Installationsdatei (Prüfsumme für Reproduzierbarkeit)
+        if: ${{ !cancelled() }}
+        run: bash supabase/dev/build.sh "$RESULTS/install_dev.sql" | tee -a "$RESULTS/summary.txt"
+      - name: Ergebnisse sichern
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: db-tests-pg17
+          path: results/
+          retention-days: 30
   pages-positivliste:
     # Roadmap Phase 2A: dieselben Prüfungen wie im Pages-Workflow, aber schon im PR – Fehler fallen vor dem Merge auf.
     runs-on: ubuntu-latest

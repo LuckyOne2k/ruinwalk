@@ -512,4 +512,19 @@ select tap.is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pro
 select tap.is((select confdeltype from pg_constraint where conname='audit_log_account_id_fkey'),'c'::"char",'audit_log.account_id: Fremdschlüssel mit CASCADE');
 select tap.is((select confdeltype from pg_constraint where conname='payment_events_account_id_fkey'),'n'::"char",'payment_events.account_id: Fremdschlüssel mit SET NULL');
 
+-- B2 (docs/B2_V6_PRUEFUNG.md, „V6′“): Sperrreihenfolge in delete_character. Nebenläufigkeit (Deadlock-Freiheit) prüft server/instance/tests/b2-sperren.mjs.
+select tap.ok((select position('for key share' in prosrc) > 0
+                  and position('for key share' in prosrc) < position('pg_advisory_xact_lock' in prosrc)
+                  and position('pg_advisory_xact_lock' in prosrc) < position('delete from public.characters' in prosrc)
+                  and position('for key share' in prosrc) < position('account_id = uid for update' in prosrc)
+                  and position('account_id = uid for update' in prosrc) < position('pg_advisory_xact_lock' in prosrc)
+                 from pg_proc where oid = 'public.delete_character(uuid)'::regprocedure),
+              'B2: delete_character sperrt Profil (key share) -> eigene Charakterzeile (for update, Eigentum) -> Beratungssperre -> löscht (in dieser Reihenfolge, B-5)');
+select tap.ok((select prosrc like '%hashtextextended(''rwi.char:'' || lower(p_id::text), 0)%' from pg_proc where oid = 'public.delete_character(uuid)'::regprocedure),
+              'B2: delete_character nutzt den gemeinsamen Schlüsselausdruck hashtextextended(''rwi.char:'' || lower(<id>), 0)');
+select tap.ok((select prosrc like '%transaction_isolation%read committed%read_committed_required%' from pg_proc where oid = 'public.delete_character(uuid)'::regprocedure),
+              'B2: delete_character bricht außerhalb von READ COMMITTED ab');
+select tap.ok((select has_function_privilege('authenticated','public.delete_character(uuid)','execute') and not has_function_privilege('anon','public.delete_character(uuid)','execute')),
+              'B2: delete_character weiterhin für authenticated, nicht für anon ausführbar (Rechte unverändert)');
+
 select tap.finish();

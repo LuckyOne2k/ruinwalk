@@ -16,6 +16,7 @@ const PB = (process.getuid && process.getuid() === 0) ? ['runuser', '-u', 'postg
 const q = async (sql) => { const r = await cl.psql(sql); if (r.code) throw new Error(r.err + '\n' + sql.slice(0, 300)); return r.out; };
 const J = (s) => JSON.parse(s);
 try {
+  await q('create extension if not exists pgcrypto;');   // nur für die Querprüfung 10 (HMAC in SQL); die Instanz-Skripte brauchen pgcrypto nicht mehr
   await q(readFileSync(join(here, '../sql/01_proto.sql'), 'utf8')); await q(readFileSync(join(here, '../sql/02_actions.sql'), 'utf8')); await q(readFileSync(join(here, '../sql/03_windows.sql'), 'utf8')); await q(readFileSync(join(here, '../sql/04_gruppe.sql'), 'utf8'));
   // --- Helfer: Testkampf anlegen
   const mk = async ({ ends = null, event = null, n = 1 } = {}) => {
@@ -84,7 +85,10 @@ try {
     ok(+(await q(`select count(*) from rwi.round_results where fight_id=${fid}`)) === 0, 'kein Ergebnis gespeichert');
     ok((await q(`select status || ',' || attempts || ',' || (select engine_stuck from rwi.instances where id=${iid}) from rwi.resolve_jobs where fight_id=${fid}`)) === 'stuck,3,true', 'nach 3 Fehlversuchen: Auftrag stuck, engine_stuck gesetzt, Alarm', await q(`select count(*) from rwi.ops_alerts`) + ' Alarm');
     ok((await q(`select rwi.permanently_disconnected(${mid}, clock_timestamp() + interval '1 hour')`)) === 'f', 'engine_stuck: kein Spieler gilt als getrennt (Fristenstopp, A.6)');
-    const fixed = await commit(fid, 1, c, good, 'proto-0.2-hotfix'); ok(fixed.status === 'committed', 'Hotfix mit neuer engine_version löst die hängende Runde', fixed.status);
+    const direct = await commit(fid, 1, c, good, 'proto-0.2-hotfix'); ok(direct.status === 'stuck_locked' && +(await q(`select count(*) from rwi.round_results where fight_id=${fid}`)) === 0, 'Beschluss: ein direkter Commit auf einen stuck-Auftrag bleibt gesperrt (stuck_locked), auch mit neuer engine_version', direct.status);
+    await q(`select rwi.set_operator('00000000-0000-4000-8000-0000000000a1', 'Pascal', array['resume','terminate','engine']); select rwi.register_engine('00000000-0000-4000-8000-0000000000a1', 'proto-0.2-hotfix', 1, 'Hotfix')`);
+    const rs = J(await q(`select rwi.resume_stuck(${fid}, 1, '00000000-0000-4000-8000-0000000000a1', 'Fehlerursache untersucht, Hotfix eingespielt', 'proto-0.2-hotfix')`)); ok(rs.status === 'resumed', 'ausdrückliche Operatorentscheidung (resume_stuck mit freigegebener Engine-Version) hebt die Sperre auf', rs.status);
+    c = await claim(fid); const fixed = await commit(fid, 1, c, compute(c), 'proto-0.2-hotfix'); ok(fixed.status === 'committed', 'Hotfix mit neuer engine_version löst die Runde nach der Wiederaufnahme', fixed.status);
     ok((await q(`select engine_stuck from rwi.instances where id=${iid}`)) === 'f' && (await q(`select engine_version from rwi.round_results where fight_id=${fid}`)) === 'proto-0.2-hotfix', 'engine_stuck zurückgesetzt, engine_version gespeichert'); }
   await q(`update rwi.cfg set v = 8 where k = 'max_attempts'`);
 

@@ -64,3 +64,10 @@ Voraussetzung: Node 22, PostgreSQL-Binaries (`initdb`, `pg_ctl`, `psql`, `pgbenc
 | W1 | Wipe-Wiederaufnahme | läuft genau an der angehaltenen Stelle der Auflösung weiter | eigener Zwischenschritt (Pseudo-Runde) | offen | Auflösungsposition speichern und fortsetzen |
 
 Weitere bekannte Lücken: Beitrags- und Teilnahmeschwellen für Beute und Abschlussbelohnung (Balance) sind nicht modelliert. Entfernte Mitglieder erhalten die Abschlussbelohnung vorsichtshalber nicht, bis die Schwelle feststeht. Heiltränke sind als Zähler vorhanden, ihre Wirkung im Kampf noch nicht. Profilableitung bei Bereitschaft (Bericht L) und Edge Function sind Phase 2.
+
+## Kombinierte Installation, Rollback, Worker-Kern (Nacharbeit 18.11.2026)
+
+- `supabase/dev/`: `00_preflight.sql` (nur lesend), `build.sh` (erzeugt `install_dev.sql`: preflight, schema.sql, 01..05; eine Transaktion), `rollback_dev.sql` (nur mit Bestätigung), `cleanup_test_accounts.sql`. Nichts davon wurde auf Dev ausgeführt.
+- Tests: `dev-umgebung.mjs`, `konto-integration.mjs`, `rechte-audit.mjs`, `installation.mjs`, `worker.mjs`; alle zusammen mit Protokollen: `bash server/instance/tests/run-all-db.sh` (`PG_MAJOR=17` wählt die Version ausdrücklich).
+- Worker-Kern: `worker/core.mjs`; Entscheidung und offene Punkte: `docs/INSTANZKAMPF_WORKER_ARCHITEKTUR.md`; Gesamtbericht: `docs/SUPABASE_INTEGRATION_NACHTBERICHT.md`.
+- pgcrypto wird von den Instanz-Skripten nicht mehr gebraucht (SHA-256 über die Kernfunktion `sha256`).

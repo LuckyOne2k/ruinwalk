@@ -88,7 +88,7 @@ begin
     snap := f.snapshot;                                                                       -- abgelaufene Lease: gespeicherter Snapshot (E.1)
   end if;
   inp := jsonb_build_object('fight_id', f.id, 'round_no', f.round_no, 'seed', encode(i.seed,'hex'), 'cfg_version', i.cfg_version, 'snapshot', snap);
-  h := encode(digest(inp::text, 'sha256'), 'hex');
+  h := encode(sha256(convert_to(inp::text, 'UTF8')), 'hex');
   update rwi.fights set phase='resolving', claim_token=tok, lease_until = t + make_interval(secs => rwi.cfg('lease_seconds')),
     round_version = round_version + 1, snapshot = snap, input_hash = h where id = f.id;
   insert into rwi.resolve_jobs(fight_id, round_no, status, last_dispatch_at) values (f.id, f.round_no, 'claimed', t)
@@ -96,8 +96,84 @@ begin
   return jsonb_build_object('status','ok','token',tok,'round_version',f.round_version + 1,'input',inp,'input_hash',h);
 end $$;
 
+-- ---- stuck-Alarmierung (Folgeauftrag): jeder Übergang nach „stuck“ erzeugt GENAU EINEN eindeutig identifizierbaren Alarm; Wiederholungen erzeugen keinen zweiten. ----
+-- Schlüssel 'stuck:<Kampf>:<Runde>:<Wiederaufnahmen>': nach einer kontrollierten Wiederaufnahme ist ein erneutes stuck derselben Runde ein NEUER Alarm (neue „Episode“).
+alter table rwi.resolve_jobs add column resumes int not null default 0, add column last_engine text, add column resume_engine text;
+-- Engine-Versionen (Hotfix-Wiederaufnahme, Beschluss): eine neue Engine-Version ist nur nutzbar, wenn sie registriert ist und dasselbe Zustandsschema (state_schema) wie der gespeicherte Zustand hat.
+create table rwi.engine_versions (version text primary key check (length(version) between 1 and 80), state_schema int not null, registered_at timestamptz not null default clock_timestamp(), note text);
+alter table rwi.fights add column state_schema int not null default 1;     -- Schema des gespeicherten Kampfzustands (heute 1)
+alter table rwi.ops_alerts add column fight_id bigint, add column round_no int, add column dedupe_key text,
+  add column state text not null default 'open' check (state in ('open','resolved')), add column resolved_at timestamptz, add column resolved_note text;
+create unique index ops_alerts_dedupe_uq on rwi.ops_alerts (dedupe_key) where dedupe_key is not null;
+-- Betreiber (Operatoren): Konten, die Wiederaufnahme, technische Beendigung und Engine-Registrierung auslösen dürfen. Identität = Supabase-Konto (auth.uid(), von GoTrue geprüft), NIE ein Freitext.
+-- Verwaltung ausschließlich serverseitig (SQL/Migration, kein Client- und kein Wrapper-Zugriff): rwi.set_operator. Jede Änderung wird in rwi.ops_log festgehalten.
+create table rwi.operators (account_id uuid primary key, label text not null check (length(btrim(label)) between 2 and 80), scopes text[] not null check (scopes <> '{}' and scopes <@ array['resume','terminate','engine']),
+  active boolean not null default true, created_at timestamptz not null default clock_timestamp(), updated_at timestamptz not null default clock_timestamp());
+-- Betriebsprotokoll: jede kontrollierte Wiederaufnahme, technische Beendigung, Engine-Registrierung, abgewiesene Operatoraufrufe und Betreiberänderung (nur anhängen, nie ändern oder löschen)
+create table rwi.ops_log (id bigint generated always as identity primary key, at timestamptz not null default clock_timestamp(),
+  kind text not null check (kind in ('resume','terminate','hotfix_commit','register_engine','denied','operator_change')),
+  fight_id bigint, round_no int, instance_id bigint, operator_id uuid, operator text, note text, old_engine text, new_engine text);
+create function rwi.ops_log_append_only() returns trigger language plpgsql as $$ begin raise exception 'ops_log ist nur zum Anhängen' using errcode = '42501'; end $$;
+create trigger ops_log_no_change before update or delete on rwi.ops_log for each row execute function rwi.ops_log_append_only();
+-- Prüft einen Betreiber (aktiv, Berechtigung); liefert die Bezeichnung oder null. Abgewiesene Versuche werden protokolliert.
+create function rwi.operator_removed() returns trigger language plpgsql as $$
+begin insert into rwi.ops_log(kind, operator_id, operator, note) values ('operator_change', old.account_id, old.label, 'Betreiberzeile entfernt'); return old; end $$;
+create trigger operators_removed after delete on rwi.operators for each row execute function rwi.operator_removed();
+create index ops_log_denied_op_idx on rwi.ops_log (operator_id, at) where kind = 'denied';
+create index ops_log_denied_at_idx on rwi.ops_log (at) where kind = 'denied';
+-- Missbrauchsschutz (HARTES Limit): Registrierung ist offen, jeder angemeldete Nutzer kann abgewiesene Aufrufe auslösen. Je Konto werden höchstens 20 'denied'-Einträge pro Stunde einzeln protokolliert; danach genau ein
+-- Sammeleintrag ("weitere Abweisungen ...") und dann nichts mehr bis zum Ablauf der Stunde. Zusätzlich höchstens 1000 'denied'-Einträge pro Stunde insgesamt (der Sammeleintrag zählt mit).
+-- ATOMAR: Zählen und Einfügen laufen unter EINER transaktionsgebundenen Advisory-Sperre (Klasse 7003). Die nächste Sitzung sieht nach der Freigabe (= Commit der vorigen) deren Einträge, weil die Zählung als
+-- neue Anweisung unter READ COMMITTED einen frischen Snapshot nimmt; unter anderen Isolationsstufen würde sie ihn nicht sehen, dort wird deshalb gar nicht protokolliert (Grenze bleibt hart).
+-- Trennung: Die SICHERHEITSENTSCHEIDUNG fällt vor jeder Protokollierung und ändert sich nie. Jeder Fehler der Protokollierung (auch lock_timeout, Platz, Rechte) wird abgefangen: Rückgabe bleibt null (abgewiesen),
+-- es wird nur eine Warnung ausgegeben; die Protokollzeile dieses Versuchs entfällt dann (nie mehr Zeilen als erlaubt, höchstens weniger).
+create function rwi.check_operator(p_operator uuid, p_scope text, p_fight bigint default null, p_round int default null, p_note text default null) returns text language plpgsql as $$
+declare o rwi.operators; n_op int; n_all int; t timestamptz; had boolean;
+begin
+  select * into o from rwi.operators where account_id = p_operator; had := found;                  -- FOUND wird von späteren Anweisungen überschrieben
+  if had and o.active and p_scope = any(o.scopes) then return o.label; end if;
+  -- ab hier ist der Aufruf ABGEWIESEN; nichts Folgendes darf daran etwas ändern
+  begin
+    if current_setting('transaction_isolation') <> 'read committed' then raise warning 'check_operator: denied-Protokoll übersprungen (Isolationsstufe %)', current_setting('transaction_isolation'); return null; end if;
+    perform pg_advisory_xact_lock(7003, 0);
+    t := clock_timestamp();
+    select count(*) into n_all from rwi.ops_log where kind = 'denied' and at > t - interval '1 hour';
+    if n_all >= 1000 then return null; end if;
+    select count(*) into n_op from rwi.ops_log where kind = 'denied' and operator_id = p_operator and at > t - interval '1 hour';
+    if n_op < 20 then
+      insert into rwi.ops_log(kind, at, fight_id, round_no, instance_id, operator_id, operator, note) values ('denied', t, p_fight, p_round, (select instance_id from rwi.fights where id = p_fight), p_operator, o.label,
+        p_scope || ': ' || case when not had then 'kein Betreiber' when not o.active then 'Betreiber deaktiviert' else 'Berechtigung fehlt' end);
+    elsif n_op = 20 then
+      insert into rwi.ops_log(kind, at, operator_id, operator, note) values ('denied', t, p_operator, o.label, 'weitere Abweisungen dieses Kontos in dieser Stunde werden nicht einzeln protokolliert');
+    end if;
+  exception when others then
+    raise warning 'check_operator: denied-Protokollierung fehlgeschlagen (%): Abweisung bleibt wirksam', sqlstate;
+  end;
+  return null;
+end $$;
+create function rwi.set_operator(p_account uuid, p_label text, p_scopes text[], p_active boolean default true) returns void language plpgsql as $$
+begin
+  insert into rwi.operators(account_id, label, scopes, active) values (p_account, btrim(p_label), p_scopes, p_active)
+    on conflict (account_id) do update set label = excluded.label, scopes = excluded.scopes, active = excluded.active, updated_at = clock_timestamp();
+  insert into rwi.ops_log(kind, operator_id, operator, note) values ('operator_change', p_account, btrim(p_label), 'scopes=' || array_to_string(p_scopes, ',') || ' active=' || p_active);
+end $$;
+create function rwi.raise_stuck(p_fight bigint, p_round int) returns void language plpgsql as $$
+declare ep int;
+begin
+  select resumes into ep from rwi.resolve_jobs where fight_id = p_fight and round_no = p_round;
+  insert into rwi.ops_alerts(what, detail, fight_id, round_no, dedupe_key)
+    values ('stuck', 'fight ' || p_fight || ' round ' || p_round, p_fight, p_round, 'stuck:' || p_fight || ':' || p_round || ':' || coalesce(ep, 0))
+    on conflict (dedupe_key) where dedupe_key is not null do nothing;
+end $$;
+create function rwi.close_stuck(p_fight bigint, p_round int, p_kind text, p_operator uuid, p_note text, p_old_engine text default null, p_new_engine text default null) returns void language plpgsql as $$
+begin
+  insert into rwi.ops_log(kind, fight_id, round_no, instance_id, operator_id, operator, note, old_engine, new_engine)
+    values (p_kind, p_fight, p_round, (select instance_id from rwi.fights where id = p_fight), p_operator, (select label from rwi.operators where account_id = p_operator), p_note, p_old_engine, p_new_engine);
+  update rwi.ops_alerts set state = 'resolved', resolved_at = clock_timestamp(), resolved_note = p_kind || coalesce(': ' || p_note, '') where what = 'stuck' and fight_id = p_fight and round_no = p_round and state = 'open';
+end $$;
+
 create or replace function rwi.commit_round(p_fight bigint, p_round int, p_token uuid, p_expected_version int, p_input_hash text, p_engine text, p_result jsonb) returns jsonb language plpgsql as $$
-declare i rwi.instances; f rwi.fights; t timestamptz; bad text; outc text; m jsonb; nxt int; hold boolean := false; ev jsonb;
+declare i rwi.instances; f rwi.fights; t timestamptz; bad text; outc text; m jsonb; nxt int; hold boolean := false; ev jsonb; jprev text; jnew text; jeng text;
 begin
   select instance_id into strict nxt from rwi.fights where id = p_fight;
   select * into i from rwi.instances where id = nxt for update;
@@ -109,6 +185,9 @@ begin
     perform rwi.end_instance(i.id); perform rwi.sweep_event(i.event_id, true); return jsonb_build_object('status','event_ended'); end if;
   if f.round_no <> p_round or f.claim_token is distinct from p_token or f.round_version <> p_expected_version then return jsonb_build_object('status','superseded'); end if;
   if f.input_hash <> p_input_hash then return jsonb_build_object('status','input_mismatch'); end if;
+  select status, resume_engine into jprev, jeng from rwi.resolve_jobs where fight_id = p_fight and round_no = p_round;
+  if jprev = 'stuck' then return jsonb_build_object('status','stuck_locked'); end if;                      -- „stuck“ bleibt bis zur ausdrücklichen Operatorentscheidung (resume_stuck) gesperrt: kein Commit, kein Zähler, kein Alarm
+  if jeng is not null and jeng is distinct from p_engine then return jsonb_build_object('status','engine_mismatch'); end if;   -- nach resume_stuck nur mit der freigegebenen Engine-Version
   -- Invarianten (E.5): nur ungültige Zustände, keine Logikprüfung
   outc := p_result->>'outcome';
   if outc is null or outc not in ('won','lost','continue') then bad := 'outcome'; end if;
@@ -118,10 +197,12 @@ begin
   end loop;
   if (p_result->'state'->'monster'->>'hp')::int < 0 then bad := 'monster_hp'; end if;
   if bad is not null then
-    update rwi.resolve_jobs set attempts = attempts + 1, last_error = 'invariant:' || bad,
-      status = case when attempts + 1 >= rwi.cfg('max_attempts') then 'stuck' else status end where fight_id = p_fight and round_no = p_round;
-    if (select status from rwi.resolve_jobs where fight_id = p_fight and round_no = p_round) = 'stuck' then
-      update rwi.instances set engine_stuck = true where id = i.id; insert into rwi.ops_alerts(what, detail) values ('stuck', 'fight ' || p_fight || ' round ' || p_round);
+    jprev := null;
+    update rwi.resolve_jobs set attempts = attempts + 1, last_error = 'invariant:' || bad, last_engine = left(p_engine, 80),
+      status = case when attempts + 1 >= rwi.cfg('max_attempts') then 'stuck' else status end where fight_id = p_fight and round_no = p_round returning status into jnew;
+    if jnew = 'stuck' then
+      update rwi.instances set engine_stuck = true where id = i.id;
+      if jprev is distinct from 'stuck' then perform rwi.raise_stuck(p_fight, p_round); end if;      -- nur beim Übergang, nie bei weiteren Fehlversuchen
     end if;
     return jsonb_build_object('status','invalid','reason',bad);                -- Transaktion schließt mit Fehlerzähler ab
   end if;
@@ -139,7 +220,7 @@ begin
     phase = case when hold then 'wipe_wait' when outc = 'continue' then 'planning' else 'done' end, status = case when outc = 'continue' or hold then 'active' else outc end,
     due_at = case when i.paused_at is not null then 'infinity'::timestamptz else t + make_interval(secs => rwi.cfg('round_seconds')) end where id = p_fight;
   update rwi.resolve_jobs set status = 'done' where fight_id = p_fight and round_no = p_round;
-  if i.engine_stuck then update rwi.instances set engine_stuck = false where id = i.id; end if;                       -- A.6 Schritt 3
+  if i.engine_stuck and not exists (select 1 from rwi.resolve_jobs x join rwi.fights ff on ff.id = x.fight_id where ff.instance_id = i.id and x.status = 'stuck') then update rwi.instances set engine_stuck = false where id = i.id; end if;      -- Sicherheitsnetz (normalerweise schon von resume_stuck gesetzt)
   if outc = 'won' then
     insert into rwi.rewards(reward_id, instance_id, test_member, kind, payload)
       select 'final:' || i.id || ':' || (m2->>'id'), i.id, m2->>'id', 'coins', '{"test":true}'::jsonb from jsonb_array_elements(p_result->'state'->'members') m2 on conflict do nothing;

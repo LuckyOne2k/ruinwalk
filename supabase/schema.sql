@@ -337,11 +337,24 @@ begin
   return v;
 end $$;
 
+-- Sperrreihenfolge (B-2/B-3/B-5, Pr-Torregel wie docs/B2_PRUEFBERICHT.md Abschnitt 1): Pr = Profilzeile, A = Beratungssperre je Charakter, I = Instanz, C = Charakterzeile.
+-- Wer A -> C nimmt (delete_account, Admin-Löschung: Kaskade nach rwi.on_profile_deleting), hält vorher Pr exklusiv. Wer C -> A nimmt (delete_character, direktes
+-- DELETE), hält vorher Pr(key share) als ALLERERSTE Sperre (delete_character) bzw. kein Pr (direktes DELETE). group_join/create_group nehmen A -> I ohne Zeilensperre
+-- auf characters. Hier daher: Pr (for key share) -> eigene Zeile C (for update, prüft zugleich das Eigentum) -> A -> Löschen -> I (Trigger).
+-- DIE PROFILSPERRE MUSS DIE ERSTE SPERRE BLEIBEN (sonst Verklemmung mit delete_account/Admin-Löschung, Mutationsprobe 40P01). C vor A entspricht dem direkten DELETE (B-5).
+-- Schlüssel identisch in public und rwi: hashtextextended('rwi.char:' || lower(<id>), 0). Fremde oder fehlende IDs: keine Sperre (Zeile wird nicht gefunden).
+-- Nur unter READ COMMITTED korrekt (neuer Stand je Anweisung).
 create or replace function public.delete_character(p_id uuid) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare uid uuid := auth.uid();
 begin
   if uid is null then raise exception 'not_authenticated' using errcode = 'PT401'; end if;
+  if current_setting('transaction_isolation') <> 'read committed' then raise exception 'read_committed_required' using errcode = '25000'; end if;
+  perform 1 from public.profiles where account_id = uid for key share;
+  if not found then raise exception 'not_found' using errcode = 'PT404'; end if;
+  perform 1 from public.characters where character_id = p_id and account_id = uid for update;   -- Eigentum + Zeilensperre C vor A (B-5)
+  if not found then raise exception 'not_found' using errcode = 'PT404'; end if;
+  perform pg_advisory_xact_lock(hashtextextended('rwi.char:' || lower(p_id::text), 0));
   delete from public.characters where character_id = p_id and account_id = uid;
   if not found then raise exception 'not_found' using errcode = 'PT404'; end if;
   insert into public.audit_log(account_id, character_id, action) values (uid, p_id, 'character_deleted');

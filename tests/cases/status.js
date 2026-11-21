@@ -2,6 +2,8 @@ const U=require('../util');
 module.exports={
  'Status-Symbole des Spielers mit Timer: Gift, Feuer, Betäubung, Wurzeln, Schutz, Erschöpfung':async(T,eq)=>{
   const p=await T.page({lv:10,cls:'krieger',shield:2});await U.install(p);
+  // Uhr der Seite anhalten: Timer werden aus Date.now() berechnet; ohne feste Zeit vergeht zwischen Setzen und Anzeigen reale Zeit (89,999 s -> "1:29")
+  await p.clock.setFixedTime(await p.evaluate(()=>Date.now()));
   const r=await p.evaluate(()=>{const R=__RW,o={};
     R.psn={k:'gift',dps:2,t:8};o.gift=R.playerFx().find(x=>x.id==='gift').left;
     R.psn={k:'feuer',dps:2,t:6};o.feuer=!!R.playerFx().find(x=>x.id==='feuer');

@@ -36,6 +36,42 @@ create table rwi.players (player text primary key, lv int not null, grundklasse 
 create table rwi.waitlist (id bigint generated always as identity primary key, instance_id bigint not null references rwi.instances, player text not null, queued_at timestamptz not null default clock_timestamp(),
   status text not null default 'waiting' check (status in ('waiting','admitted','cancelled')));
 create unique index waitlist_uq on rwi.waitlist (instance_id, player) where status = 'waiting';
+
+-- Account-Eindeutigkeit je Instanz (Beschluss: ein Account stellt in einer Instanz höchstens EINEN Charakter; verschiedene Instanzen dürfen verschiedene Charaktere desselben Accounts enthalten).
+-- rwi kennt keine Konten: die Spalte „account“ wird beim Einfügen vom Trigger rwi.account_guard über den Hook rwi.account_of(player) gefüllt. Prototyp: Hook liefert null (keine Prüfung);
+-- Produktion (05_produktion.sql) ersetzt den Hook durch die Zuordnung Charakter -> Konto aus public.characters.
+-- Zählweise (streng): jede Mitgliedszeile des Accounts in dieser Instanz zählt, auch ausgetretene/entfernte (wie „kein Wiederbeitritt“ für denselben Charakter), dazu wartende Wartelisteneinträge.
+-- Sicherung in drei Schichten: (1) rwi.join/create_group melden freundlich 'account_in_instance'/'account_duplicate', (2) Trigger mit Advisory-Sperre je (Instanz, Account) prüft Mitglieder UND Warteliste
+-- gemeinsam, (3) partieller Unique-Index auf Mitglieder verhindert selbst bei einem Fehler in (1)/(2) eine zweite Mitgliedszeile.
+alter table rwi.members  add column account uuid;
+alter table rwi.waitlist add column account uuid;
+create unique index members_account_uq on rwi.members (instance_id, account) where account is not null;
+create index waitlist_account_ix on rwi.waitlist (instance_id, account) where account is not null and status = 'waiting';
+create function rwi.account_of(p_player text) returns uuid language sql stable as $$ select null::uuid $$;
+create function rwi.account_conflict(p_instance bigint, p_player text) returns boolean language sql as $$   -- bewusst VOLATILE: eigener Snapshot je Aufruf (nach der Sperre)
+  select a is not null and (exists (select 1 from rwi.members m where m.instance_id = p_instance and m.account = a and m.player <> p_player)
+                         or exists (select 1 from rwi.waitlist w where w.instance_id = p_instance and w.account = a and w.status = 'waiting' and w.player <> p_player))
+  from (select rwi.account_of(p_player) as a) x $$;
+create function rwi.account_guard() returns trigger language plpgsql security definer set search_path = pg_catalog, pg_temp as $$
+begin
+  new.account := rwi.account_of(new.player);
+  if new.account is null then return new; end if;
+  perform pg_advisory_xact_lock(7002, hashtext(new.instance_id::text || ':' || new.account::text));      -- parallele Einfügungen desselben Kontos in dieselbe Instanz laufen nacheinander
+  if rwi.account_conflict(new.instance_id, new.player) then raise exception 'account_in_instance' using errcode = 'PT409'; end if;
+  return new;
+end $$;
+create trigger members_account_guard  before insert on rwi.members  for each row execute function rwi.account_guard();
+create trigger waitlist_account_guard before insert on rwi.waitlist for each row execute function rwi.account_guard();
+
+-- F9 (Beschluss): Berechtigung und Charakterprofil werden beim Eintritt bzw. beim Ready festgestellt und danach FÜR DIE INSTANZ gespeichert (members.profile).
+-- Eintritt: Profil wird beim Einfügen der Mitgliedszeile festgehalten; Ready: letzte Aktualisierung (set_ready), danach eingefroren. Die Aufstellung (roster) liest ab dann nur noch
+-- das gespeicherte Profil, nie mehr den Live-Stand (rwi.players) oder gar public.characters. Spätere Änderungen/Sperren wirken nur auf NEUE Instanzen.
+alter table rwi.members add column profile jsonb;
+create function rwi.profile_of(p_player text) returns jsonb language sql stable as $$
+  select jsonb_build_object('lv', lv, 'grundklasse', grundklasse, 'pfad', pfad, 'tier', tier) from rwi.players where player = p_player $$;
+create function rwi.profile_snapshot() returns trigger language plpgsql as $$
+begin new.profile := coalesce(new.profile, rwi.profile_of(new.player)); return new; end $$;
+create trigger members_profile_snapshot before insert on rwi.members for each row execute function rwi.profile_snapshot();
 create table rwi.entitlements (instance_id bigint not null, player text not null, fight_no int not null, kind text not null check (kind in ('kampf_ep','beute')),
   void boolean not null default false, reason text, at timestamptz not null default clock_timestamp(), primary key (instance_id, player, fight_no, kind));
 create table rwi.group_log (id bigint generated always as identity primary key, instance_id bigint not null, at timestamptz not null default clock_timestamp(), player text, event text not null, detail text);
@@ -138,9 +174,16 @@ begin
 end $$;
 
 create function rwi.create_group(p_kind text, p_players text[], p_fights_total int, p_event bigint default null, p_ends_at timestamptz default null) returns jsonb language plpgsql as $$
-declare iid bigint; pl text; t timestamptz := clock_timestamp(); mn int; mx int; n int := coalesce(array_length(p_players, 1), 0);
+declare iid bigint; pl text; t timestamptz := clock_timestamp(); mn int; mx int; n int := coalesce(array_length(p_players, 1), 0); kk bigint;
 begin
   if p_kind not in ('dungeon','special','weltboss') then return jsonb_build_object('status','bad_kind'); end if;
+  -- B-2b (docs/B2_V6_PRUEFUNG.md): Beratungssperren aller Spieler (Schlüssel wie public.delete_character), dedupliziert und nach 64-Bit-Schlüssel sortiert (K-a),
+  -- VOR der Prüfung eligible -> eine gleichzeitige Charakterlöschung wird entweder gesehen oder wartet und räumt danach auf. Bedingung (K-e): create_group nie
+  -- in einer Transaktion aufrufen, die bereits Instanzsperren hält. Nur READ COMMITTED (K-c).
+  if current_setting('transaction_isolation') <> 'read committed' then raise exception 'read_committed_required' using errcode = '25000'; end if;
+  for kk in select distinct hashtextextended('rwi.char:' || lower(x), 0) from unnest(p_players) x where x is not null order by 1 loop
+    perform pg_advisory_xact_lock(kk);
+  end loop;
   mn := case p_kind when 'dungeon' then 2 else 6 end; mx := case p_kind when 'dungeon' then 4 else 8 end;      -- verbindliche Größen, kein Parameter
   if p_kind = 'dungeon' and coalesce(p_fights_total, 0) < 2 then return jsonb_build_object('status','single_fight_dungeon'); end if;       -- normale Ein-Kampf-Dungeons sind nicht vorgesehen
   if p_kind = 'special' and coalesce(p_fights_total, 0) < 1 then return jsonb_build_object('status','bad_fights'); end if;
@@ -149,6 +192,7 @@ begin
   if n < mn or n > mx then return jsonb_build_object('status','bad_size','min',mn,'max',mx); end if;
   if (select count(distinct x) from unnest(p_players) x) <> n then return jsonb_build_object('status','duplicate'); end if;
   foreach pl in array p_players loop if not rwi.eligible(pl) then return jsonb_build_object('status','not_eligible','player',pl); end if; end loop;
+  if (select count(a) <> count(distinct a) from (select rwi.account_of(x) as a from unnest(p_players) x) y) then return jsonb_build_object('status','account_duplicate'); end if;       -- zwei Charaktere desselben Accounts in einer Gruppe
   if p_event is not null then                                                                    -- K.2 Regel 4d: nie eine Instanz für ein abgelaufenes Event
     perform pg_advisory_xact_lock(7001, hashtext(p_event::text));                                  -- Anlage je Event nacheinander: Prüfung und Einfügen sehen denselben Stand
     t := clock_timestamp();                                                                      -- Datenbankzeit erst nach der Sperre, unmittelbar vor dem Einfügen
@@ -172,6 +216,7 @@ begin
   select * into m from rwi.members where instance_id = i.id and player = p_player;
   if found then return jsonb_build_object('status', case when m.mstate = 'active' then 'already_member' else 'no_rejoin' end); end if;      -- kein Wiederbeitritt nach Austritt oder Entfernung
   if exists (select 1 from rwi.waitlist where instance_id = i.id and player = p_player and status = 'waiting') then return jsonb_build_object('status','already_waiting'); end if;
+  if rwi.account_conflict(i.id, p_player) then return jsonb_build_object('status','account_in_instance'); end if;           -- ein Account, ein Charakter je Instanz (Instanzsperre oben serialisiert parallele Beitritte)
   if i.fights_total = 1 then                                                                 -- Einkampf-Instanz (Weltboss ist per Tabellenregel immer eine): kein Übergang, also kein Nachrücken; Beitritt nur vor dem Start und nur mit freiem Platz
     if i.fight_no > 0 or i.stage <> 'ready' then return jsonb_build_object('status','no_join'); end if;
     if rwi.active_count(i.id) >= i.max_size then return jsonb_build_object('status','full'); end if;
@@ -219,16 +264,19 @@ begin
   why := rwi.enforce_deadlines(i.id, p_player, t);                                           -- abgelaufene Frist: nicht annehmen, auch wenn group_tick noch nicht gelaufen ist
   if why is not null then return jsonb_build_object('status','removed','reason',why,'instance_aborted',(select status = 'aborted' from rwi.instances where id = i.id)); end if;
   if i.stage <> 'ready' then return jsonb_build_object('status','not_ready_phase'); end if;
-  if not m.ready then update rwi.members set ready = true, ready_at = t, ready_due = null where id = m.id; end if;          -- bestätigt, nicht widerrufbar, bleibt bei Verbindungsabbruch bestehen
+  if not m.ready then update rwi.members set ready = true, ready_at = t, ready_due = null, profile = coalesce(rwi.profile_of(m.player), profile) where id = m.id; end if;   -- Profil beim Ready festhalten (danach eingefroren)          -- bestätigt, nicht widerrufbar, bleibt bei Verbindungsabbruch bestehen
   select not exists (select 1 from rwi.members where instance_id = i.id and mstate = 'active' and not ready) into allr;
   return jsonb_build_object('status','ok','all_ready', allr);
 end $$;
 
 -- Profile der aktiven Mitglieder, nur aus dem Server-Charakterbestand (nie aus Clientangaben)
 create function rwi.roster(p_instance bigint) returns jsonb language sql stable as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', m.key, 'name', m.player, 'grundklasse', pl.grundklasse, 'pfad', pl.pfad, 'tier', pl.tier) order by m.id), '[]'::jsonb)
-  from rwi.members m join rwi.players pl on pl.player = m.player where m.instance_id = p_instance and m.mstate = 'active' $$;
-
+  select coalesce(jsonb_agg(jsonb_build_object('id', m.key, 'name', m.player,
+           'grundklasse', case when m.profile is not null then m.profile->>'grundklasse' else pl.grundklasse end,
+           'pfad',        case when m.profile is not null then m.profile->>'pfad' else pl.pfad end,
+           'tier',        case when m.profile is not null then (m.profile->>'tier')::int else pl.tier end) order by m.id), '[]'::jsonb)
+  from rwi.members m left join rwi.players pl on pl.player = m.player
+  where m.instance_id = p_instance and m.mstate = 'active' and (m.profile is not null or pl.player is not null) $$;
 -- Kampfstart (Worker bzw. Edge Function liefert den Anfangszustand). Atomar gegen das Eventende geprüft (K.2 Regel 8).
 create function rwi.start_fight(p_instance bigint, p_state jsonb) returns jsonb language plpgsql as $$
 declare i rwi.instances; t timestamptz; n int; fid bigint; keys text[]; skeys text[];
@@ -316,6 +364,7 @@ begin
   t := clock_timestamp();
   if i.status <> 'active' then return jsonb_build_object('status', i.status); end if;
   if i.ends_at is not null and t >= i.ends_at then perform rwi.end_instance(i.id); perform rwi.sweep_event(i.event_id, true); return jsonb_build_object('status','event_ended'); end if;
+  if i.engine_stuck then return jsonb_build_object('status','stuck'); end if;                       -- hängende Runde: keine automatische Wiederholung, nur kontrollierte Wiederaufnahme (resume_stuck)
   if f.round_no <> p_round then return jsonb_build_object('status', case when f.round_no > p_round then 'already_resolved' else 'stale' end); end if;
   if f.phase = 'done' then return jsonb_build_object('status','already_resolved'); end if;
   if f.phase = 'wipe_wait' then return jsonb_build_object('status','not_due'); end if;                  -- Kampf angehalten, bis ein Fenster genutzt wird oder alle Fenster geschlossen sind
@@ -329,7 +378,7 @@ begin
     snap := f.snapshot;                                                                       -- abgelaufene Lease: gespeicherter Snapshot (E.1)
   end if;
   inp := jsonb_build_object('fight_id', f.id, 'round_no', f.round_no, 'seed', encode(i.seed,'hex'), 'cfg_version', i.cfg_version, 'snapshot', snap);
-  h := encode(digest(inp::text, 'sha256'), 'hex');
+  h := encode(sha256(convert_to(inp::text, 'UTF8')), 'hex');
   update rwi.fights set phase='resolving', claim_token=tok, lease_until = t + make_interval(secs => rwi.cfg('lease_seconds')),
     round_version = round_version + 1, snapshot = snap, input_hash = h where id = f.id;
   insert into rwi.resolve_jobs(fight_id, round_no, status, last_dispatch_at) values (f.id, f.round_no, 'claimed', t)
@@ -474,7 +523,17 @@ begin
 end $$;
 
 create function rwi.watchdog_tick() returns jsonb language plpgsql as $$
-begin return rwi.watchdog_core() || jsonb_build_object('group', rwi.group_tick()); end $$;
+declare core jsonb := rwi.watchdog_core(); grp jsonb := rwi.group_tick(); na int;
+begin
+  -- Sicherheitsnetz, idempotent: jeder hängende Auftrag hat genau einen offenen Alarm (wiederholte Läufe erzeugen nie einen zweiten); erledigte/abgebrochene Aufträge schließen ihren Alarm.
+  with ins as (insert into rwi.ops_alerts(what, detail, fight_id, round_no, dedupe_key)
+      select 'stuck', 'fight ' || j.fight_id || ' round ' || j.round_no, j.fight_id, j.round_no, 'stuck:' || j.fight_id || ':' || j.round_no || ':' || j.resumes from rwi.resolve_jobs j where j.status = 'stuck'
+      on conflict (dedupe_key) where dedupe_key is not null do nothing returning 1)
+  select count(*) into na from ins;
+  update rwi.ops_alerts a set state = 'resolved', resolved_at = clock_timestamp(), resolved_note = 'automatisch: Auftrag nicht mehr stuck (Instanz beendet oder gelöst)'
+   where a.what = 'stuck' and a.state = 'open' and a.fight_id is not null and not exists (select 1 from rwi.resolve_jobs j where j.fight_id = a.fight_id and j.round_no = a.round_no and j.status = 'stuck');
+  return core || jsonb_build_object('group', grp, 'stuck_new', na, 'stuck_open', (select count(*)::int from rwi.ops_alerts where what = 'stuck' and state = 'open'));
+end $$;
 
 -- Aktionen nur über den authentifizierten Spieler: der Schlüssel im Kampf wird serverseitig zugeordnet, nie vom Client gewählt
 create function rwi.submit_action_for(p_player text, p_fight bigint, p_round int, p_action jsonb) returns jsonb language plpgsql as $$
@@ -529,3 +588,107 @@ begin
   end if;
   return out;
 end $$;
+
+-- Engine-Fehler des Workers (Architekturbericht V2 A.5): kein Commit; Zähler +1, Fehlertext gespeichert, Wartezeit bis zur Wiederholung 5/10/20/40/60 s
+-- (die Lease wird entsprechend verkürzt), ab max_attempts „stuck“ mit Eintrag in ops_alerts und engine_stuck (gleiche Behandlung wie bei verletzten Invarianten
+-- in commit_round). Wirkt nur mit dem Token der aktuellen Lease; alles andere (veraltet, schon aufgelöst, Instanz beendet) wird ohne Änderung ignoriert.
+create function rwi.report_failure(p_fight bigint, p_round int, p_token uuid, p_error text) returns jsonb language plpgsql as $$
+declare i rwi.instances; f rwi.fights; a int; st text; prev text; wait_s int;
+begin
+  select * into f from rwi.fights where id = p_fight;
+  if not found then return jsonb_build_object('status','unknown_fight'); end if;
+  select * into i from rwi.instances where id = f.instance_id for update;        -- gleiche Sperrreihenfolge wie claim_resolution/commit_round
+  select * into f from rwi.fights where id = p_fight for update;
+  if i.status <> 'active' or f.status <> 'active' or f.round_no <> p_round or f.phase <> 'resolving' or f.claim_token is distinct from p_token then
+    return jsonb_build_object('status','ignored');
+  end if;
+  select status into prev from rwi.resolve_jobs where fight_id = p_fight and round_no = p_round for update;
+  if prev is null then return jsonb_build_object('status','ignored'); end if;
+  if prev = 'stuck' then return jsonb_build_object('status','already_stuck'); end if;                     -- weitere Fehlermeldungen ändern nichts mehr (kein Zähler, kein zweiter Alarm)
+  update rwi.resolve_jobs set attempts = attempts + 1, last_error = left(coalesce(p_error, 'engine'), 500),
+         status = case when attempts + 1 >= rwi.cfg('max_attempts') then 'stuck' else status end
+   where fight_id = p_fight and round_no = p_round returning attempts, status into a, st;
+  if st = 'stuck' then
+    update rwi.instances set engine_stuck = true where id = i.id;
+    perform rwi.raise_stuck(p_fight, p_round);                                                              -- Übergang nach stuck: genau ein Alarm
+  end if;
+  wait_s := least(60, 5 * (2 ^ least(a - 1, 4))::int);
+  update rwi.fights set lease_until = clock_timestamp() + make_interval(secs => wait_s) where id = p_fight;
+  return jsonb_build_object('status', case when st = 'stuck' then 'stuck' else 'recorded' end, 'attempts', a, 'retry_in', wait_s);
+end $$;
+
+-- Aktuelle Runde je Kampf (für den Worker: welche Runde ist zu claimen). Rein lesend.
+create function rwi.fight_rounds(p_fights bigint[]) returns jsonb language sql stable as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', f.id, 'round_no', f.round_no) order by f.id), '[]'::jsonb) from rwi.fights f where f.id = any(p_fights) $$;
+
+-- Kontrollierte Wiederaufnahme einer hängenden Runde (nur serverseitig, nach Fehleranalyse; Betreiber und Begründung sind Pflicht und werden protokolliert).
+-- Doppelausführung ausgeschlossen: nur für die AKTUELLE Runde, nur solange noch kein Rundenergebnis existiert, nur aus dem Zustand „stuck“; der alte Claim-Token wird ungültig,
+-- die Auflösung läuft mit dem gespeicherten Snapshot erneut (deterministisch, E.1). Eine zweite Wiederaufnahme derselben Episode findet keinen stuck-Auftrag mehr.
+create function rwi.register_engine(p_operator uuid, p_version text, p_state_schema int, p_note text default null) returns jsonb language plpgsql as $$
+declare lbl text; ins int;
+begin
+  if p_operator is null or length(btrim(coalesce(p_version, ''))) not between 1 and 80 or p_state_schema is null or p_state_schema < 1 then return jsonb_build_object('status','invalid_input'); end if;
+  lbl := rwi.check_operator(p_operator, 'engine', null, null, 'register_engine ' || left(p_version, 80));
+  if lbl is null then return jsonb_build_object('status','not_operator'); end if;
+  insert into rwi.engine_versions(version, state_schema, note) values (btrim(p_version), p_state_schema, left(p_note, 500)) on conflict (version) do nothing;
+  get diagnostics ins = row_count;
+  if ins = 1 then insert into rwi.ops_log(kind, operator_id, operator, note, new_engine) values ('register_engine', p_operator, lbl, 'Zustandsschema ' || p_state_schema || coalesce(': ' || left(p_note, 200), ''), btrim(p_version)); end if;
+  return jsonb_build_object('status', case when ins = 1 then 'registered' else 'exists' end);      -- eine registrierte Version wird nie umgeschrieben
+end $$;
+
+create function rwi.resume_stuck(p_fight bigint, p_round int, p_operator uuid, p_note text, p_engine text default null) returns jsonb language plpgsql as $$
+declare i rwi.instances; f rwi.fights; j rwi.resolve_jobs; oldeng text; neweng text; sch int; lbl text;
+begin
+  if p_fight is null or p_round is null or p_operator is null or length(btrim(coalesce(p_note, ''))) not between 10 and 1000
+     or (p_engine is not null and length(btrim(p_engine)) not between 1 and 80) then return jsonb_build_object('status','invalid_input'); end if;
+  lbl := rwi.check_operator(p_operator, 'resume', p_fight, p_round, 'resume_stuck');                                -- Berechtigung zuerst: Unberechtigte erfahren nichts über den Zustand
+  if lbl is null then return jsonb_build_object('status','not_operator'); end if;
+  select * into f from rwi.fights where id = p_fight;
+  if not found then return jsonb_build_object('status','unknown_fight'); end if;
+  select * into i from rwi.instances where id = f.instance_id for update;
+  select * into f from rwi.fights where id = p_fight for update;
+  if i.status <> 'active' or f.status <> 'active' then return jsonb_build_object('status','not_active'); end if;
+  if f.round_no <> p_round then return jsonb_build_object('status','stale'); end if;
+  if exists (select 1 from rwi.round_results where fight_id = p_fight and round_no = p_round) then return jsonb_build_object('status','already_resolved'); end if;
+  select * into j from rwi.resolve_jobs where fight_id = p_fight and round_no = p_round for update;
+  if not found or j.status <> 'stuck' or f.phase <> 'resolving' then return jsonb_build_object('status','not_stuck'); end if;
+  if f.snapshot is null then return jsonb_build_object('status','no_snapshot'); end if;                      -- ohne eingefrorenen Eingabezustand ist keine deterministische Wiederholung möglich
+  oldeng := coalesce(j.last_engine, (select engine_version from rwi.round_results where fight_id = p_fight order by round_no desc limit 1), 'unbekannt');
+  if p_engine is not null then                                                                                -- neue Engine-Version: registriert UND mit dem gespeicherten Zustand kompatibel
+    select state_schema into sch from rwi.engine_versions where version = btrim(p_engine);
+    if not found then return jsonb_build_object('status','unknown_engine'); end if;
+    if sch <> f.state_schema then return jsonb_build_object('status','incompatible_engine','engine_schema',sch,'state_schema',f.state_schema); end if;
+  end if;
+  neweng := coalesce(btrim(p_engine), case when oldeng = 'unbekannt' then null else oldeng end);
+  update rwi.resolve_jobs set status = 'pending', attempts = 0, resumes = resumes + 1, resume_engine = neweng where fight_id = p_fight and round_no = p_round;
+  update rwi.fights set claim_token = null, lease_until = clock_timestamp() where id = p_fight;               -- sofort wieder verteilbar; der alte Token ist ungültig (ein später eintreffender alter Commit wird abgewiesen)
+  if not exists (select 1 from rwi.resolve_jobs x join rwi.fights ff on ff.id = x.fight_id where ff.instance_id = i.id and x.status = 'stuck') then update rwi.instances set engine_stuck = false where id = i.id; end if;
+  perform rwi.close_stuck(p_fight, p_round, 'resume', p_operator, btrim(p_note), oldeng, neweng);
+  return jsonb_build_object('status','resumed','resumes', j.resumes + 1, 'old_engine', oldeng, 'new_engine', neweng);
+end $$;
+
+-- Technische Beendigung (Alternative zur Wiederaufnahme, wenn die Ursache nicht behebbar ist): Instanzversuch abgebrochen, keine Belohnung (wie jeder technische Abbruch).
+create function rwi.terminate_stuck(p_fight bigint, p_operator uuid, p_note text) returns jsonb language plpgsql as $$
+declare i rwi.instances; f rwi.fights; j rwi.resolve_jobs; lbl text;
+begin
+  if p_fight is null or p_operator is null or length(btrim(coalesce(p_note, ''))) not between 10 and 1000 then return jsonb_build_object('status','invalid_input'); end if;
+  lbl := rwi.check_operator(p_operator, 'terminate', p_fight, null, 'terminate_stuck');
+  if lbl is null then return jsonb_build_object('status','not_operator'); end if;
+  select * into f from rwi.fights where id = p_fight;
+  if not found then return jsonb_build_object('status','unknown_fight'); end if;
+  select * into i from rwi.instances where id = f.instance_id for update;
+  select * into f from rwi.fights where id = p_fight for update;
+  if i.status <> 'active' or f.status <> 'active' then return jsonb_build_object('status','not_active'); end if;
+  -- K.2/K.3: das absolute Eventende schlägt alles – nach ends_at endet ein Weltboss als Eventende (kein Abbruch, keine Niederlage), wie in rwi.leave
+  if i.ends_at is not null and clock_timestamp() >= i.ends_at then perform rwi.end_instance(i.id); perform rwi.sweep_event(i.event_id, true); return jsonb_build_object('status','event_ended'); end if;
+  select * into j from rwi.resolve_jobs where fight_id = p_fight and round_no = f.round_no for update;
+  if not found or j.status <> 'stuck' then return jsonb_build_object('status','not_stuck'); end if;           -- nur hängende Kämpfe, nie ein gesunder Kampf
+  perform rwi.abort_instance(i.id, 'technisch beendet (stuck)');
+  perform rwi.close_stuck(p_fight, f.round_no, 'terminate', p_operator, btrim(p_note), j.last_engine, null);
+  return jsonb_build_object('status','terminated');
+end $$;
+
+-- Übersicht offener stuck-Alarme (nur Server/Betreiber)
+create function rwi.stuck_overview() returns jsonb language sql stable as $$
+  select coalesce(jsonb_agg(jsonb_build_object('alert', a.id, 'at', a.at, 'fight', a.fight_id, 'round', a.round_no, 'instance', f.instance_id, 'attempts', j.attempts, 'resumes', j.resumes, 'last_error', j.last_error) order by a.id), '[]'::jsonb)
+  from rwi.ops_alerts a left join rwi.fights f on f.id = a.fight_id left join rwi.resolve_jobs j on j.fight_id = a.fight_id and j.round_no = a.round_no where a.what = 'stuck' and a.state = 'open' $$;
