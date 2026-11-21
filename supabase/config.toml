@@ -1,0 +1,4 @@
+# Supabase-CLI-Projektkonfiguration, hier NUR für Edge Functions (Supabase-Doku „Function Configuration“: Einstellungen je Funktion stehen in supabase/config.toml unter [functions.<name>];
+# eine config.toml im Funktionsordner wird nicht gelesen). Enthält keine Secrets und keine Projektkennung; verändert keine Production-Konfiguration.
+[functions.operator]
+verify_jwt = true
