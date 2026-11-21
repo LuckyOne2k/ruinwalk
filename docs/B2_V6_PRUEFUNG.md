@@ -17,8 +17,8 @@
 
 | Weg | Einstieg | Ablauf | Beleg |
 |---|---|---|---|
-| D′ | `public.delete_character(p_id)` (RPC, `authenticated`, `schema:385`), aufgerufen aus `index.html` | Delete C → BEFORE-Trigger `characters_backup_del` → `backup_character` (bei vorhandenem Profil: Einfügen in `character_backups`) → AFTER-Trigger `characters_rwi_cleanup` → `rwi.on_character_deleted` → Audit-Eintrag → `purge_account_backups` | `schema:340–349`, `schema:150–168`, `05:202–227` |
-| D | `public.delete_account(p_confirm)` (RPC, `schema:389`), aus `index.html` | Profil `for update` → Zahlungen/Audit → `delete from auth.users` → Kaskade `profiles` (BEFORE `rwi.on_profile_deleting`) → Kaskade `characters` (BEFORE `backup_character`: kein Profil mehr sichtbar → keine Sicherung, `schema:152`; AFTER `on_character_deleted`) → AFTER `on_profile_deleted` | `schema:221–247`, `05:232–249` |
+| D′ | `public.delete_character(p_id)` (RPC, `authenticated`, `schema:385`), aufgerufen aus `index.html` | Delete C → BEFORE-Trigger `characters_backup_del` → `backup_character` (bei vorhandenem Profil: Einfügen in `character_backups`) → AFTER-Trigger `characters_rwi_cleanup` → `rwi.on_character_deleted` → Audit-Eintrag → `purge_account_backups` | `schema:340–349`, `schema:151–168`, `05:202–227` |
+| D | `public.delete_account(p_confirm)` (RPC, `schema:389`), aus `index.html` | Profil `for update` → Zahlungen/Audit → `delete from auth.users` → Kaskade `profiles` (BEFORE `rwi.on_profile_deleting`) → Kaskade `characters` (BEFORE `backup_character`: kein Profil mehr sichtbar → keine Sicherung, `schema:155`; AFTER `on_character_deleted`) → AFTER `on_profile_deleted` | `schema:221–247`, `05:232–249` |
 | D_adm | Löschen eines Nutzers über Supabase Auth (Admin/Dashboard) bzw. `cleanup_test_accounts.sql` (nur Dev) | direkt `delete from auth.users` → Kaskade wie D, aber **ohne** vorherige Profilsperre `for update` | `supabase/dev/cleanup_test_accounts.sql:31`, `schema:16` |
 | D_dir | direktes `delete from public.characters` durch `service_role`/`postgres` | wie D′ ohne Audit/Purge | kein Code-Aufrufer gefunden; nur Betrieb |
 
@@ -27,7 +27,7 @@ Weitere Lösch- oder Aufrufstellen: keine im Code (Suche über `*.sql`, `*.js`, 
 ## 3. Warum V6 „A vor dem Löschen“ nicht genügt (Beleg)
 
 1. **BEFORE-DELETE-Trigger sperren die Zeile vor dem Trigger:** `trigger.c` (REL_16_STABLE, `ExecBRDeleteTrigger`, ca. Z. 2735) ruft `GetTupleForTrigger(…, LockTupleExclusive, …)` auf, bevor die Triggerfunktion läuft. D′ hält also C(X) exklusiv, wenn `backup_character` startet.
-2. **Fremdschlüssel-Prüfung sperrt die Profilzeile:** `backup_character` fügt in `character_backups` ein (`schema:155`); `character_backups.account_id` verweist auf `profiles` (`schema:64`). Die RI-Prüfung führt `… FOR KEY SHARE OF x` aus (`ri_triggers.c`, ca. Z. 417). Dasselbe gilt für den Audit-Eintrag (`audit_log.account_id`, `schema:75`).
+2. **Fremdschlüssel-Prüfung sperrt die Profilzeile:** `backup_character` fügt in `character_backups` ein (`schema:158`); `character_backups.account_id` verweist auf `profiles` (`schema:64`). Die RI-Prüfung führt `… FOR KEY SHARE OF x` aus (`ri_triggers.c`, ca. Z. 417). Dasselbe gilt für den Audit-Eintrag (`audit_log.account_id`, `schema:75`).
 3. **`delete_account` hält die Profilzeile `FOR UPDATE`** (`schema:226`); `FOR KEY SHARE` und `FOR UPDATE` schließen sich aus.
 
 **Zwei-Transaktions-Szenario (heutiger Code, ohne V5/V6):**
