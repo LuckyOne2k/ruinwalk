@@ -1,0 +1,7 @@
+[
+  { "datei": "008_story_neu_im_feed_reel.jpg", "format": "story", "layout": "klasse", "hintergrund": "assets/bg_chars.jpg",
+    "kicker": "Neu im Feed · Reel", "titel": "Vom Wanderer zum Hohepriester",
+    "text": "Und dann? Die dritte Stufe bleibt ein Geheimnis.",
+    "figuren": [ { "bild": "figs/hohepriester.png", "name": "Hohepriester" }, { "bild": "figs/wanderer.png", "name": "Wanderer" }, { "bild": "figs/heiler.png", "name": "Heiler" }, { "bild": "figs/priester.png", "name": "Priester" } ],
+    "chips": ["Heilendes Licht", "Gebet", "Heiliger Schild"] }
+]
