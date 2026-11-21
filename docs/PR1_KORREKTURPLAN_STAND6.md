@@ -1,6 +1,6 @@
 # Korrigierter Plan PR 1 – Stand 6 (21.11.2026)
 
-> Nur Plan. Keine Code-, SQL-, Test-, Workflow- oder Konfigurationsänderung, kein Commit, keine Datenbankaktion, keine Installation.
+> Nur Plan. Committet wurde bisher ausschließlich dieses Plandokument (auf dem Arbeitszweig `ccr-2e014f58-1i6nm4`). Es gab keine Implementierung, keine Code-, SQL-, Test-, Workflow- oder Konfigurationsänderung, keine Datenbankaktion und keine Installation.
 > Stand 6 ersetzt Stand 5 (`docs/PR1_KORREKTURPLAN_STAND5.md`, Commit `a1e6bdb`) vollständig. Stand 5 ersetzte Stand 4 (`docs/PR1_KORREKTURPLAN_STAND4.md`, Commit `e996bea`).
 > Änderungen gegenüber Stand 5: Abschnitt 0.4. Grundlage: Prüfberichte zu Stand 5 (E14/S-B, K1-9, Vollständigkeit) und zu K1-9g (Sperrreihenfolgen, B-2) vom 21.11.2026.
 > Bezug: lokaler Zweig `integration/nacht-nach-main` in `/home/user/ruinwalk-pr1` (Basis `main` `c9b351a` + `nacht/operator-edge-function` `2cd72e5`, nicht gepusht).
