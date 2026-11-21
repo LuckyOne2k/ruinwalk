@@ -26,6 +26,8 @@ Ausführlich: `marketing/02_marke_kommunikation.md`. Diese Datei ist die Arbeits
 | 🧪 Prototyp/in Arbeit (Gruppen-Dungeons, Weltboss, Mehrspieler) | nur „in Entwicklung“, „wir arbeiten an …“, ohne Termin, ohne Spielszenen |
 | ❌ nicht vorhanden (Hauptgeschichte, Handel, Ranglisten, PvP, App-Store-App, Events) | nicht erwähnen oder als offene Frage an die Community („Was wünscht ihr euch?“) |
 
+**Verborgene Klassen bleiben geheim** (Pascal, 20.11.2026): Die dritte Stufe jedes Pfads (`PATHS[*].st[2]`, im Spiel „❓ Verborgene Klasse – Name und Werte bleiben geheim“) wird nie öffentlich mit Namen, Fähigkeit, Werten oder Figur gezeigt, auch nicht als Silhouette und nicht durch Bestätigen von Rateversuchen. Erwünscht sind Hinweise („Die dritte Stufe bleibt ein Geheimnis …“) und die Rätselsprüche aus `SECRET[*].h`, die das Spiel vorher zeigt. Keine Bedingungen, Zahlen oder Werte der dritten Stufe (auch nicht die Anforderungen aus `UPQ[2]`). Keine Screenshots aus „Klasse wechseln (Vorschau)“ (`?dev=1`) oder aus Testmodus-Spielständen mit Stufe 3. Sperrwörter (Name, Fähigkeit, Set-Name `PSN[*][2]`, Figur-ID) erzwingen `pruefen`, `antworten` und `render.js` über `geheim.js`. Sperrliste: `node .claude/skills/ruinwalk-meta-publishing/scripts/geheim.js` (aus `index.html` abgeleitet, von `meta-api.js pruefen`/`antworten` und `render.js` erzwungen).
+
 Quelle der Wahrheit: Skill `ruinwalk-projektwissen` (`references/spielsysteme.md`). Im Zweifel: weglassen oder Pascal fragen.
 
 ## Visuelle Identität
@@ -36,7 +38,7 @@ Quelle der Wahrheit: Skill `ruinwalk-projektwissen` (`references/spielsysteme.md
 - KI-Bilder: nur als Stimmungsbild, kennzeichnen („Stimmungsbild“), nie als Spielszene. Keine Stile lebender Künstler nachahmen, keine fremden Marken/Figuren.
 
 ## Kurzprüfung vor jeder Freigabe (alle mit Ja beantworten)
-1. Stimmt jede Spielaussage mit dem Projektwissen überein (live vs. in Entwicklung)?
+1. Stimmt jede Spielaussage mit dem Projektwissen überein (live vs. in Entwicklung)? Bleibt jede verborgene Klasse ohne Namen, Werte und Bild?
 2. Zeigt das Bild echte Spielgrafik oder ist es als Stimmungsbild gekennzeichnet?
 3. Tonalität: Du-Form, ruhig-mystisch, keine Übertreibung?
 4. Klarer nächster Schritt (Frage, Link in Bio, Speichern) – höchstens einer?

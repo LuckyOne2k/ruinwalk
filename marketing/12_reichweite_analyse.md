@@ -95,7 +95,7 @@ Vorschlag, **nicht umgesetzt**. Voraussetzung für Reels und Stories im autonome
 | Tag | Feed (17:35) | Story (nach dem Beitrag) |
 |---|---|---|
 | Sa 21.11. | Karussell 004 Lebensräume (bereits vorbereitet) | Beitrag teilen |
-| So 22.11. | **Reel 1:** „Vom Wanderer zum Lichtgesandten“ – Figuren-Verwandlung, 10 s | Frage-Optik „Welche Klasse?“ |
+| So 22.11. | **Reel 1:** „Vom Wanderer zum Hohepriester – und dann?“ (dritte Stufe bleibt geheim, Entscheidung Pascal 20.11.2026) – Figuren-Verwandlung, 10 s | Frage-Optik „Welche Klasse?“ |
 | Mo 23.11. | Bild/Umfrage 005 (bereits in Arbeit) | Beitrag teilen |
 | Di 24.11. | Pause oder Story-Tag | Werkstatt-Einblick (git log) |
 | Mi 25.11. | **Reel 2:** Gebietsboss-Telegraph in echter Spielszene | Beitrag teilen · **7-Tage-Auswertung 001** |

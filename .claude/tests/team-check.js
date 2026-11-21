@@ -65,6 +65,15 @@ const FAELLE = [
   // Modus aus marketing/meta/modus.json (Erwartung wird unten abhängig vom Modus gesetzt)
   [{ tool_name: 'Bash', tool_input: { command: 'node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js veroeffentlichen a.md --senden' } }, 'MODUS'],
   [{ tool_name: 'Bash', tool_input: { command: 'node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js veroeffentlichen a.md --senden; curl -X POST https://graph.facebook.com/x' } }, true],
+  // Umgehungen der Autonom-Ausnahme (QA H1, 20.11.2026): Test-Schalter, vorgeladener Code, env → immer Rückfrage
+  [{ tool_name: 'Bash', tool_input: { command: 'RW_META_ROOT=/tmp/x node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js veroeffentlichen a.md --senden' } }, true],
+  [{ tool_name: 'Bash', tool_input: { command: 'NODE_OPTIONS="-r /tmp/x.js" node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js veroeffentlichen a.md --senden' } }, true],
+  [{ tool_name: 'Bash', tool_input: { command: 'node -r /tmp/x.js .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js veroeffentlichen a.md --senden' } }, true],
+  [{ tool_name: 'Bash', tool_input: { command: 'node --require=/tmp/x.js .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js veroeffentlichen a.md --senden' } }, true],
+  [{ tool_name: 'Bash', tool_input: { command: 'node --import /tmp/x.mjs .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js veroeffentlichen a.md --senden' } }, true],
+  [{ tool_name: 'Bash', tool_input: { command: 'env FOO=1 node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js veroeffentlichen a.md --senden' } }, true],
+  [{ tool_name: 'Bash', tool_input: { command: 'node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js veroeffentlichen a.md --senden 2>&1' } }, 'MODUS'],
+  [{ tool_name: 'Bash', tool_input: { command: 'node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js antworten 123 "Danke dir!" --senden' } }, 'MODUS'],
   [{ tool_name: 'Edit', tool_input: { file_path: '/repo/marketing/meta/modus.json' } }, true],
   [{ tool_name: 'Write', tool_input: { file_path: '/repo/marketing/meta/modus.json' } }, true],
   [{ tool_name: 'Bash', tool_input: { command: "sed -i 's/pause/autonom/' marketing/meta/modus.json" } }, true],

@@ -11,6 +11,14 @@ const motive = [].concat(JSON.parse(fs.readFileSync(pos[0], 'utf8')));
 const out = path.resolve(pos[1] || path.join(ROOT, 'marketing/grafiken/entwuerfe'));
 const skala = Number((args.find(a => a.startsWith('--skala=')) || '--skala=1').split('=')[1]);
 const GROESSE = { post: [1080, 1350], story: [1080, 1920], quadrat: [1080, 1080], banner: [1640, 624] };
+// Verborgene Klassen (Pascal 20.11.2026): keine Namen, Fähigkeiten oder Figuren der dritten Pfadstufen in Marketinggrafiken.
+{ const { treffer } = require(path.join(ROOT, '.claude/skills/ruinwalk-meta-publishing/scripts/geheim.js'));
+  let geheim = 0;
+  for (const m of motive) {
+    const g = treffer(JSON.stringify({ ...m, figuren: (m.figuren || []).map(f => f.name) }), [m.hintergrund, m.bild, ...(m.figuren || []).map(f => f.bild)]);
+    if (g.length) { console.error(`✗ ${m.datei}: verborgene Klasse genannt/gezeigt (bleibt geheim): ${g.join(', ')}`); geheim++; }
+  }
+  if (geheim) process.exit(1); }
 
 (async () => {
   const { srv, url } = await H.serve();

@@ -60,7 +60,10 @@ process.stdin.on('end', () => {
     if (MODUS_DATEI.test(c) && /(>|\bsed\s+-i|\btee\b|\bcp\b|\bmv\b|\brm\b|\bperl\s+-i|writeFile|open\([^)]*['"]w)/.test(c))
       return ask('Ruin Walk: Änderung am Veröffentlichungsmodus (autonom/freigabe/pause). Das entscheidet nur Pascal.');
     if (/meta-api\.js[\s\S]*--senden/.test(c)) {
-      if (modus === 'autonom' && !/[;&|`$]/.test(c.replace(/2>&1/g, ''))) return;   // nur ein schlichter Skriptaufruf, keine verketteten Befehle
+      // Positivliste (QA-Befunde H1 und N-1, 20.11.2026): Ohne Rückfrage läuft im Modus autonom NUR genau dieser schlichte Aufruf des Skripts im Repo –
+      // keine Umgebungsvariablen davor, keine node-Optionen (-r, -e, --import, --env-file …), keine Kopie unter anderem Pfad, keine verketteten Befehle.
+      const erlaubt = /^node \.claude\/skills\/ruinwalk-meta-publishing\/scripts\/meta-api\.js (veroeffentlichen|antworten) [^;&|`$<>\n]*--senden( 2>&1)?$/.test(c.trim());
+      if (modus === 'autonom' && erlaubt) return;
       return ask('Ruin Walk: Veröffentlichung auf Instagram/Facebook. Nur bestätigen, wenn Pascal genau diesen Beitrag freigegeben hat (marketing/freigabe).');
     }
     if (/graph\.(facebook|instagram)\.com/.test(c) && /(-X\s*(POST|DELETE|PUT)|--request\s+(POST|DELETE|PUT)|\s-d\s|--data|\s-F\s|--form|method:\s*['"](POST|DELETE))/i.test(c))

@@ -7,11 +7,11 @@ Jede Idee: Format · Kernaussage · Beleg im Spiel · Grafik/Material. Alle Inha
 | 1 | „Deine Welt ist das Spielfeld“ | Einzelbild (Teaser) | Was Ruin Walk ist, in einem Satz | Landingpage | Vorlage `titel`, bg_login |
 | 2 | Was ist Ruin Walk? | Karussell 6 S. | Erkunden → Sammeln → Kämpfen → Herstellen → Entwickeln → Jetzt testen | Spielsysteme | Screenshots Karte/Inventar/Herstellen/Charakter |
 | 3 | Wähle deinen Weg | Karussell 5 S. | 4 Grundklassen ab Stufe 5 | `CLASSES` | Vorlage `klasse` je Klasse |
-| 4 | Der Krieger und seine drei Pfade | Karussell | Ritter, Berserker, Duellant mit je 3 Stufen | `PATHS` | figs/ritter…phantomklinge |
+| 4 | Der Krieger und seine drei Pfade | Karussell | Ritter, Berserker, Duellant mit je 2 sichtbaren Stufen + ❓ (dritte Stufe geheim) | `PATHS` | figs der Stufen 1–2 (nie die verborgene dritte) |
 | 5 | Bogenschütze: Scharfschütze, Jäger, Fallensteller | Karussell | Reichweite, Tiergefährte, Fallen | `PATHS` | figs |
-| 6 | Elementarmagier: Feuer, Frost, Sturm | Karussell | Pyromant bis Himmelsspalter | `PATHS` | figs |
+| 6 | Elementarmagier: Feuer, Frost, Sturm | Karussell | Feuer-, Frost-, Sturmmagier bis Stufe 2, dritte Stufe ❓ | `PATHS` | figs der Stufen 1–2 |
 | 7 | Heiler: Priester, Mönch, Naturheiler | Karussell | Licht, Faust, Kräuter | `PATHS` | figs |
-| 8 | Die verborgene dritte Stufe | Einzelbild + Story-Rätsel | 12 geheime Bedingungen – wer findet sie? | `SECRET` | Silhouette einer Stufe-3-Figur (nur Name zeigen, Bedingung nicht verraten) |
+| 8 | Die verborgene dritte Stufe | Einzelbild + Story-Rätsel | 12 geheime Bedingungen – wer findet sie? | `SECRET` | Nur ❓ und Rätselsprüche aus `SECRET[*].h` – keine Namen, Figuren, Silhouetten oder Werte (Regel Pascal 20.11.2026) |
 | 9 | Fünf Lebensräume | Karussell | Wald, Wiese, Sumpf, Fels, Ruinen – echte Kartendaten bestimmen die Kreaturen | `HAB`, `pickMob` | Monster-Sprites je Lebensraum |
 | 10 | Was lebt in deinem Park? | Reel 20 s | Unterwegs im Wald: Rohling, Waldspinne, Wildkeiler erscheinen | `MOBS.hab` | Bildschirmaufnahme draußen (Pascal) |
 | 11 | Randland bis Ruinenreich | Karussell | 5 Gebietsstufen, Heimat bleibt sicher, Gefahr wächst mit Entfernung | Phase A | Screenshot Gebietsanzeige |

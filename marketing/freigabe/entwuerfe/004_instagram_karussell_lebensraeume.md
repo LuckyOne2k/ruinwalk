@@ -70,12 +70,14 @@ In welchem Lebensraum gehst du am liebsten spazieren? Schreib es in die Kommenta
 
 ## Alt-Text
 Seite 1: Dunkler, gemalter Wald mit Ruinen, darauf das Ruin-Walk-Logo. Text: „Fünf Lebensräume. Jeder Ort hat seine Kreaturen. Echte Kartendaten bestimmen, wer dir begegnet.“ Unten rechts der Hinweis „In Entwicklung“.
-Seiten 2–6 (nach dem Rendern ergänzen): Je ein Lebensraum mit Namen und drei Pixel-Art-Kreaturen, zum Beispiel „Wald: Waldspinne, Wildkeiler, Eichhörnchen“.
+Seite 2: Lebensraum Wald, Titel „Im Unterholz“. Drei Pixel-Art-Kreaturen vor dunklen Waldruinen: eine große braune Spinne mit gelben Augen, ein kleiner Wildkeiler mit Hauern und ein Eichhörnchen. Text: „Waldspinne, Wildkeiler und Eichhörnchen. Mehr Bäume, mehr Holz.“
+Seite 3: Lebensraum Wiese und Feld, Titel „Auf offenem Land“. Ein weißer Feldhase, eine grüne Giftschlange und ein brauner streunender Hund in Pixel-Art. Text: „Feldhase, Giftschlange und streunende Hunde. Hier wächst viel Heilkraut.“
+Seite 4: Lebensraum Sumpf und Wasser, Titel „Am Wasser“. Ein roter Blutegel, eine Mücke mit blauen Flügeln und ein grüner Riesenfrosch in Pixel-Art. Text: „Blutegel, Mückenschwärme und Riesenfrösche. Ranken gibt es reichlich.“
+Seite 5: Lebensraum Fels und Berg, Titel „Zwischen Steinen“. Eine weiße Bergziege mit Hörnern, ein grüner Goblin mit Keule und ein oranger Steinskorpion in Pixel-Art. Text: „Bergziegen, Goblins und Steinskorpione. Hier findest du mehr Erz.“
+Seite 6: Lebensraum Ruinen und Siedlung, Titel „Zwischen alten Mauern“. Eine graue Kanalratte, ein blaues Irrlicht und eine graue Fledermaus mit roten Augen in Pixel-Art. Text: „Kanalratten, Irrlichter und Riesenfledermäuse.“
 
 ## Notizen für Pascal
-- **Seiten 2–6 fehlen noch als Bild.** Die Monster-Sprites gibt es nur als Zeichenanweisungen in `sprites_mobs.js`, nicht als PNG. Die Grafikvorlage kann aber nur PNGs einbinden. Du hast zwei Möglichkeiten:
-  a) Einmalig die 15 Sprites als PNG nach `marketing/grafiken/sprites/` exportieren (kleines Hilfsskript, eigener Auftrag). Danach rendere ich die Seiten 2–6 mit Layout `klasse`. **Empfohlen**, weil die Idee ausdrücklich Sprites vorsieht.
-  b) Sofort mit Layout `liste` rendern (Lebensraum-Symbol + Monsternamen, ohne Bild). Das geht schneller, wirkt aber weniger.
+- Seiten 2–6 sind gerendert (echte Monster-Sprites, siehe Nachtrag unten); Alt-Text je Seite ist ergänzt (20.11.2026).
 - Bitte prüfen: Passt die Frage am Ende, oder lieber „Speichern für den nächsten Spaziergang“? Es soll nur ein Call-to-Action sein.
 - Kartenscreenshots mit echten Lebensräumen sind im Testmodus nicht möglich (keine Kartenkacheln). Falls du einen eigenen machst, bitte ohne erkennbare Wohnadresse.
 - Die Story-Umfrage „Wald oder Sumpf?“ an Tag 4 passt dazu und kann die Kommentare aufgreifen.
