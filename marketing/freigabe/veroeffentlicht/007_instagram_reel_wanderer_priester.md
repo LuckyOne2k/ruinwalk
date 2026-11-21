@@ -4,15 +4,15 @@ titel: Reel 1 – Vom Wanderer zum Hohepriester, die dritte Stufe bleibt geheim 
 kanal: instagram
 format: reel
 geplant_fuer: nach Freigabe durch Pascal (Vorschlag 14-Tage-Plan: So 22.11.2026 oder Di 24.11.2026, 17:35)
-status: autonom
+status: veroeffentlicht
 freigegeben_von: Pascal
 freigegeben_am: 2026-11-21 (Chat: „Reel 007 freigegeben“)
 video: marketing/grafiken/entwuerfe/007_reel_wanderer_priester.mp4
 video_url:
 vorschau_ms: 5300
 bild: marketing/grafiken/entwuerfe/007_reel_wanderer_priester_vorschau.jpg
-veroeffentlicht_am:
-link:
+veroeffentlicht_am: 2026-11-21 18:26 MEZ (17:26:53 UTC, autonom, instagram-reel:18086472044338803)
+link: https://www.instagram.com/reel/DgAw32etR9P/
 ---
 
 ## Ziel

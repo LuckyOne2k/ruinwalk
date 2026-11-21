@@ -4,13 +4,13 @@ titel: Story – Neu im Feed: Reel 007 (Wanderer bis Hohepriester)
 kanal: instagram
 format: story
 geplant_fuer: 2026-11-21, direkt nach Reel 007 (Sa, Rhythmus „Hinweis auf das Reel“)
-status: autonom
+status: veroeffentlicht
 freigegeben_von:
 freigegeben_am:
 bild: marketing/grafiken/entwuerfe/008_story_neu_im_feed_reel.jpg
 bild_url:
-veroeffentlicht_am:
-link:
+veroeffentlicht_am: 2026-11-21 18:27 MEZ (17:27:06 UTC, autonom, instagram-story:18001840980053940)
+link: (Story, kein Permalink über /media; 24 h sichtbar, ID instagram-story:18001840980053940)
 ---
 
 ## Ziel
