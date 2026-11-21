@@ -26,18 +26,18 @@ Regel (Pascal, 20.11.2026): Verborgene Klassen werden nie beim Namen genannt, ke
 | 2,2–4,6 s | Heiler, Level 5 (weiße Überblendung = Verwandlung) | LEVEL 5 · GRUNDKLASSE · Heiler | Neue Fähigkeit: Heilendes Licht |
 | 4,1–6,5 s | Priester, Level 15 | LEVEL 15 · PFADSTUFE 1 · Priester | Neue Fähigkeit: Gebet |
 | 6,1–8,5 s | Hohepriester, Level 30 | LEVEL 30 · PFADSTUFE 2 · Hohepriester | Neue Fähigkeit: Heiliger Schild |
-| 8,0–11,0 s | Bildschirm „Klassenentwicklung“ auf Stufe 2, Ausschnitt: „❓ Verborgene Klasse“, Rätselspruch, „Name und Werte bleiben geheim …“ (die Stufen-Anforderungen darüber sind ausgeblendet) | STUFE 3 · Verborgene Klasse | Die dritte Stufe bleibt ein Geheimnis. |
+| 8,0–11,0 s | Bildschirm „Klassenentwicklung“ auf Stufe 2, Ausschnitt: „❓ Verborgene Klasse“, Rätselspruch, „Name und Werte bleiben geheim …“ (die Stufen-Anforderungen darüber sind ausgeblendet) | LEVEL 50 · STUFE 3 · Verborgene Klasse | Die dritte Stufe bleibt ein Geheimnis. |
 | 10,6–13,8 s | Schlusskarte: Logo, Waldruinen-Hintergrund | 4 KLASSEN · 12 PFADE · 36 STUFEN – Welchen Weg gehst du? | Ein GPS-Fantasy-RPG im Browser. Echte Spielgrafik. Badge „In Entwicklung“ |
 
 Keine Figur, kein Name, keine Fähigkeit und keine Bedingungen oder Zahlen der verborgenen Stufe im Bild (Einzelbilder angesehen, 21.11.2026).
-Herstellung (wiederholbar): `node marketing/grafiken/reel_007_aufnahme.js`. Playwright öffnet `index.html` im Testmodus (Karte, OSM und Supabase abgeschaltet, kein Standort), setzt die Spielstände, fotografiert die Bildschirme (405×720 bei Faktor 2,67 = 1080×1920), legt das Markenband darüber (es verdeckt HUD und Testmodus-Anzeige) und schneidet mit ffmpeg (leichter Zoom, Überblendungen, H.264, stille AAC-Spur, `+faststart`). Ergebnis: 3,6 MB, 13,8 s. Die Texte liegen zwischen 215 und 1520 px Höhe, also außerhalb der Bereiche, die die Reels-Oberfläche verdeckt.
+Herstellung (wiederholbar): `node marketing/grafiken/reel_007_aufnahme.js`. Playwright öffnet `index.html` im Testmodus (Karte, OSM und Supabase abgeschaltet, kein Standort), setzt die Spielstände, fotografiert die Bildschirme (405×720 bei Faktor 2,67 = 1080×1920), legt das Markenband darüber (es verdeckt HUD und Testmodus-Anzeige) und schneidet mit ffmpeg (leichter Zoom, Überblendungen, H.264, stille AAC-Spur, `+faststart`). Ergebnis: 3,6 MB, 13,8 s (neu erzeugt 21.11.2026 mit „Level 50“). Die Texte liegen zwischen 215 und 1520 px Höhe, also außerhalb der Bereiche, die die Reels-Oberfläche verdeckt.
 
 ## Faktenprüfung
 - Start als Wanderer ohne Klasse → `CLASSES.wanderer` `blurb:'Noch keine Klasse.'`; Standard-Spielstand `cls:'wanderer'` → live
 - Klassenwahl ab Level 5 → `CLASS_LV=5` → live
 - Vier Grundklassen → `PICK=['krieger','bogen','magier','heiler']`, `CLASSES` → live
 - Heiler-Fähigkeit „Heilendes Licht“ ab Level 5 → `CLASSES.heiler.sk` `{n:'Heilendes Licht', lv:5}` → live
-- Pfadstufen 1 und 2 bei Level 15 und 30 → `UP_LV=[15,30,50]` → live
+- Pfadstufen 1 und 2 bei Level 15 und 30, dritte Stufe ab Level 50 → `UP_LV=[15,30,50]` (`index.html` ~725); die Klassenentwicklung zeigt auf Stufe 2 „Stufe 50“ als Anforderung → live. Das nötige Level der dritten Stufe darf genannt werden (Entscheidung Pascal 21.11.2026), alle übrigen Bedingungen bleiben geheim
 - Priester → Hohepriester mit den Fähigkeiten Gebet und Heiliger Schild → `PATHS.priester.st[0]`, `st[1]` (`sk.n`) → live
 - Dritte Stufe = verborgene Klasse, Name und Werte geheim bis zum Erwecken → Klassenentwicklung (`openSheet('up')`, Zweig `S.tier===2`): „❓ Verborgene Klasse … Name und Werte bleiben geheim, bis du die Bedingung erfüllt hast“; Pfadwahl zeigt `st[0].n → st[1].n → ❓` → live
 - Rätselspruch „Wer Leben bewahrt, wird vom Himmel gesandt.“ → `SECRET.priester.h`, im Spiel vor dem Erwecken sichtbar → live (die Bedingung selbst wird nicht genannt)
@@ -52,7 +52,7 @@ Vom Wanderer zum Hohepriester. Und dann? Die dritte Stufe bleibt ein Geheimnis.
 
 Du beginnst ohne Klasse. Ab Level 5 wählst du eine von vier Grundklassen, hier den Heiler. Mit Level 15 und 30 steigst du auf deinem Pfad weiter auf und bekommst jedes Mal eine neue Fähigkeit: Gebet und Heiliger Schild.
 
-Danach wartet eine verborgene Klasse. Name und Werte bleiben geheim, bis du ihre Bedingung erfüllst. Im Spiel steht nur ein Rätselspruch: „Wer Leben bewahrt, wird vom Himmel gesandt.“
+Ab Level 50 wartet eine verborgene Klasse. Name und Werte bleiben geheim, bis du ihre Bedingung erfüllst. Im Spiel steht nur ein Rätselspruch: „Wer Leben bewahrt, wird vom Himmel gesandt.“
 
 Alles im Video ist echte Spielgrafik. Ruin Walk ist noch in Entwicklung.
 
@@ -68,7 +68,7 @@ Was glaubst du, wer sich dahinter verbirgt?
 (4 Nische, 1 mittel; Schlüsselwörter „Pixel-Art“, „RPG“, „Klasse“, „Level“ stehen zusätzlich in Caption und Video, Maßnahme A5.)
 
 ## Alt-Text
-Kurzes Hochformat-Video aus Ruin Walk. Im Charakter-Bildschirm verwandelt sich eine Pixel-Art-Figur in vier Schritten: Wanderer mit Kapuze und Schleuder auf Level 4, grün gekleideter Heiler mit Stab auf Level 5, weiß gekleideter Priester mit Heiligenschein auf Level 15 und Hohepriester mit goldenem Umhang auf Level 30. Oben stehen jeweils Level und Name, unten die neue Fähigkeit. Danach erscheint der Bildschirm Klassenentwicklung mit einem Fragezeichen, der Überschrift „Verborgene Klasse“ und dem Spruch „Wer Leben bewahrt, wird vom Himmel gesandt.“. Zum Schluss das Ruin-Walk-Logo vor dunklen Waldruinen mit dem Text „4 Klassen, 12 Pfade, 36 Stufen. Welchen Weg gehst du?“ und dem Hinweis „In Entwicklung“.
+Kurzes Hochformat-Video aus Ruin Walk. Im Charakter-Bildschirm verwandelt sich eine Pixel-Art-Figur in vier Schritten: Wanderer mit Kapuze und Schleuder auf Level 4, grün gekleideter Heiler mit Stab auf Level 5, weiß gekleideter Priester mit Heiligenschein auf Level 15 und Hohepriester mit goldenem Umhang auf Level 30. Oben stehen jeweils Level und Name, unten die neue Fähigkeit. Danach erscheint „Level 50 · Stufe 3“ über dem Bildschirm Klassenentwicklung mit einem Fragezeichen, der Überschrift „Verborgene Klasse“ und dem Spruch „Wer Leben bewahrt, wird vom Himmel gesandt.“. Zum Schluss das Ruin-Walk-Logo vor dunklen Waldruinen mit dem Text „4 Klassen, 12 Pfade, 36 Stufen. Welchen Weg gehst du?“ und dem Hinweis „In Entwicklung“.
 
 (Die Graph API überträgt Alt-Text nur bei Bildbeiträgen, nicht bei Reels. Pascal kann ihn nach dem Posten in der App ergänzen, falls die App das für Reels anbietet.)
 

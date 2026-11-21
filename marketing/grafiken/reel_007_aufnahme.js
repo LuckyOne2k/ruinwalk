@@ -23,7 +23,7 @@ const STUFEN = [
   { cls: 'heiler', path: '', tier: 0, lv: 5, kicker: 'Level 5 · Grundklasse', titel: 'Heiler', sub: 'Neue Fähigkeit: Heilendes Licht' },
   { cls: 'heiler', path: 'priester', tier: 1, lv: 15, kicker: 'Level 15 · Pfadstufe 1', titel: 'Priester', sub: 'Neue Fähigkeit: Gebet' },
   { cls: 'heiler', path: 'priester', tier: 2, lv: 30, kicker: 'Level 30 · Pfadstufe 2', titel: 'Hohepriester', sub: 'Neue Fähigkeit: Heiliger Schild' },
-  { cls: 'heiler', path: 'priester', tier: 2, lv: 30, ansicht: 'up', kicker: 'Stufe 3', titel: 'Verborgene Klasse', sub: 'Die dritte Stufe bleibt ein Geheimnis.', bandH: 470, versatz: -520 },
+  { cls: 'heiler', path: 'priester', tier: 2, lv: 30, ansicht: 'up', kicker: 'Level 50 · Stufe 3', titel: 'Verborgene Klasse', sub: 'Die dritte Stufe bleibt ein Geheimnis.', bandH: 470, versatz: -520 },
   // versatz: Bild nach oben schieben, damit Stufen-Anforderungen (UPQ[2]) unter dem Band verschwinden – keine Bedingungen/Zahlen der dritten Stufe zeigen
 ];
 const DAUER = [2.6, 2.4, 2.4, 2.4, 3.0], ENDE = 3.2, UEB = 0.45;   // Sekunden je Bild, Schlusskarte, Überblendung

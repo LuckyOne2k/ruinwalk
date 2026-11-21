@@ -107,6 +107,9 @@ console.log('Verborgene Klassen bleiben geheim (Pascal 20.11.2026)');
     check(oeff.length > 200 && GEHEIM.treffer(oeff).length === 0, 'Beitrag ohne Fehlalarm (Text gelesen): ' + d, oeff.length + ' ' + GEHEIM.treffer(oeff)); }
   const ok = lauf(['pruefen', datei({ format: 'post', bild: 'm/einzel.jpg' }, { 'Caption Instagram': 'Die dritte Stufe bleibt ein Geheimnis. Wer Leben bewahrt, wird vom Himmel gesandt.\n\n#ruinwalk #pixelrpg #gpsrpg' })]);
   check(ok.code === 0, 'Hinweis und Rätselspruch ohne Namen sind erlaubt', ok.out);
+  const lv = lauf(['pruefen', datei({ format: 'post', bild: 'm/einzel.jpg' }, { 'Caption Instagram': 'Ab Level 50 wartet eine verborgene Klasse. LEVEL 50 · STUFE 3, mehr verraten wir nicht.\n\n#ruinwalk #pixelrpg #gpsrpg' })]);
+  check(lv.code === 0, 'nötiges Level der dritten Stufe („Level 50“) darf genannt werden (Pascal 21.11.2026)', lv.out);
+  check(GEHEIM.treffer('Ab Level 50 wartet eine verborgene Klasse.').length === 0, 'geheim.js sperrt „Level 50“ nicht');
   for (const [ab, name] of [[{ 'Caption Instagram': 'Vom Wanderer zum Lichtgesandten in fünf Stufen, schau selbst.\n\n#ruinwalk #pixelrpg #gpsrpg' }, 'Name in Caption'],
     [{ 'Alt-Text': 'Eine Figur mit Flügeln, beschriftet als Phönixweber, vor dunklem Grund.' }, 'Name im Alt-Text'],
     [{ 'Caption Instagram': 'Die Fähigkeit Himmelslicht heilt dich stark, wenn es eng wird.\n\n#ruinwalk #pixelrpg #gpsrpg' }, 'Fähigkeit der verborgenen Stufe'],
@@ -204,6 +207,7 @@ for (const [t, name] of [['Schau mal auf https://example.com vorbei', 'Link'], [
   const r = antw(t); check(r.code === 1 && r.aufrufe.length === 0, 'Antwort abgelehnt: ' + name, r.out);
 }
 { const r = antw('Danke! Folge @ruinwalk.official für mehr.'); check(r.code === 0, 'eigene @-Erwähnung ist erlaubt', r.out); }
+{ const r = antw('Ab Level 50 wird es spannend, mehr verraten wir nicht.'); check(r.code === 0, 'Antwort mit „Level 50“ ist erlaubt', r.out); }
 for (const t of ['Danke dir! Der Heiler ist auch unser heimlicher Liebling. Welchen Pfad würdest du nehmen?', 'Gute Frage. Aktuell gibt es fünf Lebensräume, und welcher dir begegnet, entscheiden echte Kartendaten.']) {
   const r = antw(t); check(r.code === 0, 'Beispielantwort aus 13_beitragsmix_serien.md ist erlaubt: ' + t.slice(0, 30), r.out); }
 { const r = antw('Danke dir! Welche Klasse würdest du wählen?', { ...SZ, media: { id: '900', owner: { id: '4711' }, username: 'fremd' } });
