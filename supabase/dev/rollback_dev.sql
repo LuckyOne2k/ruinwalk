@@ -121,7 +121,7 @@ insert into rw_manifest(kind, entry) values
     ('fn','join(p_instance bigint, p_player text)=e0687eb7f4905ef840afa4f92357dfb1'),
     ('fn','leave(p_instance bigint, p_player text)=56ef61c6d41aa2492491d81c2012469b'),
     ('fn','members_size_guard()=4d1612fca9291c50acb1c23d0573bb27'),
-    ('fn','on_character_deleted()=168f2fa990b9c957eab6ff87b0380f10'),
+    ('fn','on_character_deleted()=3723ef89552f432a40aae71b31bbe749'),
     ('fn','on_fight_end()=33a3049aba83a19f159832caeedf2918'),
     ('fn','on_profile_deleted()=815e31c621db62b33f58ce6cccad6dd1'),
     ('fn','on_profile_deleting()=aed2d1075cba406c35b9efc5b4aad7e2'),

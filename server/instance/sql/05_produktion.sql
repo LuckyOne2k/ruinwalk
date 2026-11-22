@@ -210,12 +210,19 @@ create or replace function rwi.eligible(p_player text) returns boolean language 
 -- Mitglieds-, Kampf- und Belohnungszeilen bleiben als Verlauf erhalten; sie enthalten nur die nicht mehr zuordenbare Charakter-ID.
 create function rwi.on_character_deleted() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
-declare k text := old.character_id::text; r record;
+declare k text := old.character_id::text; r record; kk bigint;
 begin
   -- B-2: Beratungssperre je Charakter VOR der Schleife (eigene Anweisung -> die Schleife sieht einen gleichzeitig bestätigten Beitritt). Wiedereintrittsfähig, wenn
   -- delete_character bzw. on_profile_deleting sie schon hält. Nur READ COMMITTED (K-c).
+  -- B-6: Beim ersten Aufruf je Anweisung werden die Beratungssperren ALLER in dieser Anweisung gelöschten Charaktere genommen (Übergangstabelle, entdoppelt,
+  -- aufsteigend nach Schlüssel wie create_group/on_profile_deleting) – vor jeder Instanzsperre. Ein mehrzeiliges DELETE nimmt A damit nicht mehr in Zeilenreihenfolge
+  -- (Zyklus mit create_group: A sortiert) und nicht mehr verschränkt mit Instanzsperren (Zyklus mit group_join: A -> I). Spätere Aufrufe derselben Anweisung finden
+  -- die Sperren bereits gehalten (wiedereintrittsfähig, nur lokale Sperrtabelle).
   if current_setting('transaction_isolation') <> 'read committed' then raise exception 'read_committed_required' using errcode = '25000'; end if;
-  perform pg_advisory_xact_lock(hashtextextended('rwi.char:' || lower(k), 0));
+  for kk in select hashtextextended('rwi.char:' || lower(o.character_id::text), 0) from rwi_deleted_chars o
+            union select hashtextextended('rwi.char:' || lower(k), 0) order by 1 loop   -- union entdoppelt; die eigene Zeile immer dabei
+    perform pg_advisory_xact_lock(kk);
+  end loop;
   for r in select i.id from rwi.instances i
             where i.status = 'active'
               and (exists (select 1 from rwi.members m where m.instance_id = i.id and m.player = k and m.mstate = 'active')
@@ -237,7 +244,7 @@ begin
   delete from rwi.players where player = k;
   return old;
 end $$;
-create trigger characters_rwi_cleanup after delete on public.characters for each row execute function rwi.on_character_deleted();
+create trigger characters_rwi_cleanup after delete on public.characters referencing old table as rwi_deleted_chars for each row execute function rwi.on_character_deleted();
 
 -- Kontolöschung: vor der Kaskade auf die Charaktere alle aktiven Instanzen des Kontos in aufsteigender ID sperren (einheitliche Sperrreihenfolge), danach das Konto aus den
 -- Mitglieds-/Wartelistenzeilen entfernen (personenbezogene Kennung; die Zeilen bleiben als anonymer Verlauf). Beim Löschen NUR eines Charakters bleibt die Kontozuordnung bestehen

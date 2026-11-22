@@ -25,9 +25,24 @@ end $$;
 -- Löscht ausschließlich Testkonten, deren E-Mail auf @rwtest.invalid endet (reservierte Testdomain, nie echte Spieler). Separat vom Rollback.
 -- Voraussetzung: gleiche Bestätigung wie beim Rollback (rw.rollback_confirm = 'ja-loeschen'; Wrapper: RW_ROLLBACK_CONFIRM=ja-loeschen).
 do $$
-declare n bigint;
+declare n bigint; k bigint;
 begin
   if coalesce(current_setting('rw.rollback_confirm', true), '') <> 'ja-loeschen' then raise exception 'cleanup: Bestätigung fehlt'; end if;
+  -- B-6: mehrere Konten in EINER Anweisung. Vorab in der Reihenfolge der Admin-Löschung sperren: Kontozeilen (U), Profile (Pr), dann die Beratungssperren aller
+  -- ihrer Charaktere (A, Schlüssel wie Schema rwi) – jeweils sortiert. Sonst nähme die Kaskade A je Konto nacheinander (nicht global sortiert) und könnte sich mit
+  -- gleichzeitigem rwi.create_group/group_join verklemmen; A vor Pr würde dagegen delete_character/save_character (Pr zuerst) blockieren (Pr-Torregel).
+  -- Ohne Schema rwi sind die Beratungssperren wirkungslos, aber harmlos.
+  -- Nach einem Rollback fehlen public.profiles/public.characters: dann nur die Kontozeilen sperren (keine Kaskade auf Charaktere, kein B-6-Risiko).
+  if to_regclass('public.profiles') is not null and to_regclass('public.characters') is not null then
+    perform 1 from auth.users u where u.email like '%@rwtest.invalid' order by u.id for update;
+    perform 1 from public.profiles p join auth.users u on u.id = p.account_id where u.email like '%@rwtest.invalid' order by p.account_id for update of p;
+    for k in select distinct hashtextextended('rwi.char:' || lower(c.character_id::text), 0) from public.characters c join auth.users u on u.id = c.account_id
+              where u.email like '%@rwtest.invalid' order by 1 loop
+      perform pg_advisory_xact_lock(k);
+    end loop;
+  else
+    perform 1 from auth.users u where u.email like '%@rwtest.invalid' order by u.id for update;
+  end if;
   delete from auth.users where email like '%@rwtest.invalid';
   get diagnostics n = row_count;
   raise notice 'cleanup: % Testkonten gelöscht (Kaskade über Profil, Charaktere, Sicherungen, Sitzungen)', n;

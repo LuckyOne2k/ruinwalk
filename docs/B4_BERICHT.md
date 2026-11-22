@@ -64,12 +64,12 @@ Nicht wiederholt (nicht betroffen): Instanzkampf-Suites, Engine, `npm test` (Cli
 | `docs/B2_PRUEFBERICHT.md` | Statuszeile B-4 → behoben, B-4c getrennt offen; alter Hash als „Stand PR 1“ markiert; Abschnitt 13 (Nachtrag) |
 | `docs/B4_BERICHT.md` | dieser Bericht |
 md5: schema `3795f345…`, Migration `e64f891d…`, Rollback `13bf0512…`.
-**SHA-256 `install_dev.sql`:** `9e0b93176851c9fd5bff1dec46fdfb4ed67032c677d951cbdb267839f85e55a7` (2149 Zeilen, zwei Builds gleich).
+**SHA-256 `install_dev.sql` (Stand B-4, überholt; aktuell siehe Kopf von `docs/DEV_INSTALLATIONSFREIGABE.md`):** `9e0b93176851c9fd5bff1dec46fdfb4ed67032c677d951cbdb267839f85e55a7` (2149 Zeilen, zwei Builds gleich).
 
 ## 6. Nebenwirkungen und verbleibende Einschränkungen
 - Jedes Speichern setzt jetzt eine Key-Share-Sperre auf die eigene Profilzeile (kleiner WAL-Eintrag; Multixact nur bei Überlappung, z. B. zwei Geräte oder `touch_login` gleichzeitig). Keine neue Blockade, beschränkt auf das eigene Konto. Vertretbar (rw-backend-security).
 - Eine laufende Kontolöschung wartet höchstens so lange wie ein Speichervorgang (vorher ebenso, an der Sicherung).
 - Unter REPEATABLE READ würde save/move nach einer bestätigten Kontolöschung mit 40001 statt PT409 enden; PostgREST nutzt READ COMMITTED – ohne praktische Bedeutung, keine RC-Pflicht ergänzt.
 - **Bleibt offen: B-4c (V6-8c)** – direktes `delete from public.characters` (Dashboard/service_role) ∥ `delete_account` desselben Kontos → genau ein 40P01. Per RPC nicht lösbar (PostgreSQL sperrt die Zeile vor jedem Trigger). Betriebsregel: Charaktere über `delete_character` löschen. Technische Lösung nur gemeinsam mit B-6 (Statement-Weg) oder per Rechteentzug – eigene Entscheidung.
-- **B-6** unverändert offen (Betriebsregel, `docs/LOESCHVORGANG.md`).
+- **B-6** inzwischen für Mehrzeilen-DELETEs behoben (`docs/B6_BERICHT.md`); offen bleibt B-6b (Mehrkonten-Löschung, Betriebsregel).
 - Nicht live geprüft. Produktionsmigration `migration_b4_speichern_reihenfolge.sql` erst nach ausdrücklicher Freigabe; vorher Live-Stand gegen die Rollback-Fassung vergleichen. Kann zusammen mit der B2-Migration eingespielt werden (unabhängige Funktionen).
