@@ -4,13 +4,13 @@ titel: Story – Rückblick Woche 1
 kanal: instagram
 format: story
 geplant_fuer: 2026-11-22, direkt nach Karussell 004 (So, Rhythmus „Rückblick der Woche“; Feed heute auf Anweisung Pascal)
-status: autonom
+status: veroeffentlicht
 freigegeben_von:
 freigegeben_am:
 bild: marketing/grafiken/entwuerfe/009_story_rueckblick_woche.jpg
 bild_url:
-veroeffentlicht_am:
-link:
+veroeffentlicht_am: 2026-11-22 19:32 MEZ (18:32:13 UTC, autonom, instagram-story:18136907794676177)
+link: (Story, kein Permalink über /media; 24 h sichtbar, ID instagram-story:18136907794676177)
 ---
 
 ## Ziel

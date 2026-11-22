@@ -4,13 +4,13 @@ titel: Karussell – Fünf Lebensräume (Idee 9)
 kanal: instagram
 format: karussell
 geplant_fuer: Tag 3 (Mi) laut Redaktionskalender, Uhrzeit legt Pascal fest
-status: autonom
+status: veroeffentlicht
 freigegeben_von:
 freigegeben_am:
 bild: marketing/grafiken/entwuerfe/004_karussell_lebensraeume_1.jpg (+ _2 bis _6)
 bild_url:
-veroeffentlicht_am:
-link:
+veroeffentlicht_am: 2026-11-22 19:31 MEZ (18:31:55 UTC, autonom, instagram:18357988378267725)
+link: https://www.instagram.com/p/DgDdJZPFNPW/
 ---
 
 ## Ziel
