@@ -297,7 +297,8 @@ Letzte volle Matrix (Abschnitt 10.3): PG17 und PG16 alles bestanden; seitdem nur
 | B-2b (`create_group`) | behoben |
 | B-3 (Charakter- ∥ Kontolöschung) | behoben (V6′) |
 | B-5 (direktes DELETE ∥ `delete_character`) | behoben, unabhängig geprüft, freigabefähig (Abschnitte 8–10) |
-| B-4 (`delete_account` ∥ save/move) und V6-8c (direktes DELETE ∥ `delete_account`) | **offen** (V6+ nicht umgesetzt), bekannte Fehler in den Tests, atomar |
+| B-4 (`delete_account` ∥ save/move) | **behoben** (Nachtrag 22.11.2026, `docs/B4_BERICHT.md`: Profilsperre zuerst in save/move) |
+| B-4c / V6-8c (direktes DELETE ∥ `delete_account`) | **offen**, per RPC nicht lösbar, Betriebsregel; bekannter Fehler in den Tests, atomar |
 | B-6 (Mehrzeilen-DELETE / Mehrkonten-Löschung ∥ `create_group`) | **offen**, Betriebsregel in `LOESCHVORGANG.md` |
 | RC-Pflicht in den Triggern | offen: vor Dev-Installation `default_transaction_isolation` (DB, `supabase_auth_admin`) lesend prüfen |
 | Groß-/Kleinschreibung der Spielerschlüssel in `create_group` | offen (bestand vorher), niedrig |
@@ -339,6 +340,9 @@ Letzte volle Matrix (Abschnitt 10.3): PG17 und PG16 alles bestanden; seitdem nur
 | Nach der K.2-Korrektur, PG17 und PG16: stuck 49, hotfix-resume 34, operatoren 31, operator-edge 34, operator-korrekturen 30, operatoren-limit 13, operatoren-parallel 30, eventende 32, installation 273, rechte-audit 29 | alle bestanden, 0 fehlgeschlagen |
 | Manifest neu erzeugt gegen `rollback_dev.sql` | 146/146, 0 fehlend |
 
-**Maßgeblicher SHA-256 `install_dev.sql` (aktuell):** `5fa6b99fe4bb6a5065b4c2eb52e5140703ac42b0b7abaec66540cff273a7e1e3` (2142 Zeilen, zwei Builds gleich). Eingetragen im Kopf von `docs/DEV_INSTALLATIONSFREIGABE.md`; `5170374f…` ist überholt.
+**SHA-256 `install_dev.sql` (Stand PR 1, überholt durch B-4; aktuell siehe Kopf von `docs/DEV_INSTALLATIONSFREIGABE.md`):** `5fa6b99fe4bb6a5065b4c2eb52e5140703ac42b0b7abaec66540cff273a7e1e3` (2142 Zeilen, zwei Builds gleich). Eingetragen im Kopf von `docs/DEV_INSTALLATIONSFREIGABE.md`; `5170374f…` ist überholt.
 
 **Bekannte Restfehler (blockieren PR 1 nicht):** B-4 und V6-8c (genau ein 40P01, atomar, getrennt gezählt), B-6 (Betriebsregel), RC-Pflicht vor Dev-Installation prüfen, Groß-/Kleinschreibung in `create_group`, K-e nur Kommentar, CI `database-pg17` noch nie auf GitHub gelaufen, nicht live geprüft (Supabase-Rollen, PostgREST/GoTrue, Produktionsstand).
+
+## 13. Nachtrag B-4 (22.11.2026)
+B-4 ist behoben (`docs/B4_BERICHT.md`, Zweig `fix/b4-speichern-kontoloeschung`): `save_character`/`move_character` nehmen das eigene Profil (for key share) als erste Sperre. Aussagen in den Abschnitten 1–12, die B-4 als offen oder als „bekannten Fehler“ zählen, gelten für den Stand vor diesem Nachtrag. Offen bleiben **B-4c/V6-8c** (direktes DELETE ∥ `delete_account`, Betriebsregel) und **B-6** (Mehrzeilen-Löschungen ∥ `create_group`, Betriebsregel), siehe `docs/LOESCHVORGANG.md`.

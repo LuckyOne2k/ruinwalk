@@ -1,7 +1,7 @@
 # Dev-Installationsfreigabe: letzte Vorbereitung (nur lesend)
 
 Stand: 18.11.2026, 16:30. Basis-Commit **`4370b84`** (CI-Lauf `44282298325`, grün, akzeptiert) plus die Sicherheitskorrekturen der Abschnitte „11:21“, „12:00“ und „16:30“ (Commit-ID und CI-Ergebnis stehen im Abschlussbericht, nicht in dieser Datei). Es wurde nichts installiert oder deployt. Lokal nur PG16 getestet; PG17 prüft die CI.
-**Maßgeblicher Hash (aktuell, Stand 21.11.2026, PR 1 inkl. B-2/B-3/B-5 und K.2-Korrektur `terminate_stuck`): `5fa6b99fe4bb6a5065b4c2eb52e5140703ac42b0b7abaec66540cff273a7e1e3` (2142 Zeilen, aus dem aktuellen Build zweimal identisch erzeugt).** Alle weiter unten genannten Hashes (`5170374f…389f667d`, `8a8c3d74…946fb`, `2206042d…adebf3`, `52303b15…ec506e8`, `1ac9264d…92bf`, `447b53c0…`, `33c2d0e9…`) sind **überholt** und stehen nur als Verlauf in den datierten Abschnitten.
+**Maßgeblicher Hash (aktuell, Stand 21.11.2026, main inkl. PR 1 und B-4-Korrektur): `9e0b93176851c9fd5bff1dec46fdfb4ed67032c677d951cbdb267839f85e55a7` (2149 Zeilen, aus dem aktuellen Build zweimal identisch erzeugt).** Alle weiter unten genannten Hashes (`5fa6b99f…73a7e1e3` = Stand PR 1, `5170374f…389f667d`, `8a8c3d74…946fb`, `2206042d…adebf3`, `52303b15…ec506e8`, `1ac9264d…92bf`, `447b53c0…`, `33c2d0e9…`) sind **überholt** und stehen nur als Verlauf in den datierten Abschnitten.
 
 ## Hash (Stand 18.11.2026, 16:30 – überholt, aktuell siehe oben)
 
@@ -141,7 +141,7 @@ Projekt `ruinwalk-dev` (`jlkqktmvqxibqdcobbhf`), Status ACTIVE_HEALTHY, PostgreS
 2. PostgreSQL ≥ 15; Dev ist 17.12 (CI hat PG17 mit Supabase-Attrappe, nicht mit echtem Supabase-Image getestet).
 3. Transaktion: `install_dev.sql` enthält `begin;` ... `commit;` selbst, **kein** `psql -1` verwenden (wäre verschachtelt). Ausführung über `install_dev.sh` (`psql -v ON_ERROR_STOP=1 -f -`).
 4. Installationsrolle `postgres` (nicht `anon`/`authenticated`/`service_role`).
-5. Vorher Hash der auszuführenden Datei gegen den **aktuell maßgeblichen Hash** (Kopf dieser Datei, derzeit `5fa6b99f…73a7e1e3`) prüfen (macht `install_dev.sh` selbst mit dem übergebenen Wert) und `RW_PROJECT_REF` setzen. (Am 18.11. war es `8a8c3d74…946fb`, überholt.)
+5. Vorher Hash der auszuführenden Datei gegen den **aktuell maßgeblichen Hash** (Kopf dieser Datei, derzeit `9e0b9317…f85e55a7`) prüfen (macht `install_dev.sh` selbst mit dem übergebenen Wert) und `RW_PROJECT_REF` setzen. (Am 18.11. war es `8a8c3d74…946fb`, überholt.)
 6. Rollback bereithalten: `rollback_dev.sql` mit `set rw.rollback_confirm = 'ja-loeschen';` in derselben Sitzung.
 7. Erst danach: Edge-Function-Deployment, Secrets, Dev-Workflow sind **getrennte Schritte** und nicht Teil dieser Freigabe.
 

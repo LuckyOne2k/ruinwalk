@@ -274,6 +274,9 @@ begin
 end $$;
 
 -- Speichern mit Versionsprüfung (verhindert Überschreiben durch ein zweites Gerät, fremde Charaktere und ungültige Daten).
+-- Sperrreihenfolge (B-4, Pr-Torregel wie docs/B2_PRUEFBERICHT.md Abschnitt 1): save_character und move_character nehmen die eigene Profilzeile (for key share)
+-- als ALLERERSTE Sperre, danach die Charakterzeile (for update). delete_account sperrt das Profil zuerst (for update) und erreicht die Charakterzeile erst in der
+-- Kaskade; beide warten damit am Profil aufeinander statt sich zu verklemmen (vorher: Charakterzeile -> Profil per Fremdschlüssel der Sicherung/des Protokolls).
 create or replace function public.save_character(p_id uuid, p_expected_version int, p_data jsonb)
 returns int language plpgsql security definer set search_path = public, pg_temp as $$
 declare uid uuid := auth.uid(); v int; d jsonb; sl smallint;
@@ -282,6 +285,8 @@ begin
   if not public.is_verified(uid) then raise exception 'email_not_verified' using errcode = 'PT403'; end if;
   if p_data is null or jsonb_typeof(p_data) <> 'object' or p_data = '{}'::jsonb then raise exception 'invalid_data' using errcode = '22023'; end if;
   d := jsonb_set(p_data, '{cid}', to_jsonb(p_id::text));
+  perform 1 from public.profiles where account_id = uid for key share;   -- B-4: Profilsperre ZUERST (Pr-Torregel, wie delete_character)
+  if not found then raise exception 'version_conflict' using errcode = 'PT409'; end if;   -- Konto wird/ist gelöscht: gleiche Meldung wie fehlender Charakter
   select slot_number into sl from public.characters where character_id = p_id and account_id = uid for update;
   if sl is null then
     -- gleiche Meldung für "fremd/nicht vorhanden" und "falsche Version": verrät nichts über fremde Charaktere
@@ -321,6 +326,8 @@ begin
   if uid is null then raise exception 'not_authenticated' using errcode = 'PT401'; end if;
   if not public.is_verified(uid) then raise exception 'email_not_verified' using errcode = 'PT403'; end if;
   if p_target is null or p_target not in (1, 2) then raise exception 'invalid_slot' using errcode = '22023'; end if;
+  perform 1 from public.profiles where account_id = uid for key share;   -- B-4: Profilsperre ZUERST (Pr-Torregel, wie delete_character)
+  if not found then raise exception 'not_found' using errcode = 'PT404'; end if;
   select slot_number into cur from public.characters where character_id = p_id and account_id = uid for update;
   if cur is null then raise exception 'not_found' using errcode = 'PT404'; end if;
   if cur <> 3 then raise exception 'move_not_allowed' using errcode = '22023'; end if;

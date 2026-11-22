@@ -512,6 +512,11 @@ select tap.is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pro
 select tap.is((select confdeltype from pg_constraint where conname='audit_log_account_id_fkey'),'c'::"char",'audit_log.account_id: Fremdschlüssel mit CASCADE');
 select tap.is((select confdeltype from pg_constraint where conname='payment_events_account_id_fkey'),'n'::"char",'payment_events.account_id: Fremdschlüssel mit SET NULL');
 
+-- B4: save_character und move_character sperren zuerst das eigene Profil (for key share), danach die Charakterzeile (Verhalten: server/instance/tests/b2-sperren.mjs V6-8).
+select tap.ok((select bool_and(position('from public.profiles where account_id = uid for key share' in prosrc) > 0
+                  and position('from public.profiles where account_id = uid for key share' in prosrc) < position('from public.characters where character_id = p_id and account_id = uid for update' in prosrc))
+                 from pg_proc where oid in ('public.save_character(uuid,int,jsonb)'::regprocedure, 'public.move_character(uuid,int)'::regprocedure)),
+              'B4: save_character und move_character sperren Profil (key share) vor der Charakterzeile (for update)');
 -- B2 (docs/B2_V6_PRUEFUNG.md, „V6′“): Sperrreihenfolge in delete_character. Nebenläufigkeit (Deadlock-Freiheit) prüft server/instance/tests/b2-sperren.mjs.
 select tap.ok((select position('for key share' in prosrc) > 0
                   and position('for key share' in prosrc) < position('pg_advisory_xact_lock' in prosrc)

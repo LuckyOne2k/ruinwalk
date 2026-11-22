@@ -1,7 +1,7 @@
 // B-2/B-3: Sperrreihenfolge Beitritt / Charakterlöschung / Kontolöschung (docs/B2_V6_PRUEFUNG.md, „V5 + V6′“).
 // Nebenläufigkeitstests mit echten Zwei-Sitzungs-Abläufen auf lokalem PostgreSQL (Attrappe der Supabase-Rollen, prod-env.mjs). NICHT ECHT: kein GoTrue, kein PostgREST.
 // Haltepunkte nur in der Testdatenbank: Schema testhook (Beratungssperren als „Tor“), zusätzliche Trigger bzw. umbenannte Hüllfunktionen – Produktionscode bleibt unverändert.
-// Tests: K1-9g1–g3, B2-1 (= K1-9g4 neu), B2-2, B2-3, B2-3b, GP-1/V6-1, V6-2, V6-3, B2-9, B2-10, B2-11 (B-5, beide Reihenfolgen), B2-12 (A vor I), V6-4, V6-7, V6-8 (bekannter Fehler B-4), V6-8c (B-4-Mechanismus bei direktem Löschen, mit Endzustand), V6-9/GP-6, V6-10, V6-11, V6-12/V6-12b/GP-4, V6-14a/b (drei gleichzeitige delete_character), GP-2, GP-3, GP-5, V6-13.
+// Tests: K1-9g1–g3, B2-1 (= K1-9g4 neu), B2-2, B2-3, B2-3b, GP-1/V6-1, V6-2, V6-3, B2-9, B2-10, B2-11 (B-5, beide Reihenfolgen), B2-12 (A vor I), V6-4, V6-7, V6-8 (B-4 behoben, beide Reihenfolgen), V6-8c (B-4-Mechanismus bei direktem Löschen, mit Endzustand), V6-9/GP-6, V6-10, V6-11, V6-15 (Migration B4), V6-12/V6-12b/GP-4, V6-14a/b (drei gleichzeitige delete_character), GP-2, GP-3, GP-5, V6-13.
 import { setup, SQL, STUB, J, counter } from './prod-env.mjs';
 import { startCluster } from './pg.mjs';
 import { execFileSync } from 'node:child_process';
@@ -331,20 +331,31 @@ try {
        `V6-7: ${op}_character ∥ delete_character (${zuerst === 'op' ? op : 'Löschen'} zuerst), zweiter wartet (${ws}); kein 40P01, Charakter danach gelöscht`, rs.map(line).join(' | '));
   });
 
-  // ===== V6-8: bekannter Fehler B-4 (bewusst NICHT behoben): delete_account ∥ save_character / move_character desselben Kontos =====
-  for (const op of ['save', 'move']) await scen(`V6-8 ${op}`, async () => {
+  // ===== V6-8 (B-4 behoben): delete_account ∥ save_character / move_character desselben Kontos, beide Reihenfolgen =====
+  // save/move nehmen die Profilsperre (for key share) als erste Sperre; delete_account hält das Profil (for update). Beide warten am Profil, keiner hält die Charakterzeile.
+  for (const op of ['save', 'move']) for (const zuerst of ['op', 'konto']) await scen(`V6-8 ${op} ${zuerst}`, async () => {
     const K = await acc(3); const c = op === 'move' ? K.chars[2] : K.chars[0];
     if (op === 'move') await q(`delete from public.characters where character_id = '${K.chars[1]}'`);
     const v = await q(`select version from public.characters where character_id='${c}'`);
     const opSql = op === 'save' ? `select public.save_character('${c}', ${v}, '{"cls":"krieger","lv":50,"x":2}'::jsonb)` : `select public.move_character('${c}', 2)`;
-    const G = await gate(); const un = await trg('characters_aa_gate', 'before', 'update', 'characters', 'tg_char', G.k, c);   // hält C, vor Sicherung/Audit (Profil noch nicht gesperrt)
-    const O = S('OP', opSql, user(K)); await waitState('OP', LOCKADV);
-    const da = await delAcc('DA', K); const D = da(); await waitState('DA', LOCKROW);
-    await G.open(); const [ro, rd] = await Promise.all([O, D]); await un();
-    const n = [ro, rd].filter(dl).length;
-    const bestaetigt = n === 1;
-    ok(bestaetigt, `BEKANNT B-4: delete_account ∥ ${op}_character desselben Kontos – genau ein 40P01 wie dokumentiert (bekannter Fehler bestätigt; V6+ bewusst nicht umgesetzt)`, `40P01=${n} | ${line(ro)} | ${line(rd)}`);
-    if (bestaetigt) known.push(`B-4 ${op}`);
+    const G = await gate(); let un, first, second, ws;
+    if (zuerst === 'op') {   // op hält Profil (ks) und Charakterzeile, angehalten vor Sicherung/Audit; Kontolöschung muss am Profil warten
+      un = await trg('characters_aa_gate', 'before', 'update', 'characters', 'tg_char', G.k, c);
+      first = S('OP', opSql, user(K)); await waitState('OP', LOCKADV);
+      const da = await delAcc('DA', K); second = da(); ws = await waitState('DA', LOCKROW);
+    } else {                 // Kontolöschung hält das Profil (for update), angehalten beim Löschen des Profils; save/move muss am Profil warten, ohne C zu halten
+      un = await trg('profiles_zz_gate', 'before', 'delete', 'profiles', 'tg_prof', G.k, K.id);
+      const da = await delAcc('DA', K); first = da(); await waitState('DA', LOCKADV);
+      second = S('OP', opSql, user(K)); ws = await waitState('OP', LOCKROW);
+    }
+    const haeltC = +(await q(`select count(*) from pg_locks l join pg_stat_activity a on a.pid = l.pid where a.application_name = 'OP' and l.locktype = 'transactionid' and l.granted and l.mode = 'ExclusiveLock'`));
+    await G.open(); const [r1, r2] = await Promise.all([first, second]); await un();
+    const [ro, rd] = zuerst === 'op' ? [r1, r2] : [r2, r1];
+    const konto = await q(`select count(*) from auth.users where id='${K.id}'`), chars = await q(`select count(*) from public.characters where account_id='${K.id}'`);
+    const erwOp = zuerst === 'op' ? ro.code === 0 : (ro.code !== 0 && (op === 'save' ? /version_conflict/ : /not_found/).test(ro.err));
+    ok(!dl(ro) && !dl(rd) && rd.code === 0 && erwOp && konto === '0' && chars === '0' && (zuerst === 'op' || haeltC === 0) && (await INV()) === 0,
+       `V6-8 (B-4 behoben): ${op}_character ∥ delete_account desselben Kontos (${zuerst === 'op' ? op : 'Kontolöschung'} zuerst) – zweiter wartet am Profil (${ws})${zuerst === 'op' ? '' : ', ohne eine Schreibsperre zu halten'}; 0 × 40P01, Konto vollständig gelöscht, ${zuerst === 'op' ? op + ' erfolgreich' : op + ' endet mit ' + (op === 'save' ? 'version_conflict' : 'not_found')}`,
+       `40P01=${[ro, rd].filter(dl).length} konto=${konto} chars=${chars} haeltC=${haeltC} | ${line(ro)} | ${line(rd)}`);
   });
 
   // ===== V6-9: gemeinsamer Schlüsselausdruck in public und rwi =====
@@ -429,8 +440,27 @@ try {
     } finally { C2.stop(); }
   });
 
+  // ===== V6-15: Migration und Rollback B4 auf dem Stand vor B4 (Upgrade-Pfad), beide Rechte-Modi =====
+  for (const legacy of [false, true]) await scen('V6-15', async () => {
+    const C2 = await startCluster(PORT + 3 + (legacy ? 1 : 0)); const q2 = async (s) => { const r = await C2.psql(s); if (r.code) throw new Error(r.err.slice(0, 300)); return r.out; };
+    try {
+      const fn = (t, n) => { const a = t.indexOf(`create or replace function public.${n}(`); const e = t.indexOf('end $$;', a); if (a < 0 || e < 0) throw new Error(n + ' nicht gefunden'); return [a, e + 7]; };
+      const neu = readFileSync(join(ROOT, 'supabase/schema.sql'), 'utf8'), rb = readFileSync(join(ROOT, 'supabase/rollback_b4_speichern_reihenfolge.sql'), 'utf8');
+      let old = neu; for (const n of ['save_character', 'move_character']) { const [na, ne] = fn(old, n), [ra, re] = fn(rb, n); if (/for key share/.test(rb.slice(ra, re))) throw new Error('Rollback enthält schon die Profilsperre'); old = old.slice(0, na) + rb.slice(ra, re) + old.slice(ne); }
+      if (old === neu) throw new Error('Altstand nicht ableitbar');
+      await q2((legacy ? '\\set legacy 1\n' : '') + STUB); await q2(old);
+      const sig = { save_character: 'uuid,integer,jsonb', move_character: 'uuid,integer' };
+      const md5 = async () => { const o = []; for (const n of Object.keys(sig)) o.push(await q2(`select md5(prosrc) || ':' || prosecdef || ':' || array_to_string(proconfig, ';') || ':' || coalesce(array_to_string(proacl, ';'), '') from pg_proc where oid = 'public.${n}(${sig[n]})'::regprocedure`)); return o.join('|'); };
+      const vorher = await md5(); await q2(readFileSync(join(ROOT, 'supabase/migration_b4_speichern_reihenfolge.sql'), 'utf8')); const nach = await md5();
+      const ziel = []; for (const n of Object.keys(sig)) ziel.push(await q(`select md5(prosrc) from pg_proc where oid = 'public.${n}(${sig[n]})'::regprocedure`));
+      await q2(readFileSync(join(ROOT, 'supabase/rollback_b4_speichern_reihenfolge.sql'), 'utf8')); const zurueck = await md5();
+      ok(nach.split('|').map((x) => x.split(':')[0]).join('|') === ziel.join('|') && vorher !== nach && zurueck === vorher,
+         `V6-15 (${legacy ? 'legacy' : 'neu'}): Migration B4 auf dem Stand vor B4 ergibt exakt save_character/move_character aus schema.sql; Rollback stellt Quelltext, SECURITY DEFINER, search_path und ACL wieder her`, `${vorher.slice(0, 8)} -> ${nach.slice(0, 8)} -> ${zurueck.slice(0, 8)}`);
+    } finally { C2.stop(); }
+  });
+
   // ===== V6-13: Belastungsmischung =====
-  // Mischung A ohne save/move: 0 × 40P01 gefordert. Mischung B mit save/move: 40P01 nur zwischen delete_account und save/move desselben Kontos (bekannt B-4).
+  // Mischung A ohne save/move: 0 × 40P01 gefordert. Mischung B mit save/move: ebenfalls 0 × 40P01 gefordert (B-4 behoben, docs/B4_BERICHT.md).
   const allowed = /email_not_verified|violates foreign key|not_authenticated|not_found|not_eligible|version_conflict|slot_occupied|forbidden|account_in_instance|already|no_rejoin|full/;
   for (const mix of ['A', 'B']) {
     let dlA = 0, dlB4 = 0, other = 0, invBad = 0, unexpected = [];
@@ -468,8 +498,8 @@ try {
         else if (r.code !== 0 && !allowed.test(r.err)) { other++; unexpected.push(`${it}:${n}:${(r.err.split('\n').find((l) => /ERROR/.test(l)) || r.err).slice(0, 80)}`); } });
       if ((await INV()) !== 0) { invBad++; unexpected.push(`${it}:INV`); }
     }
-    ok(dlA === 0 && other === 0 && invBad === 0, `V6-13 Mischung ${mix} (${MIX} Durchläufe, gleichzeitig: Charakterlöschung (RPC und direkt), Kontolöschung, Admin-Löschung, Beitritt, Nachrücken, create_group, create_character${mix === 'B' ? ', save/move + Kontolöschung' : ''}): 0 × 40P01 außerhalb B-4, keine unerwarteten Fehler, INV-1 = 0 nach jedem Durchlauf`, `40P01=${dlA} B-4=${dlB4} sonstige=${other} INV=${invBad} ${unexpected.slice(0, 4).join(' ; ')}`);
-    if (mix === 'B') { console.log(`  (Mischung B: bekannte B-4-Verklemmungen getrennt gezählt: ${dlB4})`); if (dlB4 > 0) known.push(`B-4 Mischung (${dlB4}x)`); }
+    ok(dlA === 0 && dlB4 === 0 && other === 0 && invBad === 0, `V6-13 Mischung ${mix} (${MIX} Durchläufe, gleichzeitig: Charakterlöschung (RPC und direkt), Kontolöschung, Admin-Löschung, Beitritt, Nachrücken, create_group, create_character${mix === 'B' ? ', save/move + Kontolöschung' : ''}): 0 × 40P01 (auch nicht zwischen save/move und Kontolöschung, B-4 behoben), keine unerwarteten Fehler, INV-1 = 0 nach jedem Durchlauf`, `40P01=${dlA} B-4=${dlB4} sonstige=${other} INV=${invBad} ${unexpected.slice(0, 4).join(' ; ')}`);
+    if (mix === 'B') console.log(`  (Mischung B: Verklemmungen save/move ∥ Kontolöschung (früher B-4, jetzt Fehler): ${dlB4})`);
   }
 } catch (e) { ok(false, 'Ablauf', e.message.slice(0, 300)); }
 finally { E.stop(); }
