@@ -1,0 +1,11 @@
+[
+  { "datei": "009_story_rueckblick_woche.jpg", "format": "story", "layout": "liste", "hintergrund": "assets/bg_login.jpg", "logo": true,
+    "kicker": "Rückblick · Woche 1", "titel": "Das war die Woche",
+    "punkte": [
+      { "icon": "✅", "text": "Deine Umgebung wird zum Spielfeld" },
+      { "icon": "✅", "text": "Vier Klassen, ab Stufe 5 wählbar" },
+      { "icon": "✅", "text": "Erstes Reel: vom Wanderer zum Hohepriester" },
+      { "icon": "✅", "text": "Fünf Lebensräume, eigene Kreaturen" }
+    ],
+    "text": "Danke, dass du dabei bist." }
+]
