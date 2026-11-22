@@ -299,7 +299,8 @@ Letzte volle Matrix (Abschnitt 10.3): PG17 und PG16 alles bestanden; seitdem nur
 | B-5 (direktes DELETE ∥ `delete_character`) | behoben, unabhängig geprüft, freigabefähig (Abschnitte 8–10) |
 | B-4 (`delete_account` ∥ save/move) | **behoben** (Nachtrag 22.11.2026, `docs/B4_BERICHT.md`: Profilsperre zuerst in save/move) |
 | B-4c / V6-8c (direktes DELETE ∥ `delete_account`) | **offen**, per RPC nicht lösbar, Betriebsregel; bekannter Fehler in den Tests, atomar |
-| B-6 (Mehrzeilen-DELETE / Mehrkonten-Löschung ∥ `create_group`) | **offen**, Betriebsregel in `LOESCHVORGANG.md` |
+| B-6 (Mehrzeilen-DELETE ∥ `create_group`/`group_join`) | **behoben** (Nachtrag 22.11.2026, `docs/B6_BERICHT.md`) |
+| B-6b (Mehrkonten-Löschung in einer Anweisung ∥ `create_group`/`group_join`) | **offen**, Betriebsregel und Vorab-Sperre (`LOESCHVORGANG.md`, `cleanup_test_accounts.sql`) |
 | RC-Pflicht in den Triggern | offen: vor Dev-Installation `default_transaction_isolation` (DB, `supabase_auth_admin`) lesend prüfen |
 | Groß-/Kleinschreibung der Spielerschlüssel in `create_group` | offen (bestand vorher), niedrig |
 | K-e nur als Kommentar | offen, niedrig |
@@ -346,3 +347,6 @@ Letzte volle Matrix (Abschnitt 10.3): PG17 und PG16 alles bestanden; seitdem nur
 
 ## 13. Nachtrag B-4 (22.11.2026)
 B-4 ist behoben (`docs/B4_BERICHT.md`, Zweig `fix/b4-speichern-kontoloeschung`): `save_character`/`move_character` nehmen das eigene Profil (for key share) als erste Sperre. Aussagen in den Abschnitten 1–12, die B-4 als offen oder als „bekannten Fehler“ zählen, gelten für den Stand vor diesem Nachtrag. Offen bleiben **B-4c/V6-8c** (direktes DELETE ∥ `delete_account`, Betriebsregel) und **B-6** (Mehrzeilen-Löschungen ∥ `create_group`, Betriebsregel), siehe `docs/LOESCHVORGANG.md`.
+
+## 14. Nachtrag B-6 (22.11.2026)
+B-6 ist für Mehrzeilen-DELETEs auf `characters` behoben (`docs/B6_BERICHT.md`, Zweig `fix/b6-mehrzeilen-loeschung`): `on_character_deleted` sperrt über eine Übergangstabelle alle Beratungssperren der Anweisung sortiert vor jeder Instanzsperre. Die Zeile `on_character_deleted` der Sperrfolgen-Tabelle (Abschnitt 9.2) lautet damit: (C gehalten) → A (alle der Anweisung, sortiert) → I. Offen bleibt **B-6b** (mehrere Konten in einer Anweisung, Betriebsregel/Vorab-Sperre) sowie **B-4c** (direktes DELETE ∥ `delete_account`).

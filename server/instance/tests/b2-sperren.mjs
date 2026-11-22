@@ -1,7 +1,7 @@
 // B-2/B-3: Sperrreihenfolge Beitritt / Charakterlöschung / Kontolöschung (docs/B2_V6_PRUEFUNG.md, „V5 + V6′“).
 // Nebenläufigkeitstests mit echten Zwei-Sitzungs-Abläufen auf lokalem PostgreSQL (Attrappe der Supabase-Rollen, prod-env.mjs). NICHT ECHT: kein GoTrue, kein PostgREST.
 // Haltepunkte nur in der Testdatenbank: Schema testhook (Beratungssperren als „Tor“), zusätzliche Trigger bzw. umbenannte Hüllfunktionen – Produktionscode bleibt unverändert.
-// Tests: K1-9g1–g3, B2-1 (= K1-9g4 neu), B2-2, B2-3, B2-3b, GP-1/V6-1, V6-2, V6-3, B2-9, B2-10, B2-11 (B-5, beide Reihenfolgen), B2-12 (A vor I), V6-4, V6-7, V6-8 (B-4 behoben, beide Reihenfolgen), V6-8c (B-4-Mechanismus bei direktem Löschen, mit Endzustand), V6-9/GP-6, V6-10, V6-11, V6-15 (Migration B4), V6-12/V6-12b/GP-4, V6-14a/b (drei gleichzeitige delete_character), GP-2, GP-3, GP-5, V6-13.
+// Tests: K1-9g1–g3, B2-1 (= K1-9g4 neu), B2-2, B2-3, B2-3b, GP-1/V6-1, V6-2, V6-3, B2-9, B2-10, B2-11 (B-5, beide Reihenfolgen), B2-12 (A vor I), V6-4, V6-7, V6-8 (B-4 behoben, beide Reihenfolgen), V6-8c (B-4-Mechanismus bei direktem Löschen, mit Endzustand), V6-9/GP-6, V6-10, V6-11, V6-15 (Migration B4), V6-12/V6-12b/GP-4, V6-14a/b (drei gleichzeitige delete_character), GP-2, GP-3, GP-5, V6-13, B6-1/B6-2/B6-3/B6-4 (Mehrzeilen-Löschungen, Lösch-Block des Cleanup-Skripts).
 import { setup, SQL, STUB, J, counter } from './prod-env.mjs';
 import { startCluster } from './pg.mjs';
 import { execFileSync } from 'node:child_process';
@@ -175,6 +175,75 @@ try {
     await G.open(); const [rj, rd] = await Promise.all([Jw, D]);
     ok(!dl(rj) && !dl(rd) && rd.code === 0 && (await q(`select count(*) from auth.users where id='${W.id}'`)) === '0' && (await INV()) === 0,
        `B2-12: Beitritt hält A(W) vor I, Kontolöschung (zweiter Charakter in I) wartet auf A (${ws}) statt I zu halten; kein 40P01, INV-1 = 0`, `${line(rj)} | ${line(rd)}`);
+  });
+
+  // ===== B6: Mehrzeilen-Löschungen ∥ create_group / group_join (docs/B6_BERICHT.md) =====
+  // Hilfen: zwei Konten mit je einem Charakter, deren Schlüssel absteigend zur Anlagereihenfolge liegen (Zeilenreihenfolge ≠ Schlüsselreihenfolge).
+  const pairDesc = async () => { for (let i = 0; i < 40; i++) { const a = await acc(), b = await acc(); if (BigInt(await key(a.chars[0])) > BigInt(await key(b.chars[0]))) return [a, b]; } throw new Error('kein absteigendes Paar'); };
+  const holdKey = async (k) => { const h = cl.psql(`set application_name='HOLD'; select pg_advisory_lock(${k}); select pg_sleep(600);`);
+    const t0 = Date.now(); while (+(await q(`select count(*) from pg_locks l join pg_stat_activity a on a.pid=l.pid where a.application_name='HOLD' and l.locktype='advisory' and l.granted`)) === 0) { if (Date.now() - t0 > 10000) throw new Error('HOLD'); await sleep(30); }
+    return async () => { await q(`select pg_terminate_backend(pid) from pg_stat_activity where application_name='HOLD'`); await h; }; };
+
+  // B6-1: ein DELETE über zwei Charakterzeilen (Zeile 1 hat den größeren Schlüssel) ∥ create_group mit beiden (sortiert: kleiner Schlüssel zuerst)
+  await scen('B6-1', async () => {
+    const [A1, B1] = await pairDesc(); const x = A1.chars[0], y = B1.chars[0];          // key(x) > key(y), Zeile x vor Zeile y
+    const free = await holdKey(await key(x));                                             // A(x) fremd gehalten: DELETE und create_group stehen an
+    const Dd = S('DD', `delete from public.characters where character_id in ('${x}', '${y}')`); await waitState('DD', LOCKADV);
+    const CG = S('CG', `select rwi.create_group('dungeon', array['${x}','${y}']::text[], 2)`); const ws = await waitState('CG', LOCKADV);
+    await free(); const [rd, rc] = await Promise.all([Dd, CG]);
+    ok(!dl(rd) && !dl(rc) && rd.code === 0 && (await q(`select count(*) from public.characters where character_id in ('${x}','${y}')`)) === '0'
+       && (await q(`select count(*) from rwi.members where player in ('${x}','${y}') and mstate='active'`)) === '0' && (await INV()) === 0,
+       `B6-1: mehrzeiliges DELETE (Zeilenfolge ≠ Schlüsselfolge) ∥ create_group mit beiden Charakteren – create_group wartet (${ws}); 0 × 40P01, kein aktives Mitglied ohne Charakter`, `${line(rd)} | ${rc.out.slice(0, 60)}${line(rc)}`);
+  });
+
+  // B6-2: ein DELETE über zwei Charakterzeilen, x ist Mitglied in I ∥ Beitritt von y nach I hält A(y) (angehalten vor rwi.join, d. h. vor der Instanzsperre)
+  await scen('B6-2', async () => {
+    const [A1, B1] = await pairDesc(); const x = A1.chars[0], y = B1.chars[0]; const O = await acc(); const I = await grp([O.chars[0], x]);
+    const G = await gate();
+    await q(`alter function rwi.join(bigint, text) rename to join_orig;
+      create function rwi.join(p_instance bigint, p_player text) returns jsonb language plpgsql as $$ begin if p_player = '${y}' then perform testhook.gate(${G.k}); end if; return rwi.join_orig(p_instance, p_player); end $$;`);
+    once(() => q(`drop function rwi.join(bigint, text); alter function rwi.join_orig(bigint, text) rename to "join";`));
+    const Jy = S('J', `select public.group_join(${I}, '${y}')`, user(B1)); await waitState('J', LOCKADV);
+    const Dd = S('DD', `delete from public.characters where character_id in ('${x}', '${y}')`); const ws = await waitState('DD', /Lock:/);
+    const haeltI = +(await q(`select count(*) from pg_locks l join pg_stat_activity a on a.pid=l.pid where a.application_name='DD' and l.locktype='tuple' and l.granted`))
+                 + +(await q(`select count(*) from pg_locks l join pg_stat_activity a on a.pid=l.pid join pg_class c on c.oid = l.relation where a.application_name='DD' and c.relname='instances' and l.mode='RowShareLock'`));
+    await G.open(); const [rj, rd] = await Promise.all([Jy, Dd]);
+    ok(!dl(rj) && !dl(rd) && rd.code === 0 && (await q(`select count(*) from public.characters where character_id in ('${x}','${y}')`)) === '0' && (await INV()) === 0,
+       `B6-2: mehrzeiliges DELETE (x Mitglied in I) ∥ Beitritt von y nach I – DELETE wartet auf A(y) (${ws}), bevor es eine Instanz sperrt (Instanz-Zeilensperren gehalten: ${haeltI}); 0 × 40P01, INV-1 = 0`, `${line(rj)} | ${line(rd)}`);
+    ok(haeltI === 0, 'B6-2: DELETE hält beim Warten auf A(y) keine Instanzsperre (alle Beratungssperren vor der ersten Instanzsperre)', `haeltI=${haeltI}`);
+  });
+
+  // B6-3: Löschung ZWEIER Konten in EINER Anweisung ∥ create_group mit je einem Charakter beider Konten.
+  // ohne Vorab-Sperre: bekannter Restfall B-6b (Kaskade sperrt je Konto, nicht global sortiert) – genau ein 40P01;
+  // mit Vorab-Sperre: der ECHTE Lösch-Block aus supabase/dev/cleanup_test_accounts.sql (Prädikat auf die Testkonten dieses Falls eingeengt) – 0 × 40P01.
+  const CLEAN_SRC = readFileSync(join(ROOT, 'supabase/dev/cleanup_test_accounts.sql'), 'utf8');
+  const cleanBlock = (muster) => { const a = CLEAN_SRC.indexOf('do $$\ndeclare n bigint; k bigint;'); const e = CLEAN_SRC.indexOf('end $$;', a); if (a < 0 || e < 0) throw new Error('Lösch-Block nicht gefunden');
+    const b = CLEAN_SRC.slice(a, e + 7); if (!b.includes("'%@rwtest.invalid'")) throw new Error('Prädikat nicht gefunden'); return b.split("'%@rwtest.invalid'").join(`'${muster}%@rwtest.invalid'`); };
+  let ncl = 0; const pairDescNamed = async (pre) => { for (let i = 0; i < 40; i++) { const a = await E.account(`${pre}a${++ncl}`, 2), b = await E.account(`${pre}b${++ncl}`, 1);
+    if (BigInt(await key(a.chars[0])) > BigInt(await key(b.chars[0])) && BigInt(await key(a.chars[0])) > BigInt(await key(a.chars[1]))) return [a, b]; } throw new Error('kein passendes Paar'); };
+  for (const vorab of [false, true]) await scen('B6-3 ' + (vorab ? 'mit' : 'ohne') + ' Vorab-Sperre', async () => {
+    const pre = `b6c${++ncl}x`; const [A1, B1] = await pairDescNamed(pre); const x = A1.chars[0], y = B1.chars[0]; const ids = `'${A1.id}','${B1.id}'`;
+    const free = await holdKey(await key(x));
+    const sql = vorab ? `begin; set local rw.rollback_confirm = 'ja-loeschen'; ${cleanBlock(pre)} commit;` : `begin; delete from auth.users where id in (${ids}); commit;`;
+    const ADM = S('ADM', sql); await waitState('ADM', LOCKADV);
+    const CG = S('CG', `select rwi.create_group('dungeon', array['${x}','${y}']::text[], 2)`); const ws = await waitState('CG', LOCKADV);
+    await free(); const [ra, rc] = await Promise.all([ADM, CG]); const n = [ra, rc].filter(dl).length;
+    const konten = await q(`select count(*) from auth.users where id in (${ids})`);
+    if (vorab) ok(n === 0 && ra.code === 0 && konten === '0' && (await INV()) === 0, `B6-3 (echter Lösch-Block aus cleanup_test_accounts.sql): Löschung zweier Konten in einer Anweisung ∥ create_group – create_group wartet (${ws}); 0 × 40P01, beide Konten gelöscht, INV-1 = 0`, `40P01=${n} | ${line(ra)} | ${line(rc)}`);
+    else { const bestaetigt = n === 1 && (await INV()) === 0; ok(bestaetigt, 'BEKANNT B-6b: Löschung zweier Konten in EINER Anweisung OHNE Vorab-Sperre ∥ create_group – genau ein 40P01, atomar (Betriebsregel: Konten einzeln oder mit Vorab-Sperre löschen)', `40P01=${n} konten=${konten} | ${line(ra)} | ${line(rc)}`);
+      if (bestaetigt) known.push('B-6b Mehrkonten-Löschung ohne Vorab-Sperre'); }
+  });
+
+  // B6-4: Gegenprobe zur Sperrreihenfolge des Lösch-Blocks (U -> Pr -> A): der Block steht in seiner Vorab-Sperre (wartet auf das größte A) ∥ delete_character
+  // eines Charakters desselben Testkontos (Pr zuerst). Korrekt: delete_character wartet am Profil, ohne eine Sperre zu halten; mit A vor Pr verklemmten sich beide.
+  await scen('B6-4', async () => {
+    const pre = `b6d${++ncl}x`; const [A1, B1] = await pairDescNamed(pre); const big = A1.chars[0], other = A1.chars[1];   // key(big) ist das Maximum, key(other) < key(big)
+    const free = await holdKey(await key(big));
+    const ADM = S('ADM', `begin; set local rw.rollback_confirm = 'ja-loeschen'; ${cleanBlock(pre)} commit;`); await waitState('ADM', LOCKADV);
+    const DC = S('DC', `select public.delete_character('${other}')`, user(A1)); const ws = await waitState('DC', /Lock:/);
+    await free(); const [ra, rd] = await Promise.all([ADM, DC]);
+    ok(LOCKROW.test(ws) && !dl(ra) && !dl(rd) && ra.code === 0 && (await q(`select count(*) from auth.users where id in ('${A1.id}','${B1.id}')`)) === '0' && (await INV()) === 0,
+       `B6-4: Lösch-Block (U -> Pr -> A) ∥ delete_character desselben Testkontos – delete_character wartet am Profil (${ws}), nicht an A; 0 × 40P01, Konten gelöscht`, `${line(ra)} | ${line(rd)}`);
   });
 
   // ===== B2-9: direktes Löschen eines Charakters (service_role/postgres, ohne delete_character) ∥ Beitritt hält A(W) – Schutz durch on_character_deleted =====
