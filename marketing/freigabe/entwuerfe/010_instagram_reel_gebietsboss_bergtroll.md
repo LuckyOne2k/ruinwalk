@@ -4,7 +4,7 @@ titel: Reel – Gebietsboss #1 Bergtroll (Abwehr gegen den Felsbrocken)
 kanal: instagram
 format: reel
 geplant_fuer: Mo 23.11.2026, 17:35 (Reel-Tag Mo, Wochenplan 13_beitragsmix_serien.md)
-status: entwurf
+status: autonom
 freigegeben_von:
 freigegeben_am:
 video: marketing/grafiken/entwuerfe/010_reel_gebietsboss_bergtroll.mp4
