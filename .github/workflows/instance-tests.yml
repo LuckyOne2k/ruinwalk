@@ -3,7 +3,7 @@ on:
   push:
     paths: ['server/instance/**', 'supabase/schema.sql', 'supabase/migration_*.sql', 'supabase/rollback_*.sql', 'supabase/tests/**', 'supabase/dev/**', 'supabase/functions/**', 'supabase/config.toml', 'tests/**', 'index.html', 'sprites*.js', 'pxdom.js', 'package.json', '.github/workflows/instance-tests.yml',
             # Pages-Positivliste (Roadmap Phase 2A): Skript, Liste, Tests, Pages-Workflow und alle ausgelieferten Spielbereiche
-            'tools/pages/**', 'tests/pages/**', '.github/workflows/pages.yml', 'landingpage.html', 'figs/**', 'items/**', 'status/**', 'assets/**']
+            'tools/pages/**', 'tests/pages/**', '.github/workflows/pages.yml', '.github/workflows/spieltests.yml', 'landingpage.html', 'figs/**', 'items/**', 'status/**', 'assets/**']
   # Pull Requests: ohne Pfadfilter – jeder PR wird vollständig geprüft (Spielcode, Tests, Server), damit Pflicht-Prüfungen im Ruleset immer berichten.
   pull_request:
 # Kleinste Rechte: nur Lesen des Repositorys.
@@ -141,23 +141,39 @@ jobs:
           name: db-tests-pg17
           path: results/
           retention-days: 30
+  spieltests:
+    # Browser-Tests der Spiellogik und Pages-Positivliste – gemeinsamer Workflow, den auch pages.yml vor jedem Deployment nutzt.
+    uses: ./.github/workflows/spieltests.yml
+    permissions:
+      contents: read
   pages-positivliste:
-    # Roadmap Phase 2A: dieselben Prüfungen wie im Pages-Workflow, aber schon im PR – Fehler fallen vor dem Merge auf.
+    # Pflichtprüfung im Ruleset (Name bleibt): grün nur, wenn die Positivliste im Baustein spieltests bestanden hat.
+    needs: spieltests
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with: { node-version: 22 }
-      - name: Tests der Pages-Positivliste
-        run: node --test tests/pages/site.test.mjs
-      - name: Positivliste gegen Repository und Spielcode prüfen
-        run: node tools/pages/site.mjs pruefen
+      # Torprüfung: Die Browser-Tests laufen im Baustein spieltests. Dieser Job ist Pflichtprüfung im Ruleset und darf
+      # nur grün werden, wenn spieltests erfolgreich war (ein übersprungener Job zählte sonst als bestanden).
+      - name: Ergebnis der Spieltests (Baustein spieltests.yml)
+        env:
+          ERGEBNIS: ${{ needs.spieltests.result }}
+        run: |
+          echo "spieltests: $ERGEBNIS"
+          [ "$ERGEBNIS" = "success" ]
   bestehende-tests:
-    # Die schon vorhandenen Tests (Spiellogik und Supabase-Schema) laufen hier zusätzlich; pages.yml bleibt unberührt.
+    # Pflichtprüfung im Ruleset (Name bleibt): Spieltests (Baustein) müssen grün sein, danach die Supabase-Schema-Tests.
+    needs: spieltests
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
+      # Torprüfung: Die Browser-Tests laufen im Baustein spieltests. Dieser Job ist Pflichtprüfung im Ruleset und darf
+      # nur grün werden, wenn spieltests erfolgreich war (ein übersprungener Job zählte sonst als bestanden).
+      - name: Ergebnis der Spieltests (Baustein spieltests.yml)
+        env:
+          ERGEBNIS: ${{ needs.spieltests.result }}
+        run: |
+          echo "spieltests: $ERGEBNIS"
+          [ "$ERGEBNIS" = "success" ]
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with: { node-version: 22 }
@@ -165,12 +181,5 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y postgresql postgresql-contrib
           sudo systemctl stop postgresql || true
-      - name: Playwright mit Chromium (für die Browser-Tests der Spiellogik)
-        run: |
-          npm install --no-audit --no-fund
-          npx playwright install --with-deps chromium
-      - name: Node-Tests (npm test)
-        run: npm test
       - name: Supabase-Schema-Tests
-        if: ${{ !cancelled() }}
         run: bash supabase/tests/run.sh

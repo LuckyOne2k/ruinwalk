@@ -8,6 +8,18 @@ const restart=async(p)=>{const q=await p.context().newPage();q.errors=[];q.on('p
   await q.route(/openstreetmap|overpass/,r=>r.abort());await q.goto(p.url());await q.waitForFunction(()=>window.__RW);return q;};
 const open=async(T,seed,q)=>{const p=await T.page(seed,q);await p.evaluate(()=>{});return p;};
 module.exports={
+ 'Siege je Gebietsstufe (kb): alter Stand bleibt ohne kb und mit gleichem syncHash, kaputte Werte werden bereinigt':async(T,eq)=>{
+  const p=await open(T,{...base});
+  const r=await p.evaluate(()=>{const R=__RW,old=JSON.parse(JSON.stringify(R.def()));delete old.stats.kb;old.lv=3;old.stats.kills=7;
+    const mk=kb=>{const x=JSON.parse(JSON.stringify(old));x.stats.kb=kb;return R.sanitize(x).stats.kb;};
+    const a=R.sanitize(old);return {neu:'kb' in R.def().stats,alt:'kb' in a.stats,hash:R.syncHash(a)===R.syncHash(R.sanitize(JSON.parse(JSON.stringify(a)))),
+      ok:mk([1,2,3,4,5]),kurz:mk([3]),schlecht:mk([-1,'x',2.7,1e12,null,9]),obj:mk({0:1}),str:mk('1,2'),
+      hashKb:(()=>{const x=R.sanitize(Object.assign(JSON.parse(JSON.stringify(old)),{stats:{...old.stats,kb:[1,0,0,0,2]}}));return R.syncHash(x)===R.syncHash(R.sanitize(JSON.parse(JSON.stringify(x))));})()};});
+  eq(r,{neu:false,alt:false,hash:true,ok:[1,2,3,4,5],kurz:[3,0,0,0,0],schlecht:[0,0,2,1e9,0],obj:undefined,str:undefined,hashKb:true});
+  eq(p.errors,[]);await p.context().close();},
+ 'Quests: beim Laden wird ein bereits erfüllter Fortschritt sofort abschlussbereit':async(T,eq)=>{
+  const p=await open(T,{...base,lv:2,stats:{col:{stock:3,stein:2,ranke:2},nodes:{},kills:0,crafted:{axt:1},kt:{normal:0,rare:0,elite:0,boss:0,area:0},walk:0,night:0,faints:0}});
+  eq(await p.evaluate(()=>({r:__RW.S.qready,d:__RW.S.qdone})),{r:['q1'],d:[]});eq(p.errors,[]);await p.context().close();},
  'beschädigtes JSON: neues Spiel, Kopie gesichert, keine Exception':async(T,eq)=>{
   const p=await open(T,'{"lv":12,"inv":{"stock":5},"BROKEN');
   eq(await p.evaluate(()=>__RW.S.lv),1);
@@ -59,7 +71,7 @@ module.exports={
   eq(r[0],false);eq(/Speichern fehlgeschlagen/.test(r[1]),true);await p.context().close();},
  'Abgebrochene Quests und doppelte Einträge werden bereinigt':async(T,eq)=>{
   const p=await open(T,{lv:3,qdone:['q1','q1','nix'],qready:['q1','q2','q2']});
-  eq(await p.evaluate(()=>[__RW.S.qdone,__RW.S.qready]),[['q1'],['q2']]);await p.context().close();},
+  eq(await p.evaluate(()=>[__RW.S.qdone,__RW.S.qready]),[['q1','nix'],['q2']]);await p.context().close();},   // unbekannte ID 'nix' bleibt erhalten (neuere Spielversion)
  'Backup: gültiger Stand wird bereinigt gesichert, nicht roh':async(T,eq)=>{
   const p=await open(T,{lv:12,hp:50,inv:{stock:5,gibtsnicht:9},cu:77});
   const r=await p.evaluate(()=>JSON.parse(localStorage.getItem('ruinwalk_v1_bak')));

@@ -1,6 +1,18 @@
 const U=require('../util');
 const P=async(T,s)=>{const p=await T.page({lv:10,cls:'krieger',hp:500,en:100,...s});await U.install(p);return p;};
 module.exports={
+ 'Sieg zählt in kb nach effektiver Gebietsstufe e.b, nicht in cnt()':async(T,eq)=>{
+  const p=await P(T);
+  const r=await p.evaluate(()=>{const R=__RW,id=T.place('rohling'),e=R.sel;const vor=R.S.stats.kb;R.S.mh[id]=1;T.rand([],.99);R.nextAtk=0;R.shoot();
+    const kb=R.S.stats.kb.slice();R.kbInc(4);R.kbInc(99);R.kbInc('x');
+    return {vor,b:e.b,kb,nach:R.S.stats.kb,cnt:'kb' in R.cnt()};});
+  const soll=[0,0,0,0,0];soll[r.b-1]=1;const nach=soll.slice();nach[3]++;nach[4]++;nach[0]++;
+  eq(r,{vor:undefined,b:r.b,kb:soll,nach,cnt:false});await p.context().close();},
+ 'Sieg in einer Region mit Gebietsstufe >= 4 zählt in kb[e.b-1]':async(T,eq)=>{
+  const p=await P(T,{lv:40,hp:5000});
+  const r=await p.evaluate(()=>{const R=__RW;T.area();R.refreshWorld();let e=null;for(const [,o] of R.ents)if(o.e.kind==='mob'&&o.e.b>=4&&!/^g/.test(o.e.id)){e=o.e;break;}
+    if(!e)return {none:true};R.setPos(e.lat,e.lon,5);R.refreshWorld();R.select(e.id);R.S.mh[e.id]=1;T.rand([],.99);R.nextAtk=0;R.shoot();return {b:e.b,kb:R.S.stats.kb};});
+  const soll=[0,0,0,0,0];soll[r.b-1]=1;eq(r.b>=4,true,JSON.stringify(r));eq(r.kb,soll);await p.context().close();},
  'Schaden = (Angriff + Zufall) x Klassenfaktor, Monster-Leben sinkt entsprechend':async(T,eq)=>{
   const p=await P(T);
   const r=await p.evaluate(()=>{const R=__RW,id=T.place('rohling');T.rand([],.99);R.S.mh[id]=5000;const atk=R.atk(),mult=R.effClass().dmg;

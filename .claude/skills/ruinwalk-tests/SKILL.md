@@ -25,8 +25,11 @@ Die Instanzkampf-Befehle stehen vollständig im Skill `ruinwalk-instanzkampf`.
 - Neue Testdatei: `tests/cases/<thema>.js` nach Vorbild einer bestehenden; `tests/run.js` lädt alle.
 
 ## CI
-`.github/workflows/instance-tests.yml` (Jobs `determinism`, `database`, `bestehende-tests`) – läuft nur bei Änderungen an `server/instance/**`, `supabase/schema.sql`, `supabase/tests/00_stub.sql`.
-**Lücke:** Änderungen nur an `index.html` lösen keinen CI-Lauf aus, und `pages.yml` deployt `main` ohne Tests. Deshalb vor jedem Push `npm test` lokal.
+- `.github/workflows/spieltests.yml` – Baustein (`workflow_call`, nur Leserechte), läuft nie allein: Job `browser` (`npm test`, Playwright/Chromium) und Job `positivliste` (`node --test tests/pages/site.test.mjs tests/pages/workflows.test.mjs`, `node tools/pages/site.mjs pruefen`). Auf GitHub heißen die Prüfungen `spieltests / browser` und `spieltests / positivliste`.
+- `.github/workflows/instance-tests.yml` – Push mit Pfadfilter (u. a. `index.html`, `tests/**`, `server/instance/**`, `supabase/…`, alle Workflows), Pull Requests ohne Filter. Jobs: `determinism`, `database`, `database-pg17`, `spieltests` (Baustein), `pages-positivliste` und `bestehende-tests`.
+  - `pages-positivliste` und `bestehende-tests` sind Pflichtprüfungen im Ruleset `protect-main` (mit `determinism`, `database`). Beide warten auf `spieltests` und werden nur grün, wenn dessen Ergebnis `success` ist; `bestehende-tests` führt danach `bash supabase/tests/run.sh` aus. Namen nicht ändern, sonst wartet jeder PR auf eine Prüfung, die es nicht mehr gibt.
+- `.github/workflows/pages.yml` – Push auf `main` und manueller Start: zuerst `spieltests` (Baustein), dann `deploy` mit `needs: spieltests` und `if: github.ref == 'refs/heads/main'`. Rote Spieltests oder ein anderer Zweig → kein Deployment. Rechte: global keine, `deploy` allein `pages: write`/`id-token: write`.
+- Die Regeln dazu prüft `tests/pages/workflows.test.mjs`. Lokal trotzdem vor jedem Push `npm test`.
 
 ## Prüfmethode (Pflicht für QA)
 1. Betroffene Suites vollständig laufen lassen, Ausgabe (Anzahl grün/rot) im Bericht nennen.

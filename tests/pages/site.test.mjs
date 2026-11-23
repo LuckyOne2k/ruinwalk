@@ -185,10 +185,10 @@ test('Workflow: Prüfung und Bau vor dem Hochladen, nur _site wird veröffentlic
   assert.doesNotMatch(wf, /if:\s*always\(\)/);
 });
 
-test('PR-CI: Positivliste wird in instance-tests geprüft, Pfadfilter lösen bei relevanten Änderungen aus', () => {
+test('PR-CI: Positivliste wird über den Baustein spieltests.yml in instance-tests geprüft, Pfadfilter lösen bei relevanten Änderungen aus', () => {
   const wf = fs.readFileSync(path.join(REPO, '.github/workflows/instance-tests.yml'), 'utf8');
-  const job = wf.slice(wf.indexOf('pages-positivliste:'), wf.indexOf('bestehende-tests:'));
-  assert.ok(job.length > 0, 'Job pages-positivliste fehlt');
+  assert.match(wf, /\n  spieltests:\n(?:.*\n)*?\s+uses: \.\/\.github\/workflows\/spieltests\.yml/, 'Job spieltests fehlt');
+  const job = fs.readFileSync(path.join(REPO, '.github/workflows/spieltests.yml'), 'utf8');
   assert.match(job, /node --test tests\/pages\/site\.test\.mjs/);
   assert.match(job, /node tools\/pages\/site\.mjs pruefen/);
   assert.doesNotMatch(job, /continue-on-error|if:\s*always\(\)/);
