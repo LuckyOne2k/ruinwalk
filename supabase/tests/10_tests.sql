@@ -879,6 +879,79 @@ select tap.is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pro
 select tap.is((select string_agg(conname||':'||confdeltype::text, ',' order by conname) from pg_constraint where contype='f' and conrelid in ('public.character_confirmed'::regclass,'public.character_quests'::regclass,'public.quest_rewards'::regclass,'public.quest_audit'::regclass) and confrelid in ('public.characters'::regclass,'public.character_quests'::regclass)),
               'character_confirmed_character_id_fkey:c,character_quests_character_id_fkey:c,quest_audit_character_id_fkey:c,quest_rewards_character_id_quest_key_inst_key_fkey:c','Kaskade beim Löschen: Charakter -> bestätigte Werte, Questzeilen -> Gutschriften, Protokoll');
 
+-- 20j. NPC-Typen (npc_defs_guard): angebotene Vorlagen müssen Nebenquests aus dem Katalog sein; gilt für jeden Schreiber, Clients schreiben nicht
+select tap.as_admin();
+insert into public.quest_defs(quest_key,version,bereich,ziele) values ('nb:test_n1',1,'neben','[{"typ":"kills","basis":3}]'),('nb:test_n2',1,'neben','[{"typ":"walk","basis":500}]');
+select tap.lives($$insert into public.npc_defs(npc_typ,gewicht,vorlagen) values ('test_haendler',10,'{nb:test_n1,nb:test_n2}')$$,'NPC: Typ mit Nebenquest-Vorlagen anlegen');
+select tap.lives($$insert into public.npc_defs(npc_typ,gewicht) values ('test_stumm',1)$$,'NPC: Typ ohne Vorlagen erlaubt');
+select tap.throws($$insert into public.npc_defs(npc_typ,gewicht,vorlagen) values ('test_x1',1,'{tg:test_a}')$$,'npc_vorlage_invalid','NPC: Tagesquest ist keine NPC-Vorlage');
+select tap.throws($$insert into public.npc_defs(npc_typ,gewicht,vorlagen) values ('test_x2',1,'{st:test.1}')$$,'npc_vorlage_invalid','NPC: Story-Quest ist keine NPC-Vorlage');
+select tap.throws($$insert into public.npc_defs(npc_typ,gewicht,vorlagen) values ('test_x3',1,'{nb:test_unbekannt}')$$,'npc_vorlage_invalid','NPC: unbekannte Nebenquest wird abgelehnt');
+select tap.throws($$insert into public.npc_defs(npc_typ,gewicht,vorlagen) values ('test_x4',1,'{nb:test_n1,tg:test_a}')$$,'npc_vorlage_invalid','NPC: eine unzulässige Vorlage in der Liste genügt zur Ablehnung');
+select tap.throws($$insert into public.npc_defs(npc_typ,gewicht,vorlagen) values ('test_x5',1,array['nb:test_n1',null])$$,'npc_vorlage_invalid','NPC: leerer Listeneintrag (NULL) wird abgelehnt');
+select tap.throws($$update public.npc_defs set vorlagen='{nb:test_n1,wo:test_x}' where npc_typ='test_haendler'$$,'npc_vorlage_invalid','NPC: Änderung auf unzulässige Vorlage wird abgelehnt');
+select tap.lives($$update public.npc_defs set vorlagen='{nb:test_n2}', gewicht=20 where npc_typ='test_haendler'$$,'NPC: Änderung auf zulässige Vorlagen und Gewicht');
+select tap.lives($$update public.npc_defs set aktiv=false where npc_typ='test_stumm'$$,'NPC: Typ deaktivieren');
+select tap.is((select vorlagen from public.npc_defs where npc_typ='test_haendler'),'{nb:test_n2}'::text[],'NPC: abgelehnte Änderungen haben nichts verändert');
+select tap.throws($$insert into public.npc_defs(npc_typ,gewicht) values ('Test X',1)$$,'23514','NPC: Typname nur a–z, 0–9, _');
+select tap.throws($$insert into public.npc_defs(npc_typ,gewicht) values ('test_x6',0)$$,'23514','NPC: Gewicht >= 1');
+select tap.as_service();
+select tap.throws($$insert into public.npc_defs(npc_typ,gewicht,vorlagen) values ('test_dienst',1,'{tg:test_a}')$$,'npc_vorlage_invalid','NPC: Schutzregel gilt auch für service_role');
+select tap.as_user('a2000000-0000-0000-0000-0000000000a2');
+select tap.ok((select count(*) from public.npc_defs where npc_typ like 'test_%') = 2,'NPC: Typen für angemeldete Spieler lesbar');
+select tap.throws($$insert into public.npc_defs(npc_typ,gewicht,vorlagen) values ('test_client',1,'{nb:test_n1}')$$,'permission denied|42501','NPC: Clients legen keine Typen an');
+select tap.throws($$update public.npc_defs set gewicht=999 where npc_typ='test_haendler'$$,'permission denied|42501','NPC: Clients ändern keine Typen');
+select tap.throws($$delete from public.npc_defs where npc_typ='test_haendler'$$,'permission denied|42501','NPC: Clients löschen keine Typen');
+select tap.as_anon();
+select tap.throws($$select * from public.npc_defs$$,'permission denied|42501','NPC: anonym nicht lesbar');
+
+-- 20k. Gutschrift im_spielstand -> endgueltig: nur nach Fristende; endgueltig ist endgültig (Charakter C2, eigene Story-Vorlagen)
+select tap.as_admin();
+insert into public.quest_defs(quest_key,version,bereich,ziele) select 'st:test.'||n,1,'story','[{"typ":"kills","basis":1}]' from generate_series(3,6) n;
+insert into public.character_quests(character_id,quest_key,inst_key,version) select 'c2000000-0000-0000-0000-0000000000c2','st:test.'||n,'einmalig',1 from generate_series(3,6) n;
+insert into public.quest_rewards(character_id,quest_key,inst_key,belohnung,status,angelegt_am,gueltig_bis) values
+ ('c2000000-0000-0000-0000-0000000000c2','st:test.3','einmalig','{"xp":3}','im_spielstand',now()-interval '20 days',now()-interval '6 days'),
+ ('c2000000-0000-0000-0000-0000000000c2','st:test.4','einmalig','{"xp":4}','im_spielstand',now()-interval '1 day',now()+interval '13 days'),
+ ('c2000000-0000-0000-0000-0000000000c2','st:test.5','einmalig','{"xp":5}','offen',now()-interval '20 days',now()-interval '6 days'),
+ ('c2000000-0000-0000-0000-0000000000c2','st:test.6','einmalig','{"xp":6}','im_spielstand',now()-interval '20 days',now()-interval '6 days');
+select tap.throws($$update public.quest_rewards set status='endgueltig' where character_id='c2000000-0000-0000-0000-0000000000c2' and rid='st:test.4|einmalig'$$,'reward_status_transition','endgueltig: im_spielstand -> endgueltig vor Fristende abgelehnt');
+select tap.throws($$update public.quest_rewards set status='endgueltig' where character_id='c2000000-0000-0000-0000-0000000000c2' and rid='st:test.5|einmalig'$$,'reward_status_transition','endgueltig: offen -> endgueltig auch nach Fristende abgelehnt');
+select tap.throws($$update public.quest_rewards set status='verfallen' where character_id='c2000000-0000-0000-0000-0000000000c2' and rid='st:test.6|einmalig'$$,'reward_status_transition','endgueltig: im_spielstand nach Fristende nie verfallen');
+select tap.throws($$update public.quest_rewards set status='offen' where character_id='c2000000-0000-0000-0000-0000000000c2' and rid='st:test.6|einmalig'$$,'reward_status_transition','endgueltig: nach Fristende kein Rückweg im_spielstand -> offen');
+select tap.lives($$update public.quest_rewards set status='endgueltig' where character_id='c2000000-0000-0000-0000-0000000000c2' and rid='st:test.3|einmalig'$$,'endgueltig: im_spielstand -> endgueltig nach Fristende');
+select tap.throws($$update public.quest_rewards set status='offen' where character_id='c2000000-0000-0000-0000-0000000000c2' and rid='st:test.3|einmalig'$$,'reward_status_transition','endgueltig -> offen abgelehnt');
+select tap.throws($$update public.quest_rewards set status='im_spielstand' where character_id='c2000000-0000-0000-0000-0000000000c2' and rid='st:test.3|einmalig'$$,'reward_status_transition','endgueltig -> im_spielstand abgelehnt');
+select tap.throws($$update public.quest_rewards set status='verfallen' where character_id='c2000000-0000-0000-0000-0000000000c2' and rid='st:test.3|einmalig'$$,'reward_status_transition','endgueltig -> verfallen abgelehnt');
+select tap.throws($$update public.quest_rewards set belohnung='{"xp":300}' where character_id='c2000000-0000-0000-0000-0000000000c2' and rid='st:test.3|einmalig'$$,'reward_immutable','endgueltig: Belohnung bleibt unveränderlich');
+select tap.as_service();
+select tap.throws($$update public.quest_rewards set status='endgueltig' where character_id='c2000000-0000-0000-0000-0000000000c2' and rid='st:test.4|einmalig'$$,'reward_status_transition','endgueltig: Fristregel gilt auch für service_role');
+
+-- 20l. quest_state: endgueltig nur aus dem Serverzustand (gespeicherter Status + Serverzeit), nicht aus Clientdaten
+select tap.as_admin();
+select version as c2v from public.characters where character_id='c2000000-0000-0000-0000-0000000000c2' \gset
+select tap.as_user('a2000000-0000-0000-0000-0000000000a2');
+select tap.throws($$update public.quest_rewards set status='endgueltig' where rid='st:test.4|einmalig'$$,'permission denied|42501','quest_state-Daten: Clients setzen keinen Gutschriftstatus');
+select tap.throws($$insert into public.quest_rewards(character_id,quest_key,inst_key,belohnung,status) values ('c2000000-0000-0000-0000-0000000000c2','st:test.1','einmalig','{"xp":999}','im_spielstand')$$,'permission denied|42501','quest_state-Daten: Clients legen keine Gutschriften an');
+-- Spielstand mit erfundenen Gutschrift-/Questfeldern speichern (Clientdaten)
+select public.save_character('c2000000-0000-0000-0000-0000000000c2', :c2v,
+  '{"lv":7,"qdone":["st:test.4"],"gutschriften":[{"rid":"st:test.4|einmalig","status":"endgueltig"},{"rid":"st:test.9|einmalig","status":"endgueltig"}],"quest_rewards":{"st:test.5|einmalig":"endgueltig"},"rewards":[{"rid":"st:test.6|einmalig","status":"verfallen"}]}') is not null as gespeichert \gset
+select tap.ok(:'gespeichert'::boolean,'quest_state-Daten: Spielstand mit erfundenen Gutschriftfeldern gespeichert');
+create temp table qs2 as select public.quest_state('c2000000-0000-0000-0000-0000000000c2') j;
+create temp table qs2g as select g->>'rid' rid, g->>'status' status, (g->>'gueltig_bis')::timestamptz bis, (j->>'server_zeit')::timestamptz zeit from qs2, jsonb_array_elements(j->'gutschriften') g;
+select tap.is((select status from qs2g where rid='st:test.3|einmalig'),'endgueltig','quest_state: gespeichert endgueltig -> endgueltig');
+select tap.is((select status from qs2g where rid='st:test.6|einmalig'),'endgueltig','quest_state: im_spielstand nach Fristende (Serverzeit) -> endgueltig, nicht verfallen (Clientangabe ignoriert)');
+select tap.is((select status from qs2g where rid='st:test.4|einmalig'),'im_spielstand','quest_state: im_spielstand vor Fristende bleibt im_spielstand (Clientangabe „endgueltig“ ignoriert)');
+select tap.is((select status from qs2g where rid='st:test.5|einmalig'),'verfallen','quest_state: offen nach Fristende -> verfallen, nie endgueltig (Clientangabe ignoriert)');
+select tap.ok((select count(*) = 4 and count(*) filter (where rid='st:test.9|einmalig') = 0 from qs2g),'quest_state: nur Gutschriften aus der Datenbank (keine aus dem Spielstand)');
+select tap.ok((select bool_and((status='endgueltig') = (rid in ('st:test.3|einmalig','st:test.6|einmalig'))) and bool_and(status <> 'endgueltig' or rid='st:test.3|einmalig' or bis < zeit) from qs2g),
+              'quest_state: endgueltig genau dort, wo gespeichert endgueltig oder im_spielstand mit Fristende vor der Serverzeit');
+select tap.as_admin();
+select tap.is((select string_agg(rid||'='||status, ',' order by rid) from public.quest_rewards where character_id='c2000000-0000-0000-0000-0000000000c2'),
+              'st:test.3|einmalig=endgueltig,st:test.4|einmalig=im_spielstand,st:test.5|einmalig=offen,st:test.6|einmalig=im_spielstand',
+              'quest_state und Speichern ändern keinen gespeicherten Gutschriftstatus (abgeleiteter Wert bleibt Anzeige)');
+select tap.is((select count(*) from public.character_confirmed where character_id='c2000000-0000-0000-0000-0000000000c2'),0::bigint,'Speichern erzeugt keine bestätigten Werte (K2)');
+select tap.is((select pronargs from pg_proc where oid='public.quest_state(uuid)'::regprocedure),1::smallint,'quest_state hat nur den Charakter als Parameter (kein Status, keine Zeit vom Client)');
+
 -- 20i. Löschen: Kaskade über Charakter und Konto entfernt alle Questdaten (trotz Lösch-Sperren der Trigger)
 select tap.as_user('a1000000-0000-0000-0000-0000000000a1');
 select tap.lives($$select public.delete_character('c1000000-0000-0000-0000-0000000000c1')$$,'delete_character mit Questdaten (B-2/B-4-Sperrfolge unverändert)');

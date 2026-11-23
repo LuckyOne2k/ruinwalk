@@ -38,6 +38,8 @@ Grundlage: abgestimmter Quest-Gesamtplan (korrigierte Abschnitte 1–7) und E9; 
 `quest_state`: Rotation (eigene Anweisungen, vor jeder Charaktersperre) → Profil `for key share` → Charakterzeile `for key share` → Lesen ohne Sperre. Keine Beratungssperre (rwi), keine Schreibsperre auf Quest-Tabellen. Das entspricht der Pr-Torregel aus B-4 (Profil zuerst wie `save_character`/`delete_character`), `delete_account` (Profil exklusiv) wartet am Profil bzw. `quest_state` wartet dort; mit `save_character`, `delete_character` und Mehrzeilen-DELETE (B-6) wartet jeweils eine Seite an der Charakterzeile, ein Zyklus entsteht nicht (Tests QS-1 … QS-9). Bestehende Funktionen sind unverändert. Die Löschkaskade (Profil → Charakter → `character_confirmed`/`character_quests` → `quest_rewards`) folgt derselben Reihenfolge; die Lösch-Sperren der Trigger lassen nur die Kaskade durch.
 
 ## 4. Tests
+Stand vor Abschnitt 9 (Endstand Paket 2 bei PR #14). Aktuell: SQL-Tests 473/473 je Modus, `quest-sperren` 21/21 (QS-1–QS-12), siehe Abschnitt 9.
+
 | Test | Inhalt | Ergebnis |
 |---|---|---|
 | `supabase/tests/10_tests.sql`, Abschnitt 20 (beide Rechte-Modi) | Perioden (09:00, Woche, Sommer-/Winterzeit, Jahreswechsel, Sitzungszeitzone), Stufe, Katalogregeln, Pool, Rotation nach K3 (Determinismus, 3 verschiedene Quests, zuerst Vorlagen außerhalb der Vorperiode, gewichtete Auffüllung aus der Vorperiode, Poolgrößen 1–7 über drei Perioden, wiederholte Aufrufe, inaktive Vorlagen, Gewichte, < 3 Vorlagen ohne Duplikate, keine Zeile ohne aktive Vorlage, Unveränderlichkeit), bestätigte Werte, Questzeilen, Gutschriften, RLS/Rechte, `quest_state`, Sperrfolge statisch, Kaskade, TRUNCATE/Löschschutz | 432/432 je Modus (PG16, PG17) |
@@ -79,3 +81,49 @@ Tests (Abschnitt 20c): Poolgrößen 1–7 mit je drei aufeinanderfolgenden Perio
 - Produktionsmigrationen B2/B4 stehen weiter aus; Q1 ändert keine bestehende Funktion und kann unabhängig davon eingespielt werden (nur mit Freigabe).
 - Dev-Installation mit neuem Hash braucht eine eigene Freigabe.
 - Nicht live geprüft: echtes Supabase (`auth.uid()`, PostgREST, Standardrechte), Laufzeiten.
+
+## 9. Nachtrag: QA-Lücken und `lock_timeout` (Zweig `quest/paket2-qa-luecken`, 23.11.2026)
+Offene Punkte aus dem Abgleich mit `rw-qa`. `schema.sql` ist unverändert (kein neuer Hash für `install_dev.sql`).
+
+**Neue Tests in `supabase/tests/10_tests.sql`** (vor 20i), 41 Fälle, je Modus jetzt 473/473 (PG16, PG17):
+- **20j `npc_defs_guard`:** zulässige Nebenquest-Vorlagen, leere Liste, abgelehnt werden Tag-, Story- und unbekannte Vorlagen, gemischte Listen, NULL-Einträge und Änderungen auf unzulässige Vorlagen. Außerdem geprüft:
+  - Eine abgelehnte Änderung verändert nichts.
+  - Typname und Gewicht werden geprüft.
+  - Die Regel gilt auch für `service_role`.
+  - Clients dürfen lesen, aber weder schreiben noch löschen; anonym gibt es keinen Lesezugriff.
+- **20k Übergang `im_spielstand → endgueltig`:**
+  - Erlaubt nur nach Fristende.
+  - Abgelehnt vor Fristende, ab `offen` und auch für `service_role`.
+  - Nach Fristende sind `im_spielstand → verfallen` und `im_spielstand → offen` abgelehnt.
+  - Aus `endgueltig` führt kein Übergang heraus, die Belohnung bleibt unveränderlich.
+- **20l `quest_state`:** Der Status `endgueltig` wird nur aus dem gespeicherten Status und der Serverzeit abgeleitet.
+  - Clients können Gutschriften weder anlegen noch ihren Status setzen.
+  - Ein Spielstand mit erfundenen Gutschriftfeldern ändert weder die Ausgabe noch die gespeicherten Status, und es entsteht kein bestätigter Wert.
+  - `quest_state` hat nur den Charakter als Parameter.
+
+**Migration:** `set local lock_timeout = '5s'` steht direkt nach `begin;`.
+- Steht eine Schreibtransaktion auf `public.characters`, bricht die Migration nach 5 s ab (55P03) und rollt vollständig zurück. Die Migration braucht auf `characters` SHARE ROW EXCLUSIVE (Fremdschlüssel): Das kollidiert mit Schreibern, nicht mit Lesern. Während der Wartezeit stauen sich neue Schreibzugriffe auf `characters` höchstens etwa 5 s auf (`lock_timeout` gilt je Sperrwartezeit, nicht für die Gesamtdauer).
+- Die Einstellung gilt nur innerhalb der Transaktion.
+- Geprüft im neuen Test QS-11 (`quest-sperren.mjs`, mit QS-12 insgesamt 21/21 auf PG16 und PG17):
+  - die Stelle der Einstellung, der Wert genau 5 s und dass es nur eine gibt;
+  - der Abbruch hinter einem Blocker nach 4,5–6,5 s, ohne dass Objekte zurückbleiben;
+  - dass danach in derselben Sitzung und in anderen Verbindungen wieder `lock_timeout = 0` gilt.
+- QS-10 (Katalogvergleich Migration = `schema.sql`) ist unverändert grün.
+
+**Rollback:** `rollback_q1_quest_grundlage.sql` hat ebenfalls `set local lock_timeout = '5s'` direkt nach `begin;`. Das Entfernen der Tabellen mit Fremdschlüsseln auf `public.characters` braucht dort **ACCESS EXCLUSIVE** (Entfernen der Fremdschlüssel-Trigger). Damit blockiert schon eine offene **Lesetransaktion** auf `characters` das Rollback, und während der Wartezeit stauen sich **alle** neuen Zugriffe auf `characters` (auch Lesezugriffe wie `list_characters`, `quest_state`, RLS-Abfragen) höchstens etwa 5 s auf. Danach bricht das Rollback ab und rollt vollständig zurück.
+- Geprüft im neuen Test QS-12:
+  - Die Einstellung steht direkt nach `begin;`, kommt genau einmal vor und hat den Wert 5 s.
+  - Hinter einer offenen Schreibtransaktion auf `characters` bricht das Rollback nach 5,0 s ab (lock timeout; Lese-Blocker nicht eigens getestet, laut rw-backend-security gemessen gleiches Verhalten). Der Katalog-Fingerabdruck ist danach identisch und eine Katalogzeile bleibt erhalten, also wurde vollständig zurückgerollt.
+  - Ohne Blocker läuft das Rollback durch. Danach gilt in derselben Sitzung und in anderen Verbindungen wieder `lock_timeout = 0`.
+
+**Einspielhinweis (Migration und Rollback):** nur mit `psql -X -v ON_ERROR_STOP=1 -f <datei>`, **ohne** `-1`, über Port 5432 (nicht den Transaktions-Pooler). Ohne `ON_ERROR_STOP` endet psql nach einem Abbruch mit Exit-Code 0, obwohl alles zurückgerollt wurde. Der Hinweis steht auch im Kopf beider Dateien.
+
+**Mutationsproben, alle erkannt:**
+- `npc_defs_guard`: 4 (ohne Bereichsprüfung, nur INSERT, NULL durchgelassen, ohne Trigger)
+- Gutschrift-Übergänge: 5 (ohne `endgueltig`, ohne Frist, ab `offen`, `im_spielstand → verfallen`, `endgueltig` wieder offen)
+- Ableitung in `quest_state`: 4 (keine Ableitung, ohne Frist, `offen → endgueltig`, alles verfällt)
+- `lock_timeout` Migration: 3 (fehlt, als Sitzungswert, 120 s)
+- `lock_timeout` Rollback: 3 (fehlt, als Sitzungswert, 30 s)
+
+**Offen:**
+- **NPC-Verweise (vorgemerkt, Entscheidung Pascal 23.11.2026):** `npc_defs_guard` prüft nur beim Schreiben in `npc_defs`. Wird eine Nebenquest-Version gelöscht oder deaktiviert, die ein NPC-Typ anbietet, bleibt der Verweis bestehen (`quest_defs_guard` kennt `npc_defs` nicht). Heute nicht ausnutzbar: nur der Server pflegt den Katalog, und keine Funktion liest `npc_defs.vorlagen` aus (`quest_state` nicht). **Auflage:** Das erste Paket, das `npc_defs.vorlagen` ausliest (laut Planung Paket 8, sonst früher), setzt Lösung (a) um: Der Leser verbindet die Vorlagen mit `quest_defs` und nutzt nur vorhandene, aktive Nebenquests (`bereich = 'neben'`, `aktiv`); fehlende werden still weggelassen. Deaktivieren bleibt erlaubt. Jetzt keine Schemaänderung.
