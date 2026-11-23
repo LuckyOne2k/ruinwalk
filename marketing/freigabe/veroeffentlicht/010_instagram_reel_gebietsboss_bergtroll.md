@@ -4,15 +4,15 @@ titel: Reel – Gebietsboss #1 Bergtroll (Abwehr gegen den Felsbrocken)
 kanal: instagram
 format: reel
 geplant_fuer: Mo 23.11.2026, 17:35 (Reel-Tag Mo, Wochenplan 13_beitragsmix_serien.md)
-status: autonom
+status: veroeffentlicht
 freigegeben_von:
 freigegeben_am:
 video: marketing/grafiken/entwuerfe/010_reel_gebietsboss_bergtroll.mp4
 video_url:
 vorschau_ms: 800
 bild: marketing/grafiken/entwuerfe/010_reel_gebietsboss_bergtroll_vorschau.jpg
-veroeffentlicht_am:
-link:
+veroeffentlicht_am: 2026-11-23 18:59 MEZ (17:59:43 UTC, autonom, instagram-reel:17914836636589530)
+link: https://www.instagram.com/reel/DgF-N9yPvVy/
 ---
 
 ## Ziel
@@ -63,3 +63,4 @@ Kurzes Hochformat-Video aus Ruin Walk. Eine Pixel-Art-Figur in weißer Rüstung 
 - Ohne Musik (stille Spur). Wenn du Musik willst: in der App posten.
 - „Drei Sekunden“: Ansagezeit 3,4 s bzw. 2,8 s in der letzten Phase (`bossTick`, `dur`).
 - 23.11.2026 17:35 UTC nicht gesendet: Skript meldet „Tageslimit erreicht (1)“ – rollierendes 24-h-Fenster seit Karussell 004 (22.11., 18:31:55 UTC) noch nicht abgelaufen. Prüfung bestanden, Status bleibt autonom, nächster Reel-Termin.
+- 23.11.2026 18:59 MEZ veröffentlicht (nach Umstellung der Tageslimits auf Kalendertag Europe/Berlin, Commit ce59c31).
