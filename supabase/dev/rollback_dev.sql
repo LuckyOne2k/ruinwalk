@@ -41,9 +41,9 @@ begin
   raise notice 'rollback entfernt: % Profile, % Charaktere, % Instanzen (Testkonten in auth.users bleiben bestehen)', n_prof, n_chr, n_inst;
   -- Abhängigkeiten fremder Objekte von unseren Tabellen (z. B. Sichten, Fremdschlüssel anderer Schemas) würden durch CASCADE mitgerissen: dann abbrechen
   select count(*) into ext from pg_depend d join pg_rewrite rw on rw.oid = d.objid join pg_class v on v.oid = rw.ev_class
-   join pg_class t on t.oid = d.refobjid where t.relnamespace in ('public'::regnamespace) and t.relname in ('profiles','account_entitlements','payment_events','characters','character_backups','audit_log') and v.relkind in ('v','m');
+   join pg_class t on t.oid = d.refobjid where t.relnamespace in ('public'::regnamespace) and t.relname in ('profiles','account_entitlements','payment_events','characters','character_backups','audit_log','quest_events','quest_defs','quest_pools','quest_rotation','npc_defs','npc_seed','character_confirmed','character_quests','quest_rewards','quest_audit') and v.relkind in ('v','m');
   if ext > 0 then raise exception 'rollback: % Sichten hängen von unseren Tabellen ab - Abbruch', ext; end if;
-  select count(*) into ext from pg_constraint c where c.contype = 'f' and c.confrelid in (select oid from pg_class where relnamespace = 'public'::regnamespace and relname in ('profiles','account_entitlements','payment_events','characters','character_backups','audit_log'))
+  select count(*) into ext from pg_constraint c where c.contype = 'f' and c.confrelid in (select oid from pg_class where relnamespace = 'public'::regnamespace and relname in ('profiles','account_entitlements','payment_events','characters','character_backups','audit_log','quest_events','quest_defs','quest_pools','quest_rotation','npc_defs','npc_seed','character_confirmed','character_quests','quest_rewards','quest_audit'))
      and c.conrelid not in (select oid from pg_class where relnamespace in (select oid from pg_namespace where nspname in ('public', 'rwi')));
   if ext > 0 then raise exception 'rollback: % fremde Fremdschlüssel verweisen auf unsere Tabellen - Abbruch', ext; end if;
 end $$;
@@ -57,7 +57,7 @@ declare r record;
 begin
   for r in select c.oid::regclass as t from pg_class c
             where c.relkind in ('r','p') and (c.relnamespace = (select oid from pg_namespace where nspname = 'rwi')
-               or (c.relnamespace = 'public'::regnamespace and c.relname in ('profiles','account_entitlements','payment_events','characters','character_backups','audit_log')))
+               or (c.relnamespace = 'public'::regnamespace and c.relname in ('profiles','account_entitlements','payment_events','characters','character_backups','audit_log','quest_events','quest_defs','quest_pools','quest_rotation','npc_defs','npc_seed','character_confirmed','character_quests','quest_rewards','quest_audit')))
             order by c.oid loop
     execute format('lock table %s in access exclusive mode', r.t);
   end loop;
@@ -66,7 +66,7 @@ end $$;
 -- Manifest in einer Zwischentabelle (nur in dieser Transaktion, verschwindet beim Ende). Neuerzeugung: node server/instance/tests/rollback-manifest.mjs;
 -- installation.mjs wird rot, solange das Manifest nicht zum installierten Stand passt.
 -- Umfang: rwi (18 Tabellen mit Spaltenfingerabdruck, 67 Funktionen mit Signatur und Fingerabdruck aus Sprache, Rückgabetyp, SECURITY, Volatilität, search_path,
--- Quelltext, dazu Trigger und eigene Indizes), public (6 Tabellen mit Spaltenfingerabdruck, 38 Funktionen mit Fingerabdruck). Jede Abweichung (zusätzlich ODER
+-- Quelltext, dazu Trigger und eigene Indizes), public (16 Tabellen mit Spaltenfingerabdruck, 56 Funktionen mit Fingerabdruck; davon Quest Paket 2: 10 Tabellen, 18 Funktionen). Jede Abweichung (zusätzlich ODER
 -- verändert/ersetzt) bricht ab. Nicht abgedeckt: von Hand ergänzte Constraints, Kommentare, Standardwerte, ACLs, Eigentümer.
 create temp table rw_manifest(kind text not null, entry text not null) on commit drop;
 insert into rw_manifest(kind, entry) values
@@ -158,11 +158,23 @@ insert into rw_manifest(kind, entry) values
     ('ptab','account_entitlements=352016b130e64ddbae2e34f5ac893264'),
     ('ptab','audit_log=bf60161677bcc64b5afa0ed148d1eb10'),
     ('ptab','character_backups=3bc64991c91f6c5be45f40fc85567a83'),
+    ('ptab','character_confirmed=5f20bc9f474e96101cfa6501cff95de2'),
+    ('ptab','character_quests=ff4d906d8cc671921ae31555a9bb0290'),
     ('ptab','characters=07076469360970d9387a55841bdd7b09'),
+    ('ptab','npc_defs=2abb7048fdf26c5f3d3ebb95a654ca1f'),
+    ('ptab','npc_seed=7914cb290c1392364337c12e2d164ea5'),
     ('ptab','payment_events=9513e1d7c3133561ba6377d29b6df179'),
     ('ptab','profiles=33edd7adaae50803cab8046918238ec3'),
+    ('ptab','quest_audit=76a218241558e958ed57f107914a1879'),
+    ('ptab','quest_defs=87ba229fedb875893499ff31716ab6c3'),
+    ('ptab','quest_events=ba4a2519990ba2468ec6b1bc0ce8a2d9'),
+    ('ptab','quest_pools=3d5f068a5b8a9c7e643c8716e2974924'),
+    ('ptab','quest_rewards=fbd0c354a7b9e4082cb1bd6f9469b7da'),
+    ('ptab','quest_rotation=0fc6d0d0082ee9307ef3ff2f72ce8094'),
     ('pfn','audit_entitlement()=9d67bb22c7e5405fa7d8307f98138045'),
     ('pfn','backup_character()=94dd9d87677b843cae5be4de12c5d3c2'),
+    ('pfn','character_confirmed_guard()=1576e71df15acce2e168e34546272e6c'),
+    ('pfn','character_quests_guard()=f920db4a25eb0df574a32aecbfb9f88a'),
     ('pfn','create_character(p_slot integer, p_name text, p_data jsonb)=8e6f9d4ca47f2127d7dc9a838c3b5bd4'),
     ('pfn','delete_account(p_confirm text)=0cc4b1d04a35f97fda6c4bafa96c343f'),
     ('pfn','delete_character(p_id uuid)=b294227d6510bfd96be2ce779cf0750d'),
@@ -181,8 +193,24 @@ insert into rw_manifest(kind, entry) values
     ('pfn','is_verified(p_account uuid)=2786eb550d5bf93b021a2fdda5d2e698'),
     ('pfn','list_characters()=7c28b53b70eb2ebff310058a764856c7'),
     ('pfn','move_character(p_id uuid, p_target integer)=f46e5f827242ff1ee0fad59a85aac6de'),
+    ('pfn','npc_defs_guard()=18cc1bb8bbf4b958292f49d1a4dac5a2'),
     ('pfn','purge_account_backups(p_account uuid)=a4f611ba71935c9b7c0d0a95d389f3fa'),
     ('pfn','purge_expired_backups()=3fdff8cca7857bfa7746bf4e8580f783'),
+    ('pfn','quest_bereich(p_key text)=f79630895a253b52b7a6879b35436251'),
+    ('pfn','quest_defs_guard()=56e4b5c818b39be8f5745b44bdf4e27c'),
+    ('pfn','quest_inst_datum(p_inst text)=57f0cff5adc8ed9fcba2a9df803f7b17'),
+    ('pfn','quest_inst_ok(p_key text, p_inst text)=f247df465f3e94da3757b5748b6c1328'),
+    ('pfn','quest_periode_datum(p_typ text, p_t timestamp with time zone)=ca384038a70e0c5070ded020923d5b5f'),
+    ('pfn','quest_periode_start(p_datum date)=cee7965cceaf41267bd5b7747d7dc3ff'),
+    ('pfn','quest_pools_guard()=b91b68fefc2b53265ca4fadcd07eea49'),
+    ('pfn','quest_rewards_guard()=ca8f54ac6f6752badf929c43007f851e'),
+    ('pfn','quest_rotation_guard()=d0c337fdd865369dba5e67047137989a'),
+    ('pfn','quest_rotation_sichern(p_typ text, p_datum date)=17c8eea30c6f46fe78db71f5cf4ac0da'),
+    ('pfn','quest_rotation_wahl(p_typ text, p_datum date)=fb20954577b6e146ab188a016daeab12'),
+    ('pfn','quest_state(p_character uuid)=9b8c53701367df0e2599e3024ad26ba8'),
+    ('pfn','quest_stufe(p_level integer)=e35e5091280138434977449aaa64b7ad'),
+    ('pfn','quest_zaehler_ok(p jsonb)=685ab34005c31db5686f24babf48c544'),
+    ('pfn','quest_ziele_ok(p jsonb)=66f3a4b7adfa461cb2c9f7d259d3b3de'),
     ('pfn','rw_ops_register_engine(p_operator uuid, p_version text, p_state_schema integer, p_note text)=687f17641f03697bda8770083fca1fd2'),
     ('pfn','rw_ops_resume(p_fight bigint, p_round integer, p_operator uuid, p_note text, p_engine text)=5a13f23e49d359008a371850370b4990'),
     ('pfn','rw_ops_stuck_list()=7667753cc3b2ff25e75985e203cf05a0'),
@@ -253,7 +281,7 @@ begin
 end $$;
 
 -- Prüfung über die Systemkataloge (pg_depend): Nichts außerhalb des Installationsumfangs darf von Objekten abhängen, die gelöscht werden.
--- Umfang = Schema rwi, die 6 public-Tabellen (samt Spalten, Indizes, Triggern, Richtlinien, Fremdschlüsseln) und die im Manifest genannten public-Funktionen.
+-- Umfang = Schema rwi, die 16 public-Tabellen (samt Spalten, Indizes, Triggern, Richtlinien, Fremdschlüsseln) und die im Manifest genannten public-Funktionen.
 -- Unbekannte Objektarten als Abhängige zählen als fremd (Abbruch statt Raten).
 do $$
 declare bad text; n_bad int;
@@ -278,7 +306,7 @@ begin
   union all select 'pg_default_acl'::regclass::oid, x.oid, x.defaclnamespace, null from pg_default_acl x),
   tabs as (select c.oid from pg_class c where c.relnamespace = 'public'::regnamespace and exists (select 1 from rw_manifest m where m.kind = 'ptab' and split_part(m.entry, '=', 1) = c.relname)),
   fns as (select p.oid from pg_proc p where p.pronamespace = 'public'::regnamespace and exists (select 1 from rw_manifest m where m.kind = 'pfn' and split_part(m.entry, '(', 1) = p.proname)),
-  -- gelöscht wird: alles in rwi, die 6 Tabellen samt Zubehör
+  -- gelöscht wird: alles in rwi, die 16 Tabellen samt Zubehör
   doomed as (select * from m where ns = (select oid from pg_namespace where nspname = 'rwi') or rel in (select oid from tabs) or rel in (select oid from pg_class where relnamespace = (select oid from pg_namespace where nspname = 'rwi'))),
   -- erlaubte Abhängige: dasselbe, dazu unsere benannten Funktionen
   allowed as (select classid, objid from doomed union all select 'pg_proc'::regclass::oid, oid from fns

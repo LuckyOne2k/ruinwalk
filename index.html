@@ -623,7 +623,7 @@ function craftGear(bid){
   const res=addGear(bid,rollQ([70,24,5,1,0]));
   S.stats.crafted[bid]=(S.stats.crafted[bid]||0)+1;
   toast('🔨 '+gNameT(res.g)+' hergestellt'+(res.auto?' und angelegt':''));
-  save();hud();openSheet('craft');
+  checkQuests();save();hud();openSheet('craft');
 }
 const UPMAX=10,UPCH=[1,1,1,.9,.75,.6,.45,.3,.15,.05];   // Chance je aktueller Stufe (+0→+1 … +9→+10)
 const UPE=[3,5,8,12,18,26,36,48,64,80],UPS=[4,6,8,12,16,20,0,0,0,0];
@@ -807,6 +807,9 @@ const UPQ=[
  {t:'Prüfung der Meister',g:[['Monster besiegen',c=>c.kills,100],['Elite-Monster besiegen',c=>c.elite,3],['Meter laufen',c=>c.walk,5000]]},
  {t:'Prüfung des Verborgenen',g:[['Monster besiegen',c=>c.kills,200],['Boss-Monster besiegen',c=>c.boss,1],['Meter laufen',c=>c.walk,10000]]}
 ];
+/* Siege je effektiver Gebietsstufe (e.b, 1–5): kb[0] = Stufe 1 … kb[4] = Stufe 5. Grundlage für Questziele, NICHT Teil von cnt()/qb.
+   Wird erst beim ersten Sieg angelegt (nicht in def()), damit alte Spielstände unverändert bleiben und syncHash gleich bleibt. */
+function kbInc(b){const kb=S.stats.kb||(S.stats.kb=[0,0,0,0,0]);const i=Math.min(5,Math.max(1,Math.floor(+b)||1))-1;kb[i]=Math.min(1e9,(kb[i]||0)+1);}
 const cnt=()=>({kills:S.stats.kills,rare:S.stats.kt.rare,elite:S.stats.kt.elite,boss:S.stats.kt.boss+S.stats.kt.area,walk:Math.round(S.stats.walk||0)});
 const upProg=()=>{const c=cnt(),b=S.qb||c,q=UPQ[S.tier];return q.g.map(([l,f,n])=>[l,Math.min(n,Math.max(0,f(c)-f(b))),n]);};
 const upQuestDone=()=>S.tier<3&&upProg().every(g=>g[1]>=g[2]);
@@ -837,6 +840,7 @@ const LV_CAP=50;
 /* eindeutige, unveränderliche Charakter-ID (später die Server-character_id) */
 function newCid(){try{if(crypto.randomUUID)return crypto.randomUUID();}catch(e){}return 'c'+Date.now().toString(36)+Math.random().toString(36).slice(2,12);}
 const isObj=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
+const QID_RE=/^[a-z0-9_:.|-]{1,80}$/,QID_MAX=1000;   // Quest-Kennungen in qdone/qready
 const numIn=(v,d,lo,hi)=>{v=+v;return isFinite(v)?Math.min(hi,Math.max(lo,v)):d;};
 /* Macht aus beliebigem (auch beschädigtem oder altem) JSON einen gültigen Spielstand. Unbrauchbare Einträge fallen weg, der Rest bleibt erhalten. */
 function sanitize(o){
@@ -847,6 +851,7 @@ function sanitize(o){
   for(const k of['col','nodes','crafted'])if(!isObj(s.stats[k]))s.stats[k]={};
   for(const k of['kills','walk','night','faints'])s.stats[k]=numIn(s.stats[k],0,0,1e9);
   for(const k in s.stats.kt)s.stats.kt[k]=numIn(s.stats.kt[k],0,0,1e9);
+  if(Array.isArray(s.stats.kb))s.stats.kb=[0,1,2,3,4].map(i=>Math.floor(numIn(s.stats.kb[i],0,0,1e9)));else delete s.stats.kb;   // Siege je Gebietsstufe: nur vorhanden, wenn schon angelegt (siehe kbInc)
   s.skills=Object.assign(def().skills,isObj(o.skills)?o.skills:{});for(const k in s.skills)s.skills[k]=numIn(s.skills[k],0,0,1e6);
   s.lv=Math.floor(numIn(s.lv,1,1,LV_CAP));s.xp=Math.floor(numIn(s.xp,0,0,1e9));
   s.hp=numIn(s.hp,100,1,1e6);s.en=numIn(s.en,100,0,100);s.cu=Math.floor(numIn(s.cu,0,0,1e12));
@@ -870,8 +875,9 @@ function sanitize(o){
   for(const g of gear)if(!g.u){g.u=++mx;seen.add(g.u);}
   s.gear=gear;s.gid=mx;
   const eq={};if(isObj(s.eq))for(const sl in s.eq){const g=gear.find(x=>x.u===s.eq[sl]);if(g&&getBase(g.b).slot===sl)eq[sl]=g.u;}s.eq=eq;
-  s.qdone=Array.isArray(s.qdone)?s.qdone.filter(x=>typeof x==='string'):[];
-  s.qready=Array.isArray(s.qready)?s.qready.filter(x=>typeof x==='string'&&!s.qdone.includes(x)):[];
+  /* Quest-IDs: nur gültige Kennungen, entdoppelt, begrenzt. Unbekannte (z. B. aus einer neueren Spielversion) bleiben erhalten. */
+  const qIds=a=>Array.isArray(a)?[...new Set(a.filter(x=>typeof x==='string'&&QID_RE.test(x)))].slice(0,QID_MAX):[];
+  s.qdone=qIds(s.qdone);s.qready=qIds(s.qready).filter(x=>!s.qdone.includes(x));
   s.qb=isObj(s.qb)?s.qb:null;
   if(!CLASSES[s.cls])s.cls='wanderer';
   s.path=typeof s.path==='string'&&PATHS[s.path]?s.path:'';s.tier=s.path?Math.floor(numIn(s.tier,0,0,3)):0;
@@ -1584,7 +1590,7 @@ function strike(o){
   if(m.ab==='dorn'){const rf=Math.max(1,Math.round(dmg*.12));S.hp=Math.max(1,S.hp-rf);fMe('-'+rf,'dmg',0);}
   const hp=(S.mh[e.id]??m.hp)-dmg;
   if(hp<=0){
-    bossFx.delete(e.id);delete S.mh[e.id];S.cd[e.id]=Date.now();S.stats.kills++;S.stats.kt[m.tier]=(S.stats.kt[m.tier]||0)+1;{const hr=new Date().getHours();if(hr>=22||hr<4)S.stats.night++;}S.stun=0;
+    bossFx.delete(e.id);delete S.mh[e.id];S.cd[e.id]=Date.now();S.stats.kills++;S.stats.kt[m.tier]=(S.stats.kt[m.tier]||0)+1;kbInc(e.b);{const hr=new Date().getHours();if(hr>=22||hr<4)S.stats.night++;}S.stun=0;
     const got=[];
     for(const dr of m.drops){if(Math.random()<(dr.c??1)){const q=rnd(dr.min,dr.max);add(dr.i,q);S.stats.col[dr.i]=(S.stats.col[dr.i]||0)+q;got.push('+'+q+' '+ITEMS[dr.i].n);}}
     {const cr=COIN[m.tier]||[1,3],cc=Math.round(rnd(cr[0],cr[1])*(m.cm||1));earn(cc);got.push(fmtM(cc));}
@@ -1720,33 +1726,48 @@ function useItem(id){
 }
 
 /* ---------- Quests ---------- */
+/* Questdaten: Ziele z = [Text, Zähler, Menge] (Zähler aus QCNT), Belohnung r = {xp, items, kupfer} (Form des späteren Server-Katalogs),
+   Kette k: Quests einer Kette werden der Reihe nach freigeschaltet, Ketten sind voneinander unabhängig. */
 const QUESTS=[
-  {id:'q1',t:'Erste Schritte',d:'Sammle Material und stelle eine Holzfälleraxt her.',rt:'10 XP · :i_kupfer:30',
-   goals:()=>[['Stöcke sammeln',S.stats.col.stock||0,3],['Kleine Steine sammeln',S.stats.col.stein||0,2],['Ranken sammeln',S.stats.col.ranke||0,2],['Holzfälleraxt herstellen',S.stats.crafted.axt||0,1]],
-   reward:()=>{addXP(10);earn(30);}},
-  {id:'q2',t:'Holzfäller',d:'Fälle ein paar Bäume im Umkreis.',rt:'2 Heiltränke · :i_kupfer:50',
-   goals:()=>[['Bäume fällen',S.stats.nodes.baum||0,3]],reward:()=>{add('trank',2);earn(50);}},
-  {id:'q3',t:'Jäger',d:'Besiege Rohlinge mit deinem Bogen.',rt:'20 XP · :i_kupfer:80',
-   goals:()=>[['Rohlinge besiegen',S.stats.kills||0,2]],reward:()=>{addXP(20);earn(80);}},
-  {id:'q4',t:'Bergmann',d:'Stelle eine Spitzhacke her und baue Eisenerz ab.',rt:'30 XP · :i_silber:1 :i_kupfer:50',
-   goals:()=>[['Spitzhacke herstellen',S.stats.crafted.spitzhacke||0,1],['Eisenerz abbauen',S.stats.nodes.erz||0,2]],reward:()=>{addXP(30);earn(150);}}
+  {id:'q1',k:'start',t:'Erste Schritte',d:'Sammle Material und stelle eine Holzfälleraxt her.',
+   z:[['Stöcke sammeln','col.stock',3],['Kleine Steine sammeln','col.stein',2],['Ranken sammeln','col.ranke',2],['Holzfälleraxt herstellen','crafted.axt',1]],
+   r:{xp:10,kupfer:30}},
+  {id:'q2',k:'start',t:'Holzfäller',d:'Fälle ein paar Bäume im Umkreis.',
+   z:[['Bäume fällen','nodes.baum',3]],r:{items:{trank:2},kupfer:50}},
+  {id:'q3',k:'start',t:'Jäger',d:'Besiege zwei Monster – dafür reicht schon deine Startwaffe, etwa die Schleuder des Wanderers.',
+   z:[['Monster besiegen','kills',2]],r:{xp:20,kupfer:80}},
+  {id:'q4',k:'start',t:'Bergmann',d:'Stelle eine Spitzhacke her und baue Eisenerz ab.',
+   z:[['Spitzhacke herstellen','crafted.spitzhacke',1],['Eisenerz abbauen','nodes.erz',2]],r:{xp:30,kupfer:150}}
 ];
-{const qid=QUESTS.map(q=>q.id);S.qdone=[...new Set(S.qdone.filter(x=>qid.includes(x)))];S.qready=[...new Set(S.qready.filter(x=>qid.includes(x)&&!S.qdone.includes(x)))];}
+/* Zählerregister (feste Liste): liefert den aktuellen absoluten Zählerstand; unbekannte Zähler zählen 0. */
+const QCNT={col:k=>S.stats.col[k],nodes:k=>S.stats.nodes[k],crafted:k=>S.stats.crafted[k],kt:k=>S.stats.kt[k],kills:()=>S.stats.kills};
+function qVal(key){const i=key.indexOf('.'),f=QCNT[i<0?key:key.slice(0,i)];const v=f?+f(i<0?'':key.slice(i+1)):0;return isFinite(v)&&v>0?v:0;}
+/* eine Auswertung für Anzeige und Prüfung: [Text, Stand, Menge] */
+const qGoals=q=>q.z.map(([t,key,n])=>[t,qVal(key),n]);
+const qDone=q=>qGoals(q).every(g=>g[1]>=g[2]);
+const QPL={trank:'Heiltränke'};   // Mehrzahl für Belohnungstexte
+function rewardText(r){const a=[];if(r.xp)a.push(r.xp+' XP');for(const k in r.items||{}){const n=r.items[k];a.push(n+' '+(n>1&&QPL[k]||ITEMS[k].n));}if(r.kupfer)a.push(fmtM(r.kupfer));return a.join(' · ');}
+/* Reihenfolge wie bisher: Erfahrung, Gegenstände, Kupfer */
+function giveReward(r){if(r.xp)addXP(r.xp);for(const k in r.items||{})add(k,r.items[k]);if(r.kupfer)earn(r.kupfer);}
+for(const q of QUESTS)q.rt=rewardText(q.r);
+const questById=id=>QUESTS.find(x=>x.id===id);
+const readyQuests=()=>QUESTS.filter(q=>S.qready.includes(q.id));   // nur bekannte, abholbereite Quests
 function checkQuests(){
+  const blocked=new Set();   // Ketten, in denen schon eine offene Quest steht: spätere Quests dieser Kette bleiben gesperrt
   for(const q of QUESTS){
-    if(S.qdone.includes(q.id)||S.qready.includes(q.id))continue;
-    if(q.goals().every(g=>g[1]>=g[2])){
+    if(S.qdone.includes(q.id)||S.qready.includes(q.id)||blocked.has(q.k))continue;
+    if(qDone(q)){
       S.qready.push(q.id);
       toast('📜 Quest geschafft: '+q.t+' – Belohnung im Quest-Fenster abholen!');
-    }else break; // spätere Quests bleiben gesperrt
+    }else blocked.add(q.k);
   }
 }
 function claimQuest(id){
-  const q=QUESTS.find(x=>x.id===id);
+  const q=questById(id);
   if(!q||!S.qready.includes(id))return;
   S.qready=S.qready.filter(x=>x!==id);
   S.qdone.push(id);
-  q.reward();
+  giveReward(q.r);
   toast('🎁 Belohnung erhalten: '+q.rt);
   checkQuests();save();hud();openSheet('quests');
 }
@@ -1787,16 +1808,17 @@ function openSheet(s){
     }
   }
   if(s==='quests'){
-    const readyL=QUESTS.filter(q=>S.qready.includes(q.id));
+    const readyL=readyQuests();
     const doneL=QUESTS.filter(q=>S.qdone.includes(q.id));
     const curL=QUESTS.filter(q=>!S.qdone.includes(q.id)&&!S.qready.includes(q.id));
-    const goalLines=q=>q.goals().map(g=>'<div>'+(g[1]>=g[2]?'✅':'⬜')+' '+g[0]+' '+Math.min(g[1],g[2])+'/'+g[2]+'</div>').join('');
+    const goalLines=q=>qGoals(q).map(g=>'<div>'+(g[1]>=g[2]?'✅':'⬜')+' '+g[0]+' '+Math.min(g[1],g[2])+'/'+g[2]+'</div>').join('');
     h+='<div class="tabs"><button class="tab'+(qtab==='cur'?' on':'')+'" data-a="qtab" data-t="cur">Aktuelle ('+(readyL.length+curL.length)+')</button>'
       +'<button class="tab'+(qtab==='done'?' on':'')+'" data-a="qtab" data-t="done">Erledigte ('+doneL.length+')</button></div>';
     if(qtab==='cur'){
       h+=readyL.map(q=>'<div class="q act2"><b>🎉 '+q.t+'</b><div style="font-size:13px;margin:3px 0">'+q.d+'</div>'+goalLines(q)
         +'<button class="btn" data-a="qclaim" data-id="'+q.id+'">🎁 Belohnung abholen: '+q.rt+'</button></div>').join('');
-      h+=curL.map((q,i)=>i===0
+      const firstK=new Set();   // je Kette ist nur die erste offene Quest aktiv
+      h+=curL.map(q=>!firstK.has(q.k)&&firstK.add(q.k)
         ?'<div class="q act2"><b>'+q.t+'</b><div style="font-size:13px;margin:3px 0">'+q.d+'</div>'+goalLines(q)+'<small>Belohnung: '+q.rt+'</small></div>'
         :'<div class="q"><b>'+q.t+'</b><div>🔒 Noch gesperrt</div></div>').join('');
       if(!readyL.length&&!curL.length)h+='<p>Keine offenen Quests. Neue folgen bald!</p>';
@@ -2902,7 +2924,7 @@ function hud(){
   $('#hpb').style.width=(100*S.hp/mx)+'%';$('#hpt').textContent=Math.floor(S.hp)+'/'+mx;
   $('#enb').style.width=S.en+'%';$('#en2').textContent=Math.floor(S.en)+'/100';
   $('#cu').textContent=fmtM(S.cu||0);
-  const qb=$('#qb'),n=S.qready.length;qb.textContent=n;qb.style.display=n?'flex':'none';
+  const qb=$('#qb'),n=readyQuests().length;qb.textContent=n;qb.style.display=n?'flex':'none';
   $('#cb').style.display=((S.cls==='wanderer'&&S.lv>=CLASS_LV)||canUp())?'flex':'none';
   if(canUp()&&upNote!==S.tier){upNote=S.tier;toast('🌟 Klassenentwicklung bereit! (Charakter)');}
 }
@@ -3085,6 +3107,7 @@ setInterval(()=>{if(sel&&sel.kind==='mob'&&Date.now()<nextAtk+300)renderCard();}
 document.addEventListener('visibilitychange',()=>{if(document.hidden)save();});
 window.addEventListener('pagehide',save);
 
+try{checkQuests();}catch(e){}   // geladener Stand: bereits erfüllte Quests sofort als abschlussbereit markieren
 hud();buildSkillBar();
 if(loadNote.length)toast(loadNote.join(' '));
 if(S.test){/* Testmodus war aktiv: Start-Dialog bleibt, damit man wählen kann */}
@@ -3096,7 +3119,7 @@ try{const n=sessionStorage.getItem('ruinwalk_del_note');if(n){sessionStorage.rem
 if(window.__RW_TEST)window.__RW={get S(){return S;},set S(v){S=v;},get sel(){return sel;},set sel(v){sel=v;},get P(){return P;},get nextAtk(){return nextAtk;},set nextAtk(v){nextAtk=v;},
   get psn(){return psn;},set psn(v){psn=v;},get gpsLost(){return gpsLost;},set gpsLost(v){gpsLost=v;},
   KEY,SLOT,ACTIVE,AUTH,tlBeat,tlRead,tlKey,TAB,acCopies,acMove,lockGate,acConflictOpen,acConflictKeep,acConflictLoad,acLogoutAsk,acOpenChanges,SY,syncPush,syncTick,syncFlush,syncAdopt,syncStatus,syKey,syncHash,cloudState,cloudStartPlan,cloudCacheReplace,acPlay,acCreateCloud,cloudKey,cloudMetaKey,readMeta,writeMeta,cloudCachePut,cloudCaches,switchCloud,CLOUD_ID_RE,createChar,save,sanitize,def,regen,pruneCd,toast,getBase,gearOf,addGear,equip,canEquip,fixEq,fixGear,upgradeGear,craftGear,craft,addXP,maxHP,defense,atk,critCh,gVal,gSell,gStats,SB,
-  strike,shoot,monsterHit,faint,setPos,countWalk,select,refreshWorld,cellEnts,areaEnts,usePotion,useItem,rollGear,rollPathSet,rollSet,have,add,claimQuest,checkQuests,
+  strike,shoot,monsterHit,faint,setPos,countWalk,select,refreshWorld,cellEnts,areaEnts,usePotion,useItem,rollGear,rollPathSet,rollSet,have,add,claimQuest,checkQuests,kbInc,cnt,giveReward,rewardText,qGoals,qVal,readyQuests,earn,hud,openSheet,
   ents,roam,eng,SETS,SETD,PATHS,MOBS,GR,RECIPES,QUESTS,ITEMS,NODES,SELL,BUY,ABIL,CW,TIERS,COIN,HAB,CLASSES,SSLOTS,ARM,ATYPES,ARMT,SECRET,UPQ,effClass,UPCOST,UPFEE,UPMAX,UP_LV,LV_CAP,QM,QN,
   wK,oK,enc,gBuyPrice,rollQ,DROPQ,RDROPQ,DROPT,DROPCH,RDROPCH,pickMob,hash,mulberry,dist,DLAT,DLON,RANGE,gpsWatch,setLastFix:v=>{lastFix=v;},setWatch:v=>{watchId=v;},setWatchStart:v=>{watchStart=v;lastRestart=v;},get watchId(){return watchId;},get gpsDenied(){return gpsDenied;},get lastRestart(){return lastRestart;},onPos,onErr,startGPS,roamTick,
   cellCache,pickType,worldBand,effBand,mobOf,setHome,homeCap,regDist,posReg,homeMove,homeWait,BAND_MIN,BAND_LV,BSC,zoneUI,tutMaybe,get lastGps(){return lastGps;},set lastGps(v){lastGps=v;},set lastFixT(v){lastFix=v;},

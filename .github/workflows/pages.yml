@@ -5,17 +5,29 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+# Keine globalen Rechte: jeder Job bekommt nur, was er braucht.
+permissions: {}
 
 concurrency:
   group: "pages"
   cancel-in-progress: false
 
 jobs:
+  # Erst die Spieltests (Browser-Tests + Positivliste). Schlagen sie fehl, wird nicht veröffentlicht –
+  # auch nicht beim manuellen Start (workflow_dispatch), denn deploy hängt immer von diesem Job ab.
+  spieltests:
+    uses: ./.github/workflows/spieltests.yml
+    permissions:
+      contents: read
   deploy:
+    needs: spieltests
+    # Veröffentlicht wird nur von main – bei Push und bei manuellem Start. Auf anderen Zweigen laufen nur die Spieltests.
+    # Ohne Statusfunktion im Ausdruck ergänzt GitHub success(): rote Spieltests verhindern das Deployment weiterhin.
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

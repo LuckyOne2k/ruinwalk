@@ -1,0 +1,35 @@
+name: spieltests
+# Gemeinsame Spieltests (wiederverwendbar): Browser-Tests der Spiellogik (npm test) und Pages-Positivliste.
+# Aufgerufen von instance-tests.yml (Push/PR) und pages.yml (vor jedem Deployment). Läuft nie allein.
+on:
+  workflow_call:
+# Kleinste Rechte: nur Lesen des Repositorys (der Aufrufer kann nicht mehr vergeben, als hier steht).
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: 22 }
+      - name: Playwright mit Chromium (für die Browser-Tests der Spiellogik)
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Browser-Tests der Spiellogik (npm test)
+        run: npm test
+  positivliste:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: 22 }
+      - name: Tests der Pages-Positivliste und der Workflow-Regeln
+        run: node --test tests/pages/site.test.mjs tests/pages/workflows.test.mjs
+      - name: Positivliste gegen Repository und Spielcode prüfen
+        run: node tools/pages/site.mjs pruefen

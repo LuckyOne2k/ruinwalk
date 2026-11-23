@@ -49,5 +49,7 @@ marketing/            Marketing-Wissensbasis, Kalender, Vorlagen, Meta-Anbindung
 
 ## Deployment
 
-- `pages.yml`: jeder Push auf `main` deployt das ganze Verzeichnis nach GitHub Pages – **ohne** Testlauf. Daher: nie ungetestet auf `main` pushen.
-- `instance-tests.yml`: läuft bei Änderungen an `server/instance/**`, `supabase/schema.sql`, `supabase/tests/00_stub.sql` (Jobs: determinism, database, bestehende-tests).
+- `pages.yml`: Push auf `main` oder manueller Start → erst Spieltests (Baustein `spieltests.yml`: Browser-Tests + Positivliste), dann `deploy` nur bei Erfolg **und** nur auf `main` (`if: github.ref == 'refs/heads/main'`). Veröffentlicht werden nur die Dateien der Positivliste (`tools/pages/allowlist.txt`).
+- `spieltests.yml`: wiederverwendbarer Baustein (`workflow_call`, nur Leserechte), genutzt von `pages.yml` und `instance-tests.yml`.
+- `instance-tests.yml`: Push mit Pfadfilter (Spielcode, Tests, Server, Supabase, Workflows), PRs ohne Filter. Jobs: determinism, database, database-pg17, spieltests, pages-positivliste, bestehende-tests. Pflicht im Ruleset `protect-main`: determinism, database, pages-positivliste, bestehende-tests – die beiden letzten werden nur grün, wenn `spieltests` erfolgreich war.
+- Regeln der Workflows: `tests/pages/workflows.test.mjs`.

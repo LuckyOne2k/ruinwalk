@@ -124,8 +124,8 @@ try {
   ok(inst.code === 0, 'kombinierte Installation in einer Transaktion', (inst.err || '').split('\n').filter((l) => /ERROR/.test(l))[0] || '');
   const after = await fp();
   ok(after !== pristine, 'Installation hat den Katalog verändert');
-  ok((await cnt(`select count(*) from pg_class where relnamespace='public'::regnamespace and relkind='r'`)) === 6 && (await cnt(`select count(*) from pg_class where relnamespace='rwi'::regnamespace and relkind='r'`)) === 18, '6 Tabellen in public, 18 in rwi');
-  ok((await cnt(`select count(*) from pg_proc where pronamespace='public'::regnamespace`)) === 38 && (await cnt(`select count(*) from pg_proc where pronamespace='rwi'::regnamespace`)) >= 55, '38 Funktionen in public (19 Schema + 8 Client-Wrapper + 11 Worker-/Betriebs-Wrapper), mindestens 55 in rwi');
+  ok((await cnt(`select count(*) from pg_class where relnamespace='public'::regnamespace and relkind='r'`)) === 16 && (await cnt(`select count(*) from pg_class where relnamespace='rwi'::regnamespace and relkind='r'`)) === 18, '16 Tabellen in public (6 + 10 Quest Paket 2), 18 in rwi');
+  ok((await cnt(`select count(*) from pg_proc where pronamespace='public'::regnamespace`)) === 56 && (await cnt(`select count(*) from pg_proc where pronamespace='rwi'::regnamespace`)) >= 55, '56 Funktionen in public (19 Schema + 18 Quest Paket 2 + 8 Client-Wrapper + 11 Worker-/Betriebs-Wrapper), mindestens 55 in rwi');
   ok((await cnt(`select count(*) from pg_default_acl where defaclnamespace='public'::regnamespace`)) === 3, 'Default-ACLs in public unverändert (3 Einträge aus der Umgebung, von der Installation nicht angefasst)');
 
   // --- zweiter Installationsversuch ---
@@ -174,7 +174,7 @@ try {
   const noZiel = await tx(`set local rw.rollback_confirm = 'ja-loeschen';\n` + adapt(ROLLBACK)), noZielC = await tx(`set local rw.rollback_confirm = 'ja-loeschen';\n` + adapt(CLEAN));
   ok(noZiel.code !== 0 && /ziel: rw.project_ref ist nicht gesetzt/.test(noZiel.err) && noZielC.code !== 0 && /ziel: rw.project_ref ist nicht gesetzt/.test(noZielC.err), 'Rollback und cleanup verlangen ebenfalls die Zielprüfung (ohne Referenz Abbruch, trotz gesetzter Bestätigung)');
   const tabs = async () => `${await cnt(`select count(*) from pg_class where relnamespace='public'::regnamespace and relkind='r' and relname not like 'fremd%'`)}/${await cnt(`select count(*) from pg_class where relnamespace='rwi'::regnamespace and relkind='r' and relname not like 'fremd%'`)}`;
-  ok((await tabs()) === '6/18', 'Ausgangslage für die Rollback-Absicherung: 6 Tabellen in public, 18 in rwi installiert');
+  ok((await tabs()) === '16/18', 'Ausgangslage für die Rollback-Absicherung: 16 Tabellen in public (6 + 10 Quest), 18 in rwi installiert');
   await q('create schema fremd');
   const cases2 = [
     ['Sicht in einem fremden Schema über rwi.cfg', 'create view fremd.v as select * from rwi.cfg', 'drop view fremd.v', /fremd\.v|view v/],
@@ -189,14 +189,14 @@ try {
     if (made.code) { ok(false, `Aufbau: ${n}`, made.err.split('\n')[0]); await cl.psql(rm); continue; }
     const before = await fp(), r = await RBX();
     ok(r.code !== 0 && /Objekte außerhalb des Installationsumfangs hängen von zu löschenden Objekten ab/.test(r.err) && re.test(r.err), `Rollback bricht bei externer Abhängigkeit ab: ${n}`, (r.err.split('\n').find((l) => /ERROR|rollback:/.test(l)) || '').slice(0, 90));
-    ok((await fp()) === before && (await tabs()) === '6/18', '  ... und hat nichts gelöscht (Katalog unverändert, Tabellen vorhanden)');
+    ok((await fp()) === before && (await tabs()) === '16/18', '  ... und hat nichts gelöscht (Katalog unverändert, Tabellen vorhanden)');
     await q(rm);
   }
   // Manifest: fremde Objekte INNERHALB von rwi
   for (const [n, mk, rm, re] of [['fremde Tabelle', 'create table rwi.fremde_tabelle(i int)', 'drop table rwi.fremde_tabelle', /Tabellen, die nicht.*fremde_tabelle/], ['fremde Funktion', 'create function rwi.fremde_fn() returns int language sql as $$ select 1 $$', 'drop function rwi.fremde_fn()', /Funktionen, die nicht.*fremde_fn/], ['fremder Typ', "create type rwi.fremder_typ as enum ('a')", 'drop type rwi.fremder_typ', /Typen außerhalb.*fremder_typ/], ['fremde Sicht', 'create view rwi.fremde_sicht as select 1 as x', 'drop view rwi.fremde_sicht', /Relationen außerhalb.*fremde_sicht/]]) {
     const made = await cl.psql(mk); if (made.code) { ok(false, `Aufbau: ${n}`, made.err.split('\n')[0]); continue; }
     const before = await fp(), r = await RBX();
-    ok(r.code !== 0 && re.test(r.err) && (await fp()) === before && (await tabs()) === '6/18', `Rollback bricht ab, wenn rwi ein nicht vorgesehenes Objekt enthält: ${n}`, (r.err.split('\n').find((l) => /rollback:/.test(l)) || '').slice(0, 100));
+    ok(r.code !== 0 && re.test(r.err) && (await fp()) === before && (await tabs()) === '16/18', `Rollback bricht ab, wenn rwi ein nicht vorgesehenes Objekt enthält: ${n}`, (r.err.split('\n').find((l) => /rollback:/.test(l)) || '').slice(0, 100));
     await q(rm);
   }
   ok((await cnt(`select count(*) from pg_class where relnamespace='public'::regnamespace and relname like 'fremd%'`)) === 0, 'künstliche Fremdobjekte wieder entfernt');
@@ -230,7 +230,7 @@ try {
     ok(r.code !== 0 && re.test(r.err) && (await fp()) === before, `Manifest erkennt: ${n}`, (r.err.split('\n').find((l) => /rollback:/.test(l)) || r.err.split('\n')[0]).slice(0, 110));
     const back = await cl.psql(rm); if (back.code) ok(false, `Rückbau: ${n}`, back.err.split('\n')[0]);
   }
-  ok((await tabs()) === '6/18' && (await cnt(`select count(*) from pg_proc where pronamespace='rwi'::regnamespace and proname='eligible'`)) === 1, 'alle Manipulationen zurückgebaut, Ausgangslage unverändert');
+  ok((await tabs()) === '16/18' && (await cnt(`select count(*) from pg_proc where pronamespace='rwi'::regnamespace and proname='eligible'`)) === 1, 'alle Manipulationen zurückgebaut, Ausgangslage unverändert');
   ok((await RB()).code === 0 && (await fp()) === pristine, 'danach läuft der Rollback sauber durch (Manifest passt zum unveränderten Stand)');
   ok((await tx(T + adapt(INSTALL))).code === 0, 'erneute Installation (Transaktion, Sperren, Autocommit-Prüfungen)');
 
@@ -238,9 +238,9 @@ try {
   await q('create schema fremd; create view fremd.v as select * from rwi.cfg');
   const loose = (sql) => cl.psql(sql, 'rwi', ['-v', 'ON_ERROR_STOP=0']);
   const looseRb = await loose(`set rw.project_ref = '${DEV_REF}';\nset rw.rollback_confirm = 'ja-loeschen';\n` + adapt(ROLLBACK));
-  ok(/außerhalb des Installationsumfangs/.test(looseRb.err) && (await tabs()) === '6/18' && (await cnt(`select count(*) from pg_namespace where nspname='rwi'`)) === 1, 'Rollback ohne psql -1 und ohne ON_ERROR_STOP: der fehlgeschlagene Check verhindert alle späteren Löschungen');
+  ok(/außerhalb des Installationsumfangs/.test(looseRb.err) && (await tabs()) === '16/18' && (await cnt(`select count(*) from pg_namespace where nspname='rwi'`)) === 1, 'Rollback ohne psql -1 und ohne ON_ERROR_STOP: der fehlgeschlagene Check verhindert alle späteren Löschungen');
   const looseNoRef = await loose(`set rw.rollback_confirm = 'ja-loeschen';\n` + adapt(ROLLBACK));
-  ok(/ziel: rw.project_ref ist nicht gesetzt/.test(looseNoRef.err) && (await tabs()) === '6/18', 'Rollback ohne Referenz, ohne -1 und ohne ON_ERROR_STOP: nichts gelöscht');
+  ok(/ziel: rw.project_ref ist nicht gesetzt/.test(looseNoRef.err) && (await tabs()) === '16/18', 'Rollback ohne Referenz, ohne -1 und ohne ON_ERROR_STOP: nichts gelöscht');
   await q(`insert into auth.users(id,email,raw_user_meta_data,email_confirmed_at) values ('cccccccc-0000-4000-8000-000000000001','t@rwtest.invalid','{"username":"Spieler_C"}',now())`);
   const looseCl = await loose(`set rw.rollback_confirm = 'ja-loeschen';\n` + adapt(CLEAN));
   ok(/ziel: rw.project_ref ist nicht gesetzt/.test(looseCl.err) && (await cnt(`select count(*) from auth.users where email like '%@rwtest.invalid'`)) === 1, 'cleanup ohne Referenz, ohne -1 und ohne ON_ERROR_STOP: kein Konto gelöscht');
@@ -270,10 +270,10 @@ try {
   const wrongDb = runReal(INSTALL);   // unveränderte Dev-Kennung: lokale Datenbank ist nicht ruinwalk-dev
   ok(wrongDb.status !== 0 && /Datenbankkennung gehört nicht zu ruinwalk-dev/.test(wrongDb.stderr) && (await fp()) === pristine, 'install_dev.sh mit echtem psql gegen eine andere Datenbank: Abbruch durch die Zielprüfung, nichts verändert');
   const wrapOk = runReal(adapt(INSTALL));
-  ok(wrapOk.status === 0 && (await tabs()) === '6/18', 'install_dev.sh mit echtem psql und passender Datenbankkennung: Installation in einer Transaktion gelungen', (wrapOk.stderr.split('\n').find((l) => /ERROR/.test(l)) || '').slice(0, 100));
+  ok(wrapOk.status === 0 && (await tabs()) === '16/18', 'install_dev.sh mit echtem psql und passender Datenbankkennung: Installation in einer Transaktion gelungen', (wrapOk.stderr.split('\n').find((l) => /ERROR/.test(l)) || '').slice(0, 100));
   await q('create table public.fremd_blockiert(i int)');
   const wrapTwice = runReal(adapt(INSTALL));
-  ok(wrapTwice.status !== 0 && (await tabs()) === '6/18', 'zweiter Wrapper-Lauf bricht ab (Preflight), nichts verändert');
+  ok(wrapTwice.status !== 0 && (await tabs()) === '16/18', 'zweiter Wrapper-Lauf bricht ab (Preflight), nichts verändert');
   await q('drop table public.fremd_blockiert');
   // Wrapper: Hash wird über genau die ausgeführte Datei gebildet
   // (angepasst, gleich streng: die Schutzlogik liegt jetzt gemeinsam in _ziel_wrapper.sh; alle drei Wrapper binden sie ein und lesen keine Datei selbst)
@@ -295,7 +295,7 @@ try {
   ok(!/\bcascade\b/i.test(code(ROLLBACK)) && /execute 'drop schema rwi'/.test(ROLLBACK), 'rollback_dev.sql enthält im ausführbaren Teil kein CASCADE; das Schema wird mit gewöhnlichem DROP SCHEMA (RESTRICT) gelöscht');
   ok((await tx(T + adapt(INSTALL))).code === 0, 'Installation für die Löschsequenz-Prüfungen');
   const trigs = async () => `${await cnt(`select count(*) from pg_trigger where tgname='on_auth_user_created'`)}/${await cnt(`select count(*) from pg_proc where pronamespace='rwi'::regnamespace`)}/${await tabs()}`;
-  ok((await trigs()) === '1/67/6/18', 'Ausgangslage: Trigger auf auth.users, 67 rwi-Funktionen, 6/18 Tabellen');
+  ok((await trigs()) === '1/67/16/18', 'Ausgangslage: Trigger auf auth.users, 67 rwi-Funktionen, 16/18 Tabellen');
   await q(`create schema fremd; create function fremd.boom() returns event_trigger language plpgsql as $f$ declare r record; begin
     for r in select * from pg_event_trigger_dropped_objects() loop
       if (current_setting('fremd.stufe', true) = 'tabelle' and r.object_type = 'table' and r.schema_name = 'rwi')
@@ -306,14 +306,14 @@ try {
     end loop; end $f$; create event trigger fremd_boom on sql_drop execute function fremd.boom();`);
   for (const stufe of ['tabelle', 'public-tabelle', 'funktion', 'schema']) {
     const b4 = await fp(), r = await RB(`set local fremd.stufe = '${stufe}';\n`);
-    ok(r.code !== 0 && new RegExp(`BOOM-${stufe}`).test(r.err) && (await fp()) === b4 && (await trigs()) === '1/67/6/18', `Fehler in der Löschsequenz (Stufe ${stufe}): gesamter Rollback zurückgenommen, nichts bleibt gelöscht`, (r.err.split('\n').find((l) => /ERROR/.test(l)) || '').slice(0, 80));
+    ok(r.code !== 0 && new RegExp(`BOOM-${stufe}`).test(r.err) && (await fp()) === b4 && (await trigs()) === '1/67/16/18', `Fehler in der Löschsequenz (Stufe ${stufe}): gesamter Rollback zurückgenommen, nichts bleibt gelöscht`, (r.err.split('\n').find((l) => /ERROR/.test(l)) || '').slice(0, 80));
   }
   // Nachzügler: Während der Löschsequenz taucht ein NEUES Objekt in rwi auf (Parallelitätsfall nach der Prüfung) -> DROP SCHEMA ohne CASCADE scheitert, alles wird zurückgerollt
   await q(`create function fremd.nachzuegler() returns event_trigger language plpgsql as $f$ begin
     if current_setting('fremd.stufe', true) = 'nachzuegler' and not exists (select 1 from pg_proc where proname = 'nachzuegler_fn') then
       execute 'create function rwi.nachzuegler_fn() returns int language sql as $g$ select 1 $g$'; end if; end $f$; create event trigger fremd_nach on ddl_command_end when tag in ('DROP TABLE') execute function fremd.nachzuegler();`);
   const b5 = await fp(), nzr = await RB(`set local fremd.stufe = 'nachzuegler';\n`);
-  ok(nzr.code !== 0 && /cannot drop schema rwi because other objects depend on it|nachzuegler_fn/.test(nzr.err) && (await fp()) === b5 && (await trigs()) === '1/67/6/18', 'neues Objekt in rwi nach der Prüfung (Nachzügler): DROP SCHEMA ohne CASCADE scheitert, vollständig zurückgerollt');
+  ok(nzr.code !== 0 && /cannot drop schema rwi because other objects depend on it|nachzuegler_fn/.test(nzr.err) && (await fp()) === b5 && (await trigs()) === '1/67/16/18', 'neues Objekt in rwi nach der Prüfung (Nachzügler): DROP SCHEMA ohne CASCADE scheitert, vollständig zurückgerollt');
   await q('drop event trigger fremd_boom; drop event trigger fremd_nach; drop schema fremd cascade');
   // eigene Default-ACL-Einträge in rwi fallen mit dem Schema (auto), ohne CASCADE
   await q('alter default privileges in schema rwi grant select on tables to authenticated');
@@ -346,7 +346,7 @@ try {
   const wf = spawnSync('bash', [join(root, 'supabase/dev/install_dev.sh'), shaF], { encoding: 'utf8', env: { PGPASSWORD: PW, PATH: wrapDir + ':' + process.env.PATH, RW_INSTALL_FILE: join(wrapDir, 'inst.sql'), RW_PROJECT_REF: DEV_REF, RW_DB_URL: URLOK } });
   ok(wf.status !== 0 && /division by zero/.test(wf.stderr) && /FEHLGESCHLAGEN/.test(wf.stderr) && !/ohne Fehler abgeschlossen/.test(wf.stderr + wf.stdout) && (await fp()) === pristine, 'Wrapper: Fehler in der Installation => Exit-Status ungleich 0, Meldung FEHLGESCHLAGEN, keine Erfolgsmeldung, nichts installiert');
   const wokR = runReal(adapt(INSTALL));
-  ok(wokR.status === 0 && /ohne Fehler abgeschlossen/.test(wokR.stderr) && (await tabs()) === '6/18', 'Wrapper: erfolgreiche Installation meldet den Erfolg erst nach fehlerfreiem psql');
+  ok(wokR.status === 0 && /ohne Fehler abgeschlossen/.test(wokR.stderr) && (await tabs()) === '16/18', 'Wrapper: erfolgreiche Installation meldet den Erfolg erst nach fehlerfreiem psql');
   // psql-Attrappe, die mit Fehlercode endet: der Wrapper darf nicht Erfolg melden
   const fake2 = mkdtempSync(join(tmpdir(), 'rwfake2-')); writeFileSync(join(fake2, 'psql'), '#!/usr/bin/env bash\ncat > /dev/null\nexit 7\n', { mode: 0o755 });
   const wx = spawnSync('bash', [join(root, 'supabase/dev/install_dev.sh'), sha], { encoding: 'utf8', env: { PGPASSWORD: PW, PATH: fake2 + ':' + process.env.PATH, RW_INSTALL_FILE: instFile, RW_PROJECT_REF: DEV_REF, RW_DB_URL: URLOK } });
@@ -387,7 +387,7 @@ try {
   const stream = readFileSync(calls + '.stdin', 'utf8'), cut = (x) => { const k = x.search(/^begin;$/m); return [x.slice(0, k), x.slice(k)]; };
   const [vorA, abA] = cut(stream);
   const bA1 = await cl.psql(vorA || 'select 1'), bA2 = await cl.psql(abA);
-  ok(pr.status === 0 && bA1.code === 0 && bA2.code === 0 && (await tabs()) === '6/18', 'Pooling-Simulation, neuer Wrapper: Teil vor begin auf Backend A, Rest auf Backend B => Referenz, Zielprüfung und Installation trotzdem in EINER Transaktion, Installation gelungen', (bA2.err.split('\n').find((l) => /ERROR/.test(l)) || '').slice(0, 90));
+  ok(pr.status === 0 && bA1.code === 0 && bA2.code === 0 && (await tabs()) === '16/18', 'Pooling-Simulation, neuer Wrapper: Teil vor begin auf Backend A, Rest auf Backend B => Referenz, Zielprüfung und Installation trotzdem in EINER Transaktion, Installation gelungen', (bA2.err.split('\n').find((l) => /ERROR/.test(l)) || '').slice(0, 90));
   const rbP2 = await RB(); ok(rbP2.code === 0 && (await fp()) === pristine, 'Pooling-Simulation: zurückgesetzt');
   const [vorB, abB] = cut(`set rw.project_ref = '${DEV_REF}';\n` + poolTxt);   // altes Verfahren: Referenz vor der Datei
   const bB1 = await cl.psql(vorB), bB2 = await cl.psql(abB, 'rwi', ['-v', 'ON_ERROR_STOP=0']);
@@ -402,7 +402,7 @@ try {
   ok(lk.code !== 0 && /lock timeout/.test(lk.err) && dt < 8000 && (await fp()) === pristine, `lock_timeout wirkt: offene Schreibtransaktion auf auth.users => Installation bricht nach ~5 s mit "lock timeout" ab (${dt} ms), nichts installiert`, (lk.err.split('\n').find((l) => /ERROR/.test(l)) || '').slice(0, 90));
   await holder2;
   const nachSperre = await cl.psql(`set rw.project_ref = '${DEV_REF}';\n` + adapt(INSTALL));
-  ok(nachSperre.code === 0 && (await tabs()) === '6/18', 'nach Ende der fremden Transaktion: Installation gelingt');
+  ok(nachSperre.code === 0 && (await tabs()) === '16/18', 'nach Ende der fremden Transaktion: Installation gelingt');
 
   // =====  NEU (fünfte Runde): Rollback und Cleanup mit demselben Schutz wie die Installation  =====
   const rb5 = await RB(); ok(rb5.code === 0 && (await fp()) === pristine, 'Ausgangszustand für die Rollback-/Cleanup-Wrapper-Tests');
@@ -447,9 +447,9 @@ try {
   // echtes psql: Rollback über den Wrapper – falsche Datenbankkennung bricht ab, richtige setzt zurück (ohne CASCADE, siehe statische Prüfung oben)
   const realRb = (file, extra = {}) => { writeFileSync(join(wrapDir, 'w.sql'), file); return runW('rollback_dev.sh', { ...BASE_RB, RW_ROLLBACK_FILE: join(wrapDir, 'w.sql'), ...extra }, createHash('sha256').update(file).digest('hex'), wrapDir); };
   const realCl = (file, extra = {}) => { writeFileSync(join(wrapDir, 'w.sql'), file); return runW('cleanup_dev.sh', { ...BASE_RB, RW_CLEANUP_FILE: join(wrapDir, 'w.sql'), ...extra }, createHash('sha256').update(file).digest('hex'), wrapDir); };
-  ok((await tx(T + adapt(INSTALL))).code === 0 && (await tabs()) === '6/18', 'Installation für die Rollback-Wrapper-Tests');
+  ok((await tx(T + adapt(INSTALL))).code === 0 && (await tabs()) === '16/18', 'Installation für die Rollback-Wrapper-Tests');
   const rbWrongDb = realRb(ROLLBACK);   // unveränderte Dev-Kennung = falsche Datenbank
-  ok(rbWrongDb.status !== 0 && /Datenbankkennung gehört nicht zu ruinwalk-dev/.test(rbWrongDb.stderr) && /FEHLGESCHLAGEN/.test(rbWrongDb.stderr) && (await tabs()) === '6/18', 'rollback_dev.sh mit echtem psql gegen falsche Datenbank: Abbruch durch die Zielprüfung, nichts gelöscht');
+  ok(rbWrongDb.status !== 0 && /Datenbankkennung gehört nicht zu ruinwalk-dev/.test(rbWrongDb.stderr) && /FEHLGESCHLAGEN/.test(rbWrongDb.stderr) && (await tabs()) === '16/18', 'rollback_dev.sh mit echtem psql gegen falsche Datenbank: Abbruch durch die Zielprüfung, nichts gelöscht');
   const rbOkW = realRb(rbTxt);
   ok(rbOkW.status === 0 && /der Rollback ohne Fehler abgeschlossen/.test(rbOkW.stderr) && (await fp()) === pristine, 'rollback_dev.sh mit echtem psql: Rollback ohne CASCADE vollständig, Ausgangszustand', (rbOkW.stderr.split('\n').find((l) => /ERROR/.test(l)) || '').slice(0, 90));
 
@@ -462,13 +462,13 @@ try {
   ok((await tx(T + adapt(INSTALL))).code === 0, 'Installation für die Gegenprobe');
   const [oVor, oAb] = cut(`set rw.project_ref = '${DEV_REF}';\nset rw.rollback_confirm = 'ja-loeschen';\n` + rbTxt);
   const oA = await cl.psql(oVor), oB = await cl.psql(oAb, 'rwi', ['-v', 'ON_ERROR_STOP=0']);
-  ok(oA.code === 0 && /ziel: rw.project_ref ist nicht gesetzt/.test(oB.err) && (await tabs()) === '6/18', 'Gegenprobe altes Verfahren (set vor der Datei, getrenntes Backend): Abbruch, nichts gelöscht');
+  ok(oA.code === 0 && /ziel: rw.project_ref ist nicht gesetzt/.test(oB.err) && (await tabs()) === '16/18', 'Gegenprobe altes Verfahren (set vor der Datei, getrenntes Backend): Abbruch, nichts gelöscht');
 
   // Sperrkonflikt beim Rollback: offene Schreibtransaktion auf auth.users => DROP TRIGGER wartet höchstens ~5 s, dann alles zurück
   const holdRb = cl.psql(`begin;\nlock table auth.users in row exclusive mode;\nselect pg_sleep(9);\ncommit;`);
   await new Promise((r) => setTimeout(r, 1200));
   const t1 = Date.now(), rbLock = realRb(rbTxt), d1 = Date.now() - t1;
-  ok(rbLock.status !== 0 && /lock timeout/.test(rbLock.stderr) && d1 < 8000 && (await tabs()) === '6/18' && (await cnt(`select count(*) from pg_trigger where tgname='on_auth_user_created'`)) === 1, `Rollback bei Sperrkonflikt: Abbruch nach ~5 s (${d1} ms), nichts gelöscht`);
+  ok(rbLock.status !== 0 && /lock timeout/.test(rbLock.stderr) && d1 < 8000 && (await tabs()) === '16/18' && (await cnt(`select count(*) from pg_trigger where tgname='on_auth_user_created'`)) === 1, `Rollback bei Sperrkonflikt: Abbruch nach ~5 s (${d1} ms), nichts gelöscht`);
   await holdRb;
 
   // Cleanup: nur vorgesehene Testkonten, auch mit Pooling-Simulation
