@@ -1,6 +1,7 @@
 # Dev-Installationsfreigabe: letzte Vorbereitung (nur lesend)
 
 Stand: 18.11.2026, 16:30. Basis-Commit **`4370b84`** (CI-Lauf `44282298325`, grün, akzeptiert) plus die Sicherheitskorrekturen der Abschnitte „11:21“, „12:00“ und „16:30“ (Commit-ID und CI-Ergebnis stehen im Abschlussbericht, nicht in dieser Datei). Es wurde nichts installiert oder deployt. Lokal nur PG16 getestet; PG17 prüft die CI.
+**Zweig `quest/paket1-client-grundlage` (Quest Paket 2, noch nicht auf main, 23.11.2026): `install_dev.sql` SHA-256 `45abc5a0ca5480c8a8cf30c076004b94c915db0606e52ab7567cf70eea8a5bf2` (2654 Zeilen, zweimal identisch erzeugt; enthält die 10 Quest-Tabellen und 18 Quest-Funktionen, `docs/QUEST_PAKET2_BERICHT.md`). Gilt erst nach dem Merge als maßgeblich; bis dahin bleibt für main der folgende Hash.**
 **Maßgeblicher Hash (aktuell, Stand 22.11.2026, main inkl. PR 1, B-4 und B-6): `5625f1fd166db60148003bfc09f94a59c79a2b33e321574be4a3c61669c4dfbd` (2156 Zeilen, aus dem aktuellen Build zweimal identisch erzeugt).** `cleanup_test_accounts.sql` (für `cleanup_dev.sh`): SHA-256 `455f776f9a5143575394e2d3d7124b858847d6014d54d7e533bc1ebc423f57d5` (mit B-6-Vorab-Sperre). Alle weiter unten genannten Hashes (`9e0b9317…f85e55a7` = Stand B-4, `5fa6b99f…73a7e1e3` = Stand PR 1, `5170374f…389f667d`, `8a8c3d74…946fb`, `2206042d…adebf3`, `52303b15…ec506e8`, `1ac9264d…92bf`, `447b53c0…`, `33c2d0e9…`) sind **überholt** und stehen nur als Verlauf in den datierten Abschnitten.
 
 ## Hash (Stand 18.11.2026, 16:30 – überholt, aktuell siehe oben)

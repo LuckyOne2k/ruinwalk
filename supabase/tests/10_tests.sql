@@ -501,7 +501,7 @@ select tap.as_admin();
 select tap.is((select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r' and not c.relrowsecurity),0::bigint,'RLS ist auf allen Tabellen in public aktiv');
 select tap.is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prosecdef and not coalesce(p.proconfig::text,'') like '%search_path%'),0::bigint,'Jede SECURITY-DEFINER-Funktion hat einen festen search_path');
 select tap.is((select string_agg(p.proname,',' order by p.proname) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and has_function_privilege('anon',p.oid,'execute')),'username_available','Anonym darf nur username_available aufrufen');
-select tap.is((select string_agg(p.proname,',' order by p.proname) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and has_function_privilege('authenticated',p.oid,'execute')),'create_character,delete_account,delete_character,list_characters,move_character,save_character,touch_login,username_available','Angemeldete Nutzer dürfen nur die vorgesehenen Funktionen aufrufen');
+select tap.is((select string_agg(p.proname,',' order by p.proname) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and has_function_privilege('authenticated',p.oid,'execute')),'create_character,delete_account,delete_character,list_characters,move_character,quest_state,save_character,touch_login,username_available','Angemeldete Nutzer dürfen nur die vorgesehenen Funktionen aufrufen');
 select tap.is((select count(*) from information_schema.role_table_grants where table_schema='public' and grantee in ('anon','authenticated') and privilege_type<>'SELECT'),0::bigint,'Clients haben nirgends INSERT/UPDATE/DELETE-Rechte');
 select tap.is((select count(*) from information_schema.role_table_grants where table_schema='public' and grantee='anon'),0::bigint,'Anonym hat keine Tabellenrechte');
 select tap.is((select count(*) from pg_policies where schemaname='public' and cmd in ('INSERT','UPDATE','DELETE','ALL')),0::bigint,'Es gibt keine schreibenden RLS-Policies für Clients');
@@ -531,5 +531,362 @@ select tap.ok((select prosrc like '%transaction_isolation%read committed%read_co
               'B2: delete_character bricht außerhalb von READ COMMITTED ab');
 select tap.ok((select has_function_privilege('authenticated','public.delete_character(uuid)','execute') and not has_function_privilege('anon','public.delete_character(uuid)','execute')),
               'B2: delete_character weiterhin für authenticated, nicht für anon ausführbar (Rechte unverändert)');
+
+-- ===== 20. Quests – Paket 2 (Schema, Perioden, Rotation, quest_state lesend; docs/QUEST_PAKET2_BERICHT.md) =====
+-- Testvorlagen tragen das Präfix test_ (keine Spielinhalte).
+select tap.as_admin();
+insert into auth.users(id,email,raw_user_meta_data,email_confirmed_at) values
+ ('a1000000-0000-0000-0000-0000000000a1','q1@test.de','{"username":"Quest_1"}',now()),
+ ('a2000000-0000-0000-0000-0000000000a2','q2@test.de','{"username":"Quest_2"}',now());
+insert into public.account_entitlements(account_id,entitlement_type,status) values ('a1000000-0000-0000-0000-0000000000a1','third_character_slot','active');
+insert into public.characters(character_id,account_id,slot_number,character_name,character_data) values
+ ('c1000000-0000-0000-0000-0000000000c1','a1000000-0000-0000-0000-0000000000a1',1,'QHeld','{"lv":49}'),
+ ('c3000000-0000-0000-0000-0000000000c3','a1000000-0000-0000-0000-0000000000a1',3,'QGesperrt','{"lv":3}'),
+ ('c2000000-0000-0000-0000-0000000000c2','a2000000-0000-0000-0000-0000000000a2',1,'QFremd','{"lv":5}');
+update public.account_entitlements set status='refunded' where account_id='a1000000-0000-0000-0000-0000000000a1';
+
+-- 20a. Berliner Perioden (Wechsel 09:00, Woche ab Montag, Sommerzeit)
+select tap.is(public.quest_periode_datum('tag','2026-11-24 08:59:59+01'),'2026-11-23'::date,'Periode Tag: 08:59:59 Berliner Zeit gehört noch zum Vortag');
+select tap.is(public.quest_periode_datum('tag','2026-11-24 09:00:00+01'),'2026-11-24'::date,'Periode Tag: ab 09:00:00 Berliner Zeit neuer Tag');
+select tap.is(public.quest_periode_datum('woche','2026-11-23 08:59:59+01'),'2026-11-16'::date,'Periode Woche: Montag 08:59:59 gehört zur Vorwoche');
+select tap.is(public.quest_periode_datum('woche','2026-11-23 09:00:00+01'),'2026-11-23'::date,'Periode Woche: Montag 09:00 beginnt die neue Woche');
+select tap.is(public.quest_periode_datum('woche','2026-11-30 08:59:59+01'),'2026-11-23'::date,'Periode Woche: bis Montag 08:59:59 der Folgewoche');
+select tap.is(public.quest_periode_datum('tag','2026-03-29 06:59:59+00'),'2026-03-28'::date,'Sommerzeit (29.03.2026): 08:59:59 MESZ = 06:59:59 UTC gehört zum Vortag');
+select tap.is(public.quest_periode_datum('tag','2026-03-29 07:00:00+00'),'2026-03-29'::date,'Sommerzeit: 09:00 MESZ = 07:00 UTC beginnt den Tag');
+select tap.is(public.quest_periode_datum('tag','2026-10-25 07:59:59+00'),'2026-10-24'::date,'Winterzeit (25.10.2026): 08:59:59 MEZ = 07:59:59 UTC gehört zum Vortag');
+select tap.is(public.quest_periode_datum('tag','2026-10-25 08:00:00+00'),'2026-10-25'::date,'Winterzeit: 09:00 MEZ = 08:00 UTC beginnt den Tag');
+select tap.is(public.quest_periode_start('2026-03-29') - public.quest_periode_start('2026-03-28'),interval '23 hours','Tag der Umstellung auf Sommerzeit dauert 23 Stunden');
+select tap.is(public.quest_periode_start('2026-10-25') - public.quest_periode_start('2026-10-24'),interval '25 hours','Tag der Umstellung auf Winterzeit dauert 25 Stunden');
+select tap.is(public.quest_periode_start('2026-11-25') - public.quest_periode_start('2026-11-24'),interval '24 hours','Normaler Tag dauert 24 Stunden');
+select tap.is(public.quest_periode_start('2026-03-30') - public.quest_periode_start('2026-03-23'),interval '167 hours','Woche mit Sommerzeitumstellung dauert 167 Stunden');
+select tap.is(public.quest_periode_start('2026-11-24'),'2026-11-24 08:00:00+00'::timestamptz,'Periodenbeginn = 09:00 Berliner Ortszeit');
+select tap.is(public.quest_periode_datum('tag','2027-01-01 08:59:59+01'),'2026-12-31'::date,'Jahreswechsel: 01.01. 08:59:59 gehört zu Silvester');
+select tap.is(public.quest_periode_datum('woche','2027-01-01 12:00:00+01'),'2026-12-28'::date,'Jahreswechsel: Woche beginnt am Montag 28.12.2026');
+set timezone = 'America/New_York';
+select tap.is(public.quest_periode_datum('tag','2026-11-24 08:00:00+00'),'2026-11-24'::date,'Ergebnis unabhängig von der Zeitzone der Sitzung');
+reset timezone;
+select tap.throws($$select public.quest_periode_datum('monat', now())$$,'invalid_periode','Unbekannter Periodentyp wird abgelehnt');
+-- Gebietsstufe aus Level (BAND_LO 1/8/16/26/38)
+select tap.is(array[public.quest_stufe(1),public.quest_stufe(7),public.quest_stufe(8),public.quest_stufe(15),public.quest_stufe(16),public.quest_stufe(25),public.quest_stufe(26),public.quest_stufe(37),public.quest_stufe(38),public.quest_stufe(50)]::int[],
+              array[1,1,2,2,3,3,4,4,5,5],'quest_stufe: Level-Grenzen 1/8/16/26/38 wie BAND_LO');
+select tap.ok(public.quest_stufe(null) is null,'quest_stufe: ohne bestätigtes Level keine Stufe');
+
+-- 20b. Katalog: Präfix, Ziele (K4), Unveränderlichkeit
+insert into public.quest_defs(quest_key,version,bereich,ziele) values
+ ('tg:test_a',1,'tag','[{"typ":"kills","basis":5,"faktor":[1,1.5,2,3,4]}]'),('tg:test_b',1,'tag','[{"typ":"col.stock","basis":3}]'),
+ ('tg:test_c',1,'tag','[{"typ":"kills","basis":2}]'),('tg:test_d',1,'tag','[{"typ":"kills","basis":2}]'),('tg:test_e',1,'tag','[{"typ":"kills","basis":2}]'),
+ ('wo:test_x',1,'woche','[{"typ":"kills","basis":20}]'),('wo:test_y',1,'woche','[{"typ":"walk","basis":5000}]'),
+ ('st:test.1',1,'story','[{"typ":"kills","basis":1}]');
+select tap.ok((select count(*) from public.quest_defs where quest_key like '%test%') = 8,'Testvorlagen angelegt (Tag, Woche, Story)');
+select tap.throws($$insert into public.quest_defs(quest_key,version,bereich,ziele) values ('tg:test_z',1,'woche','[{"typ":"kills","basis":1}]')$$,'quest_defs_praefix','Bereich muss zum Präfix des quest_key passen');
+select tap.throws($$insert into public.quest_defs(quest_key,version,bereich,ziele) values ('xx:test',1,'tag','[{"typ":"kills","basis":1}]')$$,'23514','Unbekanntes Präfix wird abgelehnt');
+select tap.throws($$insert into public.quest_defs(quest_key,version,bereich,ziele) values ('tg:test_z',1,'tag','[]')$$,'23514','Ziele dürfen nicht leer sein');
+select tap.throws($$insert into public.quest_defs(quest_key,version,bereich,ziele) values ('tg:test_z',1,'tag','[{"typ":"kills","basis":5,"faktor":[1,2,3,4]}]')$$,'23514','K4: faktor braucht genau 5 Werte');
+select tap.throws($$insert into public.quest_defs(quest_key,version,bereich,ziele) values ('tg:test_z',1,'tag','[{"typ":"kills","basis":5,"faktor":[1,2,0,4,5]}]')$$,'23514','K4: faktor-Werte müssen > 0 sein');
+select tap.throws($$insert into public.quest_defs(quest_key,version,bereich,ziele) values ('tg:test_z',1,'tag','[{"typ":"kills","basis":5,"faktor":[1,2,"x",4,5]}]')$$,'23514','K4: faktor-Werte müssen Zahlen sein');
+select tap.throws($$insert into public.quest_defs(quest_key,version,bereich,ziele) values ('tg:test_z',1,'tag','[{"typ":"kills","basis":0}]')$$,'23514','basis muss >= 1 sein');
+select tap.throws($$insert into public.quest_defs(quest_key,version,bereich,ziele) values ('tg:test_z',1,'tag','[{"typ":"Kills; drop","basis":1}]')$$,'23514','Zielschlüssel mit unzulässigen Zeichen wird abgelehnt');
+select tap.throws($$update public.quest_defs set ziele='[{"typ":"kills","basis":99}]' where quest_key='tg:test_a'$$,'quest_version_immutable','Versionen sind unveränderlich (Ziele)');
+select tap.throws($$update public.quest_defs set belohnung='{"xp":1}' where quest_key='tg:test_a'$$,'quest_version_immutable','Versionen sind unveränderlich (Belohnung)');
+select tap.lives($$update public.quest_defs set aktiv=false where quest_key='tg:test_e'$$,'Nur „aktiv“ ist änderbar (Vorlage zurückziehen)');
+select tap.throws($$insert into public.quest_defs(quest_key,version,bereich,ziele) values ('ev:test_fest:1',1,'event','[{"typ":"kills","basis":1}]')$$,'event_unknown','Event-Quest nur zu vorhandenem Event');
+insert into public.quest_events(event_key,start_at,end_at) values ('test_fest',now()-interval '1 day',now()+interval '1 day'),('test_bald',now()+interval '5 days',now()+interval '6 days');
+select tap.lives($$insert into public.quest_defs(quest_key,version,bereich,ziele) values ('ev:test_fest:1',1,'event','[{"typ":"kills","basis":1}]'),('ev:test_bald:1',1,'event','[{"typ":"kills","basis":1}]')$$,'Event-Quests mit vorhandenem Event');
+select tap.throws($$insert into public.quest_events(event_key,start_at,end_at) values ('test_kaputt',now(),now()-interval '1 hour')$$,'23514','Event: Ende muss nach Beginn liegen');
+select tap.throws($$insert into public.quest_defs(quest_key,version,bereich,ziele) values ('pr:krieger:-:1',1,'pruefung','[{"typ":"kills","basis":1}]')$$,'quest_defs_pruefung','Klassenprüfung braucht eine Stufe');
+select tap.lives($$insert into public.quest_defs(quest_key,version,bereich,klasse,stufe,ziele) values ('pr:krieger:-:1',1,'pruefung','krieger',1,'[{"typ":"kills","basis":1}]')$$,'Klassenprüfung mit Klasse und Stufe');
+select tap.throws($$insert into public.quest_defs(quest_key,version,bereich,stufe,ziele) values ('st:test.2',1,'story',2,'[{"typ":"kills","basis":1}]')$$,'quest_defs_pruefung','Stufe nur bei Klassenprüfungen');
+
+-- 20c. Pool und deterministische Rotation (K3)
+insert into public.quest_pools(periode_typ,quest_key,version,gewicht) values
+ ('tag','tg:test_e',1,1),('tag','tg:test_d',1,1),('tag','tg:test_c',1,1),('tag','tg:test_b',1,1),('tag','tg:test_a',1,1),('woche','wo:test_x',1,1),('woche','wo:test_y',1,1);
+select tap.throws($$insert into public.quest_pools(periode_typ,quest_key,version,gewicht) values ('woche','tg:test_a',1,1)$$,'pool_bereich','Pool: nur Vorlagen des passenden Bereichs');
+select tap.throws($$insert into public.quest_pools(periode_typ,quest_key,version,gewicht) values ('tag','st:test.1',1,1)$$,'pool_bereich|23514','Pool: keine Story-Quests');
+select tap.throws($$update public.quest_pools set gewicht=0 where quest_key='tg:test_a'$$,'23514','Pool: Gewicht muss >= 1 sein');
+select tap.is((select array_agg(quest_key order by quest_key) from public.quest_rotation_wahl('tag','2030-01-01')),
+              (select array_agg(quest_key order by quest_key) from public.quest_rotation_wahl('tag','2030-01-01')),'Rotation: gleiche Periode -> gleiche Auswahl (deterministisch)');
+select tap.is((select count(*) from public.quest_rotation_wahl('tag','2030-01-01')),3::bigint,'Rotation: genau 3 Quests, wenn genug Vorlagen da sind');
+select tap.is((select count(distinct quest_key) from public.quest_rotation_wahl('tag','2030-01-01')),3::bigint,'Rotation: keine doppelte Vorlage in einer Periode');
+select tap.ok(not exists (select 1 from public.quest_rotation_wahl('tag','2030-01-01') where quest_key='tg:test_e'),'Rotation: inaktive Definition wird nie gewählt');
+select tap.ok((select count(distinct array_to_string(array(select quest_key from public.quest_rotation_wahl('tag', d::date) order by 1),',')) from generate_series('2030-02-01'::date,'2030-02-28'::date,'1 day') d) > 1,
+              'Rotation: verschiedene Perioden ergeben unterschiedliche Auswahlen');
+select tap.is((select count(*) from public.quest_rotation_wahl('woche','2030-01-07')),2::bigint,'Rotation: weniger als 3 Vorlagen -> nur die vorhandenen (Woche: 2)');
+select tap.throws($$select * from public.quest_rotation_wahl('tag', null)$$,'invalid_periode','Rotation: Periodendatum ist Pflicht');
+-- Gewichte: eine schwere Vorlage (1000) gegen vier leichte (1) über 100 Perioden ohne gespeicherte Vorperiode
+update public.quest_pools set gewicht=1000 where quest_key='tg:test_a';
+select tap.ok((select count(*) from generate_series('2031-01-01'::date,'2031-04-10'::date,'1 day') d where exists (select 1 from public.quest_rotation_wahl('tag', d::date) w where w.quest_key='tg:test_a') and exists (select 1 from public.quest_rotation_wahl('tag', d::date) w2 where w2.quest_key='tg:test_a')) >= 98,
+              'Rotation: Gewichtung wirkt (schwere Vorlage in nahezu jeder Periode)');
+update public.quest_pools set gewicht=1 where quest_key='tg:test_a';
+-- Speichern, Unveränderlichkeit, keine Wiederholung aus der Vorperiode
+select public.quest_rotation_sichern('tag','2030-03-01');
+select tap.is((select cardinality(quest_keys) from public.quest_rotation where periode_typ='tag' and periode_datum='2030-03-01'),3,'Rotation gespeichert (3 Quests)');
+select tap.is((select quest_keys from public.quest_rotation where periode_typ='tag' and periode_datum='2030-03-01'),
+              (select array_agg(quest_key order by ord) from public.quest_rotation_wahl('tag','2030-03-01') with ordinality as w(quest_key,version,ord)),'Gespeicherte Rotation = deterministische Auswahl');
+select public.quest_rotation_sichern('tag','2030-03-01');
+select tap.is((select count(*) from public.quest_rotation where periode_typ='tag' and periode_datum='2030-03-01'),1::bigint,'Zweites Anlegen ändert nichts (einmal je Periode)');
+select tap.throws($$update public.quest_rotation set quest_keys='{tg:test_a}', versionen='{1}' where periode_typ='tag' and periode_datum='2030-03-01'$$,'rotation_immutable','Gespeicherte Rotation ist unveränderlich');
+select tap.throws($$delete from public.quest_rotation where periode_typ='tag' and periode_datum='2030-03-01'$$,'rotation_immutable','Gespeicherte Rotation ist nicht löschbar');
+-- K3 (abschließend): zuerst Vorlagen, die nicht in der Vorperiode vorkamen, dann gewichtet aus der Vorperiode auffüllen; immer 3 verschiedene, wenn möglich
+select tap.ok((select count(*) = 3 and count(distinct quest_key) = 3 from public.quest_rotation_wahl('tag','2030-03-02')),'Periodenwechsel (4 aktive Vorlagen): wieder 3 verschiedene Quests');
+select tap.ok((select count(*) from public.quest_rotation_wahl('tag','2030-03-02') w join public.quest_rotation r on r.periode_typ='tag' and r.periode_datum='2030-03-01' and not (w.quest_key = any(r.quest_keys))) = 1,
+              '4 Vorlagen: die eine nicht wiederholte Vorlage kommt zuerst zum Zug');
+select tap.ok((select (array_agg(w.quest_key order by w.o))[1] from public.quest_rotation_wahl('tag','2030-03-02') with ordinality w(quest_key,version,o)) <> all (select unnest(quest_keys) from public.quest_rotation where periode_typ='tag' and periode_datum='2030-03-01'),
+              'Reihenfolge: neue Vorlagen vor den aufgefüllten der Vorperiode');
+select public.quest_rotation_sichern('woche','2030-03-04');
+select tap.is((select cardinality(quest_keys) from public.quest_rotation where periode_typ='woche' and periode_datum='2030-03-04'),2,'Woche: 2 aktive Vorlagen -> Rotation mit 2 Quests');
+select public.quest_rotation_sichern('woche','2030-03-11');
+select tap.is((select (select array_agg(k order by k) from unnest(quest_keys) k) from public.quest_rotation where periode_typ='woche' and periode_datum='2030-03-11'),array['wo:test_x','wo:test_y'],
+              'Woche: alle Vorlagen in der Vorwoche -> aus der Vorwoche aufgefüllt (2, ohne Duplikate), keine leere Periode');
+update public.quest_pools set aktiv=false where periode_typ='woche';
+select public.quest_rotation_sichern('woche','2030-03-18');
+select tap.ok(not exists (select 1 from public.quest_rotation where periode_typ='woche' and periode_datum='2030-03-18'),'Ohne aktive Vorlage wird keine (leere) Rotation gespeichert');
+update public.quest_pools set aktiv=true where periode_typ='woche';
+-- Poolgrößen 1–7: eigene Testvorlagen tg:test_p1..p7, nur diese aktiv; drei Perioden hintereinander je Poolgröße
+insert into public.quest_defs(quest_key,version,bereich,ziele) select 'tg:test_p'||i,1,'tag','[{"typ":"kills","basis":1}]' from generate_series(1,7) i;
+insert into public.quest_pools(periode_typ,quest_key,version,gewicht,aktiv) select 'tag','tg:test_p'||i,1,i,false from generate_series(1,7) i;
+update public.quest_pools set aktiv=false where periode_typ='tag' and quest_key not like 'tg:test_p%';
+update public.quest_pools set aktiv = (quest_key between 'tg:test_p1' and 'tg:test_p1') where quest_key like 'tg:test_p%';
+select public.quest_rotation_sichern('tag','2040-01-10'::date + o) from generate_series(0,2) o;
+select tap.ok((select bool_and(cardinality(quest_keys) = least(3,1) and (select count(distinct k) from unnest(quest_keys) k) = cardinality(quest_keys)) from public.quest_rotation where periode_typ='tag' and periode_datum between '2040-01-10' and '2040-01-10'::date+2),
+              'Pool 1: jede Periode hat min(3,1) = 1 verschiedene Quests');
+select tap.ok((select bool_and(neu = least(3, 1 - cardinality(vor)) and alt = least(3,1) - neu)
+                 from (select (select count(*) from unnest(r.quest_keys) k where not (k = any (v.quest_keys))) neu, (select count(*) from unnest(r.quest_keys) k where k = any (v.quest_keys)) alt, v.quest_keys vor
+                         from public.quest_rotation r join public.quest_rotation v on v.periode_typ='tag' and v.periode_datum = r.periode_datum - 1
+                        where r.periode_typ='tag' and r.periode_datum between '2040-01-10'::date+1 and '2040-01-10'::date+2) x),
+              'Pool 1: Periodenwechsel – alle 0 nicht wiederholten Vorlagen (höchstens 3) zuerst, Rest (1) aus der Vorperiode aufgefüllt');
+select tap.ok((select bool_and(r.quest_keys = (select array_agg(w.quest_key order by w.o) from public.quest_rotation_wahl('tag', r.periode_datum) with ordinality w(quest_key,version,o)))
+                 from public.quest_rotation r where r.periode_typ='tag' and r.periode_datum between '2040-01-10'::date+1 and '2040-01-10'::date+2),'Pool 1: Wiederholter Aufruf ergibt dieselbe Auswahl (reproduzierbar)');
+update public.quest_pools set aktiv = (quest_key between 'tg:test_p1' and 'tg:test_p2') where quest_key like 'tg:test_p%';
+select public.quest_rotation_sichern('tag','2040-02-10'::date + o) from generate_series(0,2) o;
+select tap.ok((select bool_and(cardinality(quest_keys) = least(3,2) and (select count(distinct k) from unnest(quest_keys) k) = cardinality(quest_keys)) from public.quest_rotation where periode_typ='tag' and periode_datum between '2040-02-10' and '2040-02-10'::date+2),
+              'Pool 2: jede Periode hat min(3,2) = 2 verschiedene Quests');
+select tap.ok((select bool_and(neu = least(3, 2 - cardinality(vor)) and alt = least(3,2) - neu)
+                 from (select (select count(*) from unnest(r.quest_keys) k where not (k = any (v.quest_keys))) neu, (select count(*) from unnest(r.quest_keys) k where k = any (v.quest_keys)) alt, v.quest_keys vor
+                         from public.quest_rotation r join public.quest_rotation v on v.periode_typ='tag' and v.periode_datum = r.periode_datum - 1
+                        where r.periode_typ='tag' and r.periode_datum between '2040-02-10'::date+1 and '2040-02-10'::date+2) x),
+              'Pool 2: Periodenwechsel – alle 0 nicht wiederholten Vorlagen (höchstens 3) zuerst, Rest (2) aus der Vorperiode aufgefüllt');
+select tap.ok((select bool_and(r.quest_keys = (select array_agg(w.quest_key order by w.o) from public.quest_rotation_wahl('tag', r.periode_datum) with ordinality w(quest_key,version,o)))
+                 from public.quest_rotation r where r.periode_typ='tag' and r.periode_datum between '2040-02-10'::date+1 and '2040-02-10'::date+2),'Pool 2: Wiederholter Aufruf ergibt dieselbe Auswahl (reproduzierbar)');
+update public.quest_pools set aktiv = (quest_key between 'tg:test_p1' and 'tg:test_p3') where quest_key like 'tg:test_p%';
+select public.quest_rotation_sichern('tag','2040-03-10'::date + o) from generate_series(0,2) o;
+select tap.ok((select bool_and(cardinality(quest_keys) = least(3,3) and (select count(distinct k) from unnest(quest_keys) k) = cardinality(quest_keys)) from public.quest_rotation where periode_typ='tag' and periode_datum between '2040-03-10' and '2040-03-10'::date+2),
+              'Pool 3: jede Periode hat min(3,3) = 3 verschiedene Quests');
+select tap.ok((select bool_and(neu = least(3, 3 - cardinality(vor)) and alt = least(3,3) - neu)
+                 from (select (select count(*) from unnest(r.quest_keys) k where not (k = any (v.quest_keys))) neu, (select count(*) from unnest(r.quest_keys) k where k = any (v.quest_keys)) alt, v.quest_keys vor
+                         from public.quest_rotation r join public.quest_rotation v on v.periode_typ='tag' and v.periode_datum = r.periode_datum - 1
+                        where r.periode_typ='tag' and r.periode_datum between '2040-03-10'::date+1 and '2040-03-10'::date+2) x),
+              'Pool 3: Periodenwechsel – alle 0 nicht wiederholten Vorlagen (höchstens 3) zuerst, Rest (3) aus der Vorperiode aufgefüllt');
+select tap.ok((select bool_and(r.quest_keys = (select array_agg(w.quest_key order by w.o) from public.quest_rotation_wahl('tag', r.periode_datum) with ordinality w(quest_key,version,o)))
+                 from public.quest_rotation r where r.periode_typ='tag' and r.periode_datum between '2040-03-10'::date+1 and '2040-03-10'::date+2),'Pool 3: Wiederholter Aufruf ergibt dieselbe Auswahl (reproduzierbar)');
+update public.quest_pools set aktiv = (quest_key between 'tg:test_p1' and 'tg:test_p4') where quest_key like 'tg:test_p%';
+select public.quest_rotation_sichern('tag','2040-04-10'::date + o) from generate_series(0,2) o;
+select tap.ok((select bool_and(cardinality(quest_keys) = least(3,4) and (select count(distinct k) from unnest(quest_keys) k) = cardinality(quest_keys)) from public.quest_rotation where periode_typ='tag' and periode_datum between '2040-04-10' and '2040-04-10'::date+2),
+              'Pool 4: jede Periode hat min(3,4) = 3 verschiedene Quests');
+select tap.ok((select bool_and(neu = least(3, 4 - cardinality(vor)) and alt = least(3,4) - neu)
+                 from (select (select count(*) from unnest(r.quest_keys) k where not (k = any (v.quest_keys))) neu, (select count(*) from unnest(r.quest_keys) k where k = any (v.quest_keys)) alt, v.quest_keys vor
+                         from public.quest_rotation r join public.quest_rotation v on v.periode_typ='tag' and v.periode_datum = r.periode_datum - 1
+                        where r.periode_typ='tag' and r.periode_datum between '2040-04-10'::date+1 and '2040-04-10'::date+2) x),
+              'Pool 4: Periodenwechsel – alle 1 nicht wiederholten Vorlagen (höchstens 3) zuerst, Rest (2) aus der Vorperiode aufgefüllt');
+select tap.ok((select bool_and(r.quest_keys = (select array_agg(w.quest_key order by w.o) from public.quest_rotation_wahl('tag', r.periode_datum) with ordinality w(quest_key,version,o)))
+                 from public.quest_rotation r where r.periode_typ='tag' and r.periode_datum between '2040-04-10'::date+1 and '2040-04-10'::date+2),'Pool 4: Wiederholter Aufruf ergibt dieselbe Auswahl (reproduzierbar)');
+update public.quest_pools set aktiv = (quest_key between 'tg:test_p1' and 'tg:test_p5') where quest_key like 'tg:test_p%';
+select public.quest_rotation_sichern('tag','2040-05-10'::date + o) from generate_series(0,2) o;
+select tap.ok((select bool_and(cardinality(quest_keys) = least(3,5) and (select count(distinct k) from unnest(quest_keys) k) = cardinality(quest_keys)) from public.quest_rotation where periode_typ='tag' and periode_datum between '2040-05-10' and '2040-05-10'::date+2),
+              'Pool 5: jede Periode hat min(3,5) = 3 verschiedene Quests');
+select tap.ok((select bool_and(neu = least(3, 5 - cardinality(vor)) and alt = least(3,5) - neu)
+                 from (select (select count(*) from unnest(r.quest_keys) k where not (k = any (v.quest_keys))) neu, (select count(*) from unnest(r.quest_keys) k where k = any (v.quest_keys)) alt, v.quest_keys vor
+                         from public.quest_rotation r join public.quest_rotation v on v.periode_typ='tag' and v.periode_datum = r.periode_datum - 1
+                        where r.periode_typ='tag' and r.periode_datum between '2040-05-10'::date+1 and '2040-05-10'::date+2) x),
+              'Pool 5: Periodenwechsel – alle 2 nicht wiederholten Vorlagen (höchstens 3) zuerst, Rest (1) aus der Vorperiode aufgefüllt');
+select tap.ok((select bool_and(r.quest_keys = (select array_agg(w.quest_key order by w.o) from public.quest_rotation_wahl('tag', r.periode_datum) with ordinality w(quest_key,version,o)))
+                 from public.quest_rotation r where r.periode_typ='tag' and r.periode_datum between '2040-05-10'::date+1 and '2040-05-10'::date+2),'Pool 5: Wiederholter Aufruf ergibt dieselbe Auswahl (reproduzierbar)');
+update public.quest_pools set aktiv = (quest_key between 'tg:test_p1' and 'tg:test_p6') where quest_key like 'tg:test_p%';
+select public.quest_rotation_sichern('tag','2040-06-10'::date + o) from generate_series(0,2) o;
+select tap.ok((select bool_and(cardinality(quest_keys) = least(3,6) and (select count(distinct k) from unnest(quest_keys) k) = cardinality(quest_keys)) from public.quest_rotation where periode_typ='tag' and periode_datum between '2040-06-10' and '2040-06-10'::date+2),
+              'Pool 6: jede Periode hat min(3,6) = 3 verschiedene Quests');
+select tap.ok((select bool_and(neu = least(3, 6 - cardinality(vor)) and alt = least(3,6) - neu)
+                 from (select (select count(*) from unnest(r.quest_keys) k where not (k = any (v.quest_keys))) neu, (select count(*) from unnest(r.quest_keys) k where k = any (v.quest_keys)) alt, v.quest_keys vor
+                         from public.quest_rotation r join public.quest_rotation v on v.periode_typ='tag' and v.periode_datum = r.periode_datum - 1
+                        where r.periode_typ='tag' and r.periode_datum between '2040-06-10'::date+1 and '2040-06-10'::date+2) x),
+              'Pool 6: Periodenwechsel – alle 3 nicht wiederholten Vorlagen (höchstens 3) zuerst, Rest (0) aus der Vorperiode aufgefüllt');
+select tap.ok((select bool_and(r.quest_keys = (select array_agg(w.quest_key order by w.o) from public.quest_rotation_wahl('tag', r.periode_datum) with ordinality w(quest_key,version,o)))
+                 from public.quest_rotation r where r.periode_typ='tag' and r.periode_datum between '2040-06-10'::date+1 and '2040-06-10'::date+2),'Pool 6: Wiederholter Aufruf ergibt dieselbe Auswahl (reproduzierbar)');
+update public.quest_pools set aktiv = (quest_key between 'tg:test_p1' and 'tg:test_p7') where quest_key like 'tg:test_p%';
+select public.quest_rotation_sichern('tag','2040-07-10'::date + o) from generate_series(0,2) o;
+select tap.ok((select bool_and(cardinality(quest_keys) = least(3,7) and (select count(distinct k) from unnest(quest_keys) k) = cardinality(quest_keys)) from public.quest_rotation where periode_typ='tag' and periode_datum between '2040-07-10' and '2040-07-10'::date+2),
+              'Pool 7: jede Periode hat min(3,7) = 3 verschiedene Quests');
+select tap.ok((select bool_and(neu = least(3, 7 - cardinality(vor)) and alt = least(3,7) - neu)
+                 from (select (select count(*) from unnest(r.quest_keys) k where not (k = any (v.quest_keys))) neu, (select count(*) from unnest(r.quest_keys) k where k = any (v.quest_keys)) alt, v.quest_keys vor
+                         from public.quest_rotation r join public.quest_rotation v on v.periode_typ='tag' and v.periode_datum = r.periode_datum - 1
+                        where r.periode_typ='tag' and r.periode_datum between '2040-07-10'::date+1 and '2040-07-10'::date+2) x),
+              'Pool 7: Periodenwechsel – alle 4 nicht wiederholten Vorlagen (höchstens 3) zuerst, Rest (0) aus der Vorperiode aufgefüllt');
+select tap.ok((select bool_and(r.quest_keys = (select array_agg(w.quest_key order by w.o) from public.quest_rotation_wahl('tag', r.periode_datum) with ordinality w(quest_key,version,o)))
+                 from public.quest_rotation r where r.periode_typ='tag' and r.periode_datum between '2040-07-10'::date+1 and '2040-07-10'::date+2),'Pool 7: Wiederholter Aufruf ergibt dieselbe Auswahl (reproduzierbar)');
+select public.quest_rotation_sichern('tag','2040-04-10'::date + o) from generate_series(0,2) o;
+select tap.is((select count(*) from public.quest_rotation where periode_typ='tag' and periode_datum between '2040-04-10' and '2040-04-12'),3::bigint,'Wiederholtes Anlegen ändert gespeicherte Perioden nicht (je 1 Zeile)');
+-- Auffüllung gewichtet: Pool 4 mit einer schweren Vorlage; über 60 Periodenpaare kommt die schwere aus der Vorperiode fast immer zurück
+update public.quest_pools set aktiv = (quest_key between 'tg:test_p1' and 'tg:test_p4'), gewicht = case quest_key when 'tg:test_p1' then 1000 else 1 end where quest_key like 'tg:test_p%';
+select public.quest_rotation_sichern('tag', '2041-01-01'::date + 2*o) from generate_series(0,59) o;
+select tap.ok((select count(*) from generate_series(0,59) o where 'tg:test_p1' in (select unnest(quest_keys) from public.quest_rotation where periode_typ='tag' and periode_datum='2041-01-01'::date+2*o)
+                 and 'tg:test_p1' = any (array(select quest_key from public.quest_rotation_wahl('tag','2041-01-02'::date+2*o)))) >= 55,
+              'Auffüllung aus der Vorperiode ist gewichtet (schwere Vorlage wird fast immer wieder aufgefüllt)');
+update public.quest_pools set aktiv = false, gewicht = 1 where quest_key like 'tg:test_p%';
+update public.quest_pools set aktiv = true where periode_typ='tag' and quest_key not like 'tg:test_p%';
+select tap.throws($$insert into public.quest_rotation(periode_typ,periode_datum,quest_keys,versionen) values ('tag','2030-05-01','{wo:test_x}','{1}')$$,'rotation_invalid','Rotation: nur Vorlagen des Periodentyps');
+select tap.throws($$insert into public.quest_rotation(periode_typ,periode_datum,quest_keys,versionen) values ('tag','2030-05-01','{tg:test_a,tg:test_a}','{1,1}')$$,'rotation_invalid','Rotation: keine doppelte Vorlage');
+select tap.throws($$insert into public.quest_rotation(periode_typ,periode_datum,quest_keys,versionen) values ('woche','2030-05-06','{}','{}')$$,'23514','Rotation: nie leer gespeichert');
+select tap.throws($$insert into public.quest_rotation(periode_typ,periode_datum,quest_keys,versionen) values ('woche','2030-05-07','{wo:test_x}','{1}')$$,'quest_rotation_montag','Rotation Woche: Datum muss ein Montag sein');
+
+-- Löschen von Versionen: nur ohne Verweis (Rotation, Questzeile, Pool); TRUNCATE für service_role entzogen
+insert into public.quest_defs(quest_key,version,bereich,ziele) values ('tg:test_frei',1,'tag','[{"typ":"kills","basis":1}]');
+select tap.lives($$delete from public.quest_defs where quest_key='tg:test_frei'$$,'Unbenutzte Version darf gelöscht werden');
+insert into public.quest_defs(quest_key,version,bereich,ziele) values ('tg:test_rot',1,'tag','[{"typ":"kills","basis":1}]');
+insert into public.quest_rotation(periode_typ,periode_datum,quest_keys,versionen) values ('tag','2030-06-01','{tg:test_rot}','{1}');
+select tap.throws($$delete from public.quest_defs where quest_key='tg:test_rot'$$,'quest_version_immutable','Version aus einer gespeicherten Rotation ist nicht löschbar (ohne Pool und Questzeile)');
+select tap.as_service();
+select tap.throws($$truncate public.quest_rotation$$,'permission denied|42501','service_role: kein TRUNCATE auf der Rotation (umginge die Zeilentrigger)');
+select tap.throws($$truncate public.quest_defs cascade$$,'permission denied|42501','service_role: kein TRUNCATE auf dem Katalog');
+select tap.throws($$truncate public.quest_rewards$$,'permission denied|42501','service_role: kein TRUNCATE auf Gutschriften');
+select tap.throws($$truncate public.character_quests cascade$$,'permission denied|42501','service_role: kein TRUNCATE auf Questzeilen');
+select tap.throws($$truncate public.character_confirmed$$,'permission denied|42501','service_role: kein TRUNCATE auf bestätigten Werten');
+select tap.throws($$update public.quest_rotation set quest_keys=quest_keys$$,'rotation_immutable','service_role: Rotation auch für den Dienst unveränderlich');
+select tap.as_admin();
+-- 20d. Bestätigte Werte (K1/K2): nur steigend, nie von Clients schreibbar
+select tap.lives($$insert into public.character_confirmed(character_id,level,zaehler,story_done) values ('c1000000-0000-0000-0000-0000000000c1',20,'{"kills":10,"col.stock":4}','{st:test.1}')$$,'Bestätigte Werte anlegen (Server)');
+select tap.throws($$update public.character_confirmed set level=19 where character_id='c1000000-0000-0000-0000-0000000000c1'$$,'confirmed_only_increases','Bestätigtes Level sinkt nie');
+select tap.throws($$update public.character_confirmed set level=null where character_id='c1000000-0000-0000-0000-0000000000c1'$$,'confirmed_only_increases','Bestätigtes Level wird nie wieder unbestätigt');
+select tap.throws($$update public.character_confirmed set zaehler='{"kills":9,"col.stock":4}' where character_id='c1000000-0000-0000-0000-0000000000c1'$$,'confirmed_only_increases','Bestätigter Zähler sinkt nie');
+select tap.throws($$update public.character_confirmed set zaehler='{"kills":10}' where character_id='c1000000-0000-0000-0000-0000000000c1'$$,'confirmed_only_increases','Bestätigter Zähler verschwindet nie');
+select tap.throws($$update public.character_confirmed set story_done='{}' where character_id='c1000000-0000-0000-0000-0000000000c1'$$,'confirmed_only_increases','Story-Abschlüsse werden nie zurückgenommen');
+select tap.lives($$update public.character_confirmed set level=21, zaehler='{"kills":12,"col.stock":4,"walk":100}', story_done='{st:test.1,st:test.2}' where character_id='c1000000-0000-0000-0000-0000000000c1'$$,'Steigende Werte werden angenommen');
+select tap.throws($$insert into public.character_confirmed(character_id,zaehler) values ('c2000000-0000-0000-0000-0000000000c2','{"kills":-1}')$$,'23514','Zählerwerte müssen ganze Zahlen >= 0 sein');
+select tap.throws($$delete from public.character_confirmed where character_id='c1000000-0000-0000-0000-0000000000c1'$$,'confirmed_immutable','Bestätigte Werte sind nicht löschbar (außer mit dem Charakter)');
+
+-- 20e. Questzeilen: Instanzschlüssel, festgeschriebene Werte, K1-Sperre für Tag/Woche
+select tap.lives($$insert into public.character_quests(character_id,quest_key,inst_key,version) values ('c1000000-0000-0000-0000-0000000000c1','st:test.1','einmalig',1)$$,'Story-Quest mit inst_key einmalig');
+select tap.throws($$insert into public.character_quests(character_id,quest_key,inst_key,version) values ('c1000000-0000-0000-0000-0000000000c1','st:test.1','d:2026-11-24',1)$$,'character_quests_inst','Story verlangt inst_key einmalig');
+select tap.throws($$insert into public.character_quests(character_id,quest_key,inst_key,version,periode_datum,stufe,menge_soll,start_stand) values ('c2000000-0000-0000-0000-0000000000c2','tg:test_a','d:2026-11-24',1,'2026-11-24',1,'{"kills":5}','{"kills":0}')$$,'level_unconfirmed','K1: ohne bestätigtes Level keine Tagesquest');
+select tap.throws($$insert into public.character_quests(character_id,quest_key,inst_key,version,periode_datum,stufe,menge_soll,start_stand) values ('c1000000-0000-0000-0000-0000000000c1','tg:test_a','d:2026-11-24',1,'2026-11-24',5,'{"kills":20}','{"kills":12}')$$,'level_unconfirmed','K1: Stufe muss die aus dem bestätigten Level sein (Level 21 -> Stufe 3)');
+select tap.throws($$insert into public.character_quests(character_id,quest_key,inst_key,version,periode_datum,stufe,menge_soll) values ('c1000000-0000-0000-0000-0000000000c1','tg:test_a','d:2026-11-24',1,'2026-11-24',3,'{"kills":10}')$$,'character_quests_fest','Tag/Woche nie ohne festgeschriebenen Startstand');
+select tap.lives($$insert into public.character_quests(character_id,quest_key,inst_key,version,periode_datum,stufe,menge_soll,start_stand) values ('c1000000-0000-0000-0000-0000000000c1','tg:test_a','d:2026-11-24',1,'2026-11-24',3,'{"kills":10}','{"kills":12}')$$,'Tagesquest mit bestätigter Stufe und festen Werten (Ablage für Paket 3)');
+select tap.throws($$insert into public.character_quests(character_id,quest_key,inst_key,version,periode_datum,stufe,menge_soll,start_stand) values ('c1000000-0000-0000-0000-0000000000c1','tg:test_b','d:2026-02-30',1,null,3,'{}','{}')$$,'character_quests_inst','Ungültiges Datum im inst_key');
+select tap.ok(not public.quest_inst_ok('tg:x','d:2026-02-30') and not public.quest_inst_ok('tg:x','d:2026-13-01') and public.quest_inst_ok('tg:x','d:2028-02-29') and not public.quest_inst_ok('wo:x','w:2026-11-25') and public.quest_inst_ok('wo:x','w:2026-11-23')
+              and public.quest_inst_ok('nb:x','n:9500:-12:7') and not public.quest_inst_ok('nb:x','n:a:1:1') and public.quest_inst_ok('ev:fest:2','e:fest') and not public.quest_inst_ok('st:1.1','e:fest'),'quest_inst_ok: Formate je Bereich (Datum gültig, Woche = Montag, NPC-Fenster, Event)');
+select tap.throws($$insert into public.character_quests(character_id,quest_key,inst_key,version,periode_datum,stufe,menge_soll,start_stand) values ('c1000000-0000-0000-0000-0000000000c1','tg:test_b','d:2026-11-24',1,'2026-11-25',3,'{}','{}')$$,'character_quests_periode','periode_datum muss zum inst_key passen');
+select tap.throws($$insert into public.character_quests(character_id,quest_key,inst_key,version,periode_datum,stufe,menge_soll,start_stand) values ('c1000000-0000-0000-0000-0000000000c1','wo:test_x','w:2026-11-24',1,'2026-11-24',3,'{}','{}')$$,'character_quests_inst','Wochen-inst_key muss ein Montag sein');
+select tap.throws($$insert into public.character_quests(character_id,quest_key,inst_key,version) values ('c1000000-0000-0000-0000-0000000000c1','ev:test_fest:1','e:anderes',1)$$,'character_quests_inst','Event-inst_key muss zum Event passen');
+select tap.throws($$insert into public.character_quests(character_id,quest_key,inst_key,version) values ('c1000000-0000-0000-0000-0000000000c1','st:test.1','einmalig',1)$$,'23505','Je Charakter, Quest und Instanz genau eine Zeile');
+select tap.throws($$update public.character_quests set stufe=4 where quest_key='tg:test_a'$$,'quest_row_immutable','Festgeschriebene Stufe unveränderlich');
+select tap.throws($$update public.character_quests set start_stand='{"kills":0}' where quest_key='tg:test_a'$$,'quest_row_immutable','Festgeschriebener Startstand unveränderlich');
+select tap.throws($$update public.character_quests set menge_soll='{"kills":1}' where quest_key='tg:test_a'$$,'quest_row_immutable','Festgeschriebene Menge unveränderlich');
+select tap.lives($$update public.character_quests set status='abgeschlossen', abgeschlossen_am=now() where quest_key='st:test.1'$$,'Status aktiv -> abgeschlossen');
+select tap.throws($$update public.character_quests set status='aktiv' where quest_key='st:test.1'$$,'quest_status_transition','Status nie zurück');
+select tap.throws($$delete from public.character_quests where quest_key='st:test.1'$$,'quest_row_immutable','Questzeilen sind nicht löschbar (außer mit dem Charakter)');
+select tap.throws($$insert into public.character_quests(character_id,quest_key,inst_key,version,status) values ('c2000000-0000-0000-0000-0000000000c2','ev:test_fest:1','e:test_fest',1,'abgeschlossen')$$,'quest_status_transition','Nur Story darf direkt abgeschlossen angelegt werden (Story-Sync)');
+insert into public.character_quests(character_id,quest_key,inst_key,version) values ('c2000000-0000-0000-0000-0000000000c2','st:test.1','einmalig',1),('c3000000-0000-0000-0000-0000000000c3','st:test.1','einmalig',1);
+
+-- 20f. Gutschriften: rid, Idempotenz, Unveränderlichkeit, Frist
+select tap.lives($$insert into public.quest_rewards(character_id,quest_key,inst_key,belohnung) values ('c1000000-0000-0000-0000-0000000000c1','st:test.1','einmalig','{"xp":20}')$$,'Gutschrift anlegen');
+select tap.is((select rid from public.quest_rewards where character_id='c1000000-0000-0000-0000-0000000000c1' and quest_key='st:test.1'),'st:test.1|einmalig','rid = quest_key|inst_key');
+select tap.throws($$insert into public.quest_rewards(character_id,quest_key,inst_key,belohnung) values ('c1000000-0000-0000-0000-0000000000c1','st:test.1','einmalig','{"xp":99}')$$,'23505','Zweite Gutschrift mit derselben rid ist unmöglich');
+insert into public.quest_rewards(character_id,quest_key,inst_key,belohnung) values ('c1000000-0000-0000-0000-0000000000c1','st:test.1','einmalig','{"xp":99}') on conflict do nothing;
+select tap.is((select belohnung from public.quest_rewards where character_id='c1000000-0000-0000-0000-0000000000c1' and rid='st:test.1|einmalig'),'{"xp":20}'::jsonb,'on conflict do nothing: bestehende Gutschrift bleibt unverändert');
+select tap.throws($$insert into public.quest_rewards(character_id,quest_key,inst_key,belohnung) values ('c1000000-0000-0000-0000-0000000000c1','st:test.9','einmalig','{"xp":1}')$$,'23503','Gutschrift nur zu vorhandener Questzeile');
+select tap.throws($$update public.quest_rewards set belohnung='{"xp":21}' where rid='st:test.1|einmalig'$$,'reward_immutable','Belohnung unveränderlich');
+select tap.throws($$update public.quest_rewards set gueltig_bis=now()+interval '99 days' where rid='st:test.1|einmalig'$$,'reward_immutable','Frist unveränderlich');
+select tap.lives($$update public.quest_rewards set status='im_spielstand' where rid='st:test.1|einmalig' and character_id='c1000000-0000-0000-0000-0000000000c1'$$,'offen -> im_spielstand innerhalb der Frist');
+select tap.lives($$update public.quest_rewards set status='offen' where rid='st:test.1|einmalig' and character_id='c1000000-0000-0000-0000-0000000000c1'$$,'im_spielstand -> offen innerhalb der Frist');
+select tap.throws($$update public.quest_rewards set status='verfallen' where rid='st:test.1|einmalig' and character_id='c1000000-0000-0000-0000-0000000000c1'$$,'reward_status_transition','verfallen erst nach Fristende');
+select tap.throws($$insert into public.quest_rewards(character_id,quest_key,inst_key,belohnung,status) values ('c1000000-0000-0000-0000-0000000000c1','tg:test_a','d:2026-11-24','{}','endgueltig')$$,'reward_status_transition','Neue Gutschrift nur als offen oder im_spielstand');
+insert into public.quest_rewards(character_id,quest_key,inst_key,belohnung,angelegt_am,gueltig_bis) values ('c1000000-0000-0000-0000-0000000000c1','tg:test_a','d:2026-11-24','{"xp":5}',now()-interval '20 days',now()-interval '6 days');
+select tap.throws($$update public.quest_rewards set status='im_spielstand' where rid='tg:test_a|d:2026-11-24'$$,'reward_status_transition','Nach Fristende kein Abgleich mehr (offen bleibt offen)');
+select tap.lives($$update public.quest_rewards set status='verfallen' where rid='tg:test_a|d:2026-11-24'$$,'offen -> verfallen nach Fristende');
+select tap.throws($$update public.quest_rewards set status='offen' where rid='tg:test_a|d:2026-11-24'$$,'reward_status_transition','verfallen ist endgültig');
+select tap.throws($$delete from public.quest_rewards where rid='tg:test_a|d:2026-11-24'$$,'reward_immutable','Gutschriften sind nicht löschbar (außer mit dem Charakter)');
+
+-- 20g. Rechte und Sichtbarkeit
+select tap.as_anon();
+select tap.throws($$select * from public.quest_defs$$,'permission denied|42501','Anonym: kein Zugriff auf den Katalog');
+select tap.throws($$select public.quest_state('c1000000-0000-0000-0000-0000000000c1')$$,'permission denied|42501','Anonym: quest_state nicht ausführbar');
+select tap.as_user('a1000000-0000-0000-0000-0000000000a1');
+select tap.ok((select count(*) from public.quest_defs where quest_key like '%test%') > 0 and not exists (select 1 from public.quest_defs where bereich='pruefung'),'Katalog lesbar, Klassenprüfungen nicht (geheime Bedingungen bleiben serverseitig)');
+select tap.ok(exists (select 1 from public.quest_defs where quest_key='ev:test_fest:1') and not exists (select 1 from public.quest_defs where quest_key='ev:test_bald:1'),'Event-Quests erst ab Eventbeginn sichtbar');
+select tap.ok(exists (select 1 from public.quest_events where event_key='test_fest') and not exists (select 1 from public.quest_events where event_key='test_bald'),'Künftige Events sind nicht sichtbar');
+select tap.ok((select count(*) from public.quest_rotation) >= 2,'Rotation ist lesbar');
+select tap.throws($$select * from public.quest_pools$$,'permission denied|42501','Pool (Gewichte) ist für Clients nicht lesbar');
+select tap.throws($$select * from public.npc_seed$$,'permission denied|42501','NPC-Seeds sind für Clients nicht lesbar');
+select tap.throws($$select * from public.quest_audit$$,'permission denied|42501','Quest-Protokoll ist für Clients nicht lesbar');
+select tap.is((select array_agg(distinct character_id::text) from public.character_quests),array['c1000000-0000-0000-0000-0000000000c1'],'Eigene Questzeilen sichtbar, fremde und gesperrte (Platz 3) nicht');
+select tap.is((select count(*) from public.quest_rewards),2::bigint,'Eigene Gutschriften sichtbar');
+select tap.is((select level from public.character_confirmed),21::smallint,'Eigene bestätigte Werte sichtbar');
+select tap.throws($$insert into public.character_quests(character_id,quest_key,inst_key,version) values ('c1000000-0000-0000-0000-0000000000c1','st:test.2','einmalig',1)$$,'permission denied|42501','Clients schreiben keine Questzeilen');
+select tap.throws($$update public.character_confirmed set level=50$$,'permission denied|42501','Clients schreiben keine bestätigten Werte');
+select tap.throws($$insert into public.quest_rotation(periode_typ,periode_datum,quest_keys,versionen) values ('tag','2031-01-01','{tg:test_a}','{1}')$$,'permission denied|42501','Clients schreiben keine Rotation');
+select tap.throws($$select public.quest_rotation_sichern('tag','2031-01-01')$$,'permission denied|42501','Interne Rotationsfunktion nicht aufrufbar');
+select tap.throws($$select public.quest_periode_datum('tag',now())$$,'permission denied|42501','Interne Periodenfunktion nicht aufrufbar');
+select tap.as_user('a2000000-0000-0000-0000-0000000000a2');
+select tap.is((select count(*) from public.quest_rewards)+(select count(*) from public.character_confirmed),0::bigint,'B sieht keine Gutschriften oder bestätigten Werte von A');
+
+-- 20h. quest_state (lesend, Aktivierung gesperrt)
+select tap.as_user('a1000000-0000-0000-0000-0000000000a1');
+select tap.throws($$select public.quest_state('c2000000-0000-0000-0000-0000000000c2')$$,'not_found','quest_state: fremder Charakter -> not_found');
+select tap.throws($$select public.quest_state('c9999999-0000-0000-0000-000000000000')$$,'not_found','quest_state: unbekannter Charakter -> not_found (gleiche Meldung)');
+select tap.throws($$select public.quest_state(null)$$,'not_found','quest_state: ohne Charakter -> not_found');
+select tap.throws($$select public.quest_state('c3000000-0000-0000-0000-0000000000c3')$$,'character_locked','quest_state: Platz 3 ohne Berechtigung -> character_locked');
+select tap.as_admin();
+create temp table qs_vorher as select (select count(*) from public.character_quests) q, (select count(*) from public.quest_rewards) r, (select count(*) from public.character_confirmed) c;
+grant select on qs_vorher to authenticated;
+select tap.as_user('a1000000-0000-0000-0000-0000000000a1');
+create temp table qs as select public.quest_state('c1000000-0000-0000-0000-0000000000c1') j;
+select tap.ok((select j->'aktivierung'->>'tag_woche' = 'false' and j->'aktivierung'->>'grund' = 'gesperrt_bis_paket_3' from qs),'quest_state: Tages-/Wochenaktivierung gesperrt (K2)');
+select tap.ok((select (j->>'stufe')::int = 3 and (j->'bestaetigt'->>'level')::int = 21 from qs),'quest_state: Stufe nur aus bestätigtem Level (21 -> 3), nicht aus dem Spielstand (lv 49)');
+select tap.ok((select (j->'perioden'->'tag'->>'datum')::date = public_tag and (j->'perioden'->'woche'->>'datum')::date = public_woche
+                 from qs, lateral (select (((j->>'server_zeit')::timestamptz at time zone 'Europe/Berlin') - interval '9 hours')::date as public_tag) a,
+                      lateral (select public_tag - (extract(isodow from public_tag)::int - 1) as public_woche) b),'quest_state: Perioden aus der Serverzeit (Berlin, 09:00)');
+select tap.ok((select (j->'perioden'->'tag'->>'ende')::timestamptz > (j->>'server_zeit')::timestamptz and (j->'perioden'->'tag'->>'start')::timestamptz <= (j->>'server_zeit')::timestamptz from qs),'quest_state: Serverzeit liegt in der gemeldeten Tagesperiode');
+select tap.ok((select jsonb_array_length(j->'rotation'->'tag') between 1 and 3 from qs),'quest_state: legt die Tagesrotation an und liefert sie');
+select tap.ok((select j->'rotation'->'tag' = (select jsonb_agg(jsonb_build_object('quest_key',u.k,'version',u.v) order by u.o) from public.quest_rotation r, unnest(r.quest_keys, r.versionen) with ordinality u(k,v,o)
+                 where r.periode_typ='tag' and r.periode_datum=(j->'perioden'->'tag'->>'datum')::date) from qs),'quest_state: Rotation = gespeicherte Rotation der Periode');
+select tap.ok((select jsonb_array_length(j->'quests') = 2 and jsonb_array_length(j->'gutschriften') = 2 from qs),'quest_state: liefert eigene Questzeilen und Gutschriften');
+select tap.ok((select exists (select 1 from jsonb_array_elements(j->'gutschriften') g where g->>'rid' = 'tg:test_a|d:2026-11-24' and g->>'status' = 'verfallen') from qs),'quest_state: Gutschriftstatus nach Fristende');
+select tap.ok((select exists (select 1 from jsonb_array_elements(j->'events') e where e->>'event_key' = 'test_fest') and not exists (select 1 from jsonb_array_elements(j->'events') e where e->>'event_key' = 'test_bald') from qs),'quest_state: nur laufende Events');
+select tap.is((select public.quest_state('c1000000-0000-0000-0000-0000000000c1')->'rotation'),(select j->'rotation' from qs),'quest_state: wiederholter Aufruf liefert dieselbe Rotation');
+select tap.as_admin();
+select tap.ok((select q = (select count(*) from public.character_quests) and r = (select count(*) from public.quest_rewards) and c = (select count(*) from public.character_confirmed) from qs_vorher),
+              'quest_state schreibt keine Questzeilen, Gutschriften oder bestätigten Werte (Paket 2 nur lesend)');
+select tap.ok((select count(*) from public.character_confirmed where character_id='c2000000-0000-0000-0000-0000000000c2') = 0,'Kein bestätigter Wert entsteht aus Client-Daten (K2)');
+-- ohne bestätigte Werte: keine Stufe
+select tap.as_user('a2000000-0000-0000-0000-0000000000a2');
+select tap.ok((select j->'stufe' = 'null'::jsonb and j->'bestaetigt' = 'null'::jsonb from (select public.quest_state('c2000000-0000-0000-0000-0000000000c2') j) x),'quest_state: ohne bestätigtes Level keine Stufe (K1)');
+select tap.as_admin();
+begin transaction isolation level repeatable read;
+select tap.as_user('a1000000-0000-0000-0000-0000000000a1');
+select tap.throws($$select public.quest_state('c1000000-0000-0000-0000-0000000000c1')$$,'read_committed_required','quest_state: nur unter READ COMMITTED');
+commit;
+select tap.as_admin();
+-- Sperrfolge (statisch; Nebenläufigkeit: server/instance/tests/quest-sperren.mjs)
+select tap.ok((select position('quest_rotation_sichern(''tag''' in prosrc) > 0
+                  and position('quest_rotation_sichern(''woche''' in prosrc) < position('from public.profiles where account_id = uid for key share' in prosrc)
+                  and position('from public.profiles where account_id = uid for key share' in prosrc) < position('from public.characters where character_id = p_character and account_id = uid for key share' in prosrc)
+                  and position('pg_advisory' in prosrc) = 0 and position('for update' in prosrc) = 0
+                 from pg_proc where oid = 'public.quest_state(uuid)'::regprocedure),
+              'quest_state: Rotation -> Profil (key share) -> Charakter (key share), keine Beratungssperre, keine Zeilensperre zum Schreiben');
+select tap.is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like any(array['quest%','character_quests_guard','character_confirmed_guard','npc_defs_guard'])
+                and p.proname not in ('quest_bereich','quest_ziele_ok','quest_inst_ok','quest_inst_datum','quest_zaehler_ok','quest_periode_datum','quest_periode_start','quest_stufe','quest_rotation_wahl')
+                and not (p.prosecdef and p.proconfig::text like '%search_path=public, pg_temp%')),0::bigint,'Quest-Funktionen mit Rechten: SECURITY DEFINER mit festem search_path');
+select tap.is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'quest%' and p.proname <> 'quest_state'
+                and (has_function_privilege('authenticated',p.oid,'execute') or has_function_privilege('anon',p.oid,'execute'))),0::bigint,'Nur quest_state ist für Clients ausführbar');
+select tap.is((select string_agg(conname||':'||confdeltype::text, ',' order by conname) from pg_constraint where contype='f' and conrelid in ('public.character_confirmed'::regclass,'public.character_quests'::regclass,'public.quest_rewards'::regclass,'public.quest_audit'::regclass) and confrelid in ('public.characters'::regclass,'public.character_quests'::regclass)),
+              'character_confirmed_character_id_fkey:c,character_quests_character_id_fkey:c,quest_audit_character_id_fkey:c,quest_rewards_character_id_quest_key_inst_key_fkey:c','Kaskade beim Löschen: Charakter -> bestätigte Werte, Questzeilen -> Gutschriften, Protokoll');
+
+-- 20i. Löschen: Kaskade über Charakter und Konto entfernt alle Questdaten (trotz Lösch-Sperren der Trigger)
+select tap.as_user('a1000000-0000-0000-0000-0000000000a1');
+select tap.lives($$select public.delete_character('c1000000-0000-0000-0000-0000000000c1')$$,'delete_character mit Questdaten (B-2/B-4-Sperrfolge unverändert)');
+select tap.as_admin();
+select tap.is((select count(*) from public.character_quests where character_id='c1000000-0000-0000-0000-0000000000c1')+(select count(*) from public.quest_rewards where character_id='c1000000-0000-0000-0000-0000000000c1')+(select count(*) from public.character_confirmed where character_id='c1000000-0000-0000-0000-0000000000c1'),0::bigint,
+              'Charakter löschen entfernt Questzeilen, Gutschriften und bestätigte Werte');
+delete from auth.users where id in ('a1000000-0000-0000-0000-0000000000a1','a2000000-0000-0000-0000-0000000000a2');
+select tap.is((select count(*) from public.character_quests where character_id in ('c2000000-0000-0000-0000-0000000000c2','c3000000-0000-0000-0000-0000000000c3')),0::bigint,'Konto löschen entfernt die Questdaten aller Charaktere (Kaskade)');
+select tap.ok((select count(*) from public.quest_rotation) >= 2 and (select count(*) from public.quest_defs) > 0,'Globale Daten (Katalog, Rotation) bleiben beim Löschen von Konten erhalten');
 
 select tap.finish();

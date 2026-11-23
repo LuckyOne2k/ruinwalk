@@ -62,12 +62,13 @@ jobs:
           node server/instance/tests/dev-umgebung.mjs
           node server/instance/tests/installation.mjs
           node server/instance/tests/rechte-audit.mjs
-      - name: Konto, Charakter, Löschvorgang, Sperrreihenfolge B-2/B-3, Profilableitung (F5/F9), Platz 3
+      - name: Konto, Charakter, Löschvorgang, Sperrreihenfolge B-2/B-3, Quest-Sperren (Paket 2), Profilableitung (F5/F9), Platz 3
         run: |
           node server/instance/tests/konto-integration.mjs
           node server/instance/tests/konto-regel.mjs
           node server/instance/tests/loesch-trigger.mjs
           node server/instance/tests/b2-sperren.mjs
+          node server/instance/tests/quest-sperren.mjs
           node server/instance/tests/profil-ableitung.mjs
           node server/instance/tests/slot3-f9.mjs
       - name: Worker-Kern, Schnittstelle A1, stuck und kontrollierte Wiederaufnahme
