@@ -16,13 +16,16 @@ W('marketing/meta/config.json', JSON.stringify({ api_host: 'graph.facebook.com',
 const modus = m => W('marketing/meta/modus.json', JSON.stringify({ ...MODUS_STD, ...m }));
 const log = zeilen => W(LOG, '# Veröffentlichungsprotokoll\n\n| Zeitpunkt (UTC) | Modus | Entwurf | Kanal-IDs |\n|---|---|---|---|\n' + zeilen.map(([t, id]) => `| ${t} | autonom | x.md | ${id} |\n`).join(''));
 const alog = zeilen => W(ALOG, '| Zeitpunkt (UTC) | Kommentar-ID | Beitrag | Antwort-ID | Antworttext |\n|---|---|---|---|---|\n' + zeilen.map(([t, k]) => `| ${t} | ${k} | 9 | R | Danke |\n`).join(''));
-const vor = h => new Date(Date.now() - h * 36e5).toISOString();
+// Feste Testuhr (RW_META_JETZT, nur mit Attrappe): 23.11.2026 12:00 MEZ – Tageslimits zählen nach Kalendertag Europe/Berlin,
+// mit fester Uhr sind die relativen Fälle (vor 1 h = heute, vor 25 h = gestern) unabhängig von der echten Uhrzeit.
+const JETZT = '2026-11-23T11:00:00.000Z';
+const vor = h => new Date(Date.parse(JETZT) - h * 36e5).toISOString();
 
-function lauf(args, szenario = {}, ohneAttrappe = false) {
+function lauf(args, szenario = {}, ohneAttrappe = false, jetzt = JETZT) {
   const sz = path.join(TMP, 'szenario.json'), pr = path.join(TMP, 'protokoll.jsonl');
   fs.writeFileSync(sz, JSON.stringify(szenario)); fs.writeFileSync(pr, '');
   const env = { ...process.env, NODE_USE_ENV_PROXY: '1', RW_META_ROOT: TMP, RW_META_URL_BASIS: 'https://raw.example.test/', RW_META_POLL_MS: '1', RW_META_POLL_MAX: '4',
-    RW_ATTRAPPE_SZENARIO: sz, RW_ATTRAPPE_PROTOKOLL: pr };
+    RW_ATTRAPPE_SZENARIO: sz, RW_ATTRAPPE_PROTOKOLL: pr, RW_META_JETZT: jetzt };
   delete env.META_TOKEN; delete env.HTTPS_PROXY; delete env.https_proxy;
   const r = cp.spawnSync(process.execPath, [...(ohneAttrappe ? [] : ['-r', ATTRAPPE]), SKRIPT, ...args], { env, encoding: 'utf8' });
   const aufrufe = fs.readFileSync(pr, 'utf8').split('\n').filter(Boolean).map(JSON.parse);
@@ -79,6 +82,13 @@ log([[vor(1), 'instagram:1']]);
   const r = lauf(['veroeffentlichen', d, '--senden'], {}, true);
   check(r.code === 1 && /nur mit der Test-Attrappe/.test(r.out), 'ohne Attrappe: RW_META_ROOT wird nicht ausgewertet, Abbruch', r.out);
   const r2 = lauf(['pruefen', d], {}, true); check(r2.code === 1 && /Test-Attrappe/.test(r2.out), 'ohne Attrappe: auch pruefen bricht bei RW_META_* ab', r2.out); }
+// QA-Befund 2 (23.11.2026): RW_META_JETZT allein (ohne Attrappe, ohne RW_META_ROOT, echtes Repo) → Abbruch vor jedem API-Aufruf.
+{ const env = { ...process.env, RW_META_JETZT: '2030-01-01T00:00:00Z' };
+  Object.keys(env).filter(k => (k.startsWith('RW_') && k !== 'RW_META_JETZT') || /^(META_TOKEN|HTTPS?_PROXY|https?_proxy)$/.test(k)).forEach(k => delete env[k]);
+  const r = cp.spawnSync(process.execPath, [SKRIPT, 'veroeffentlichen', path.join(TMP, 'gibt-es-nicht.md')], { env, encoding: 'utf8' });
+  const out = r.stdout + r.stderr;
+  check(r.status === 1 && /RW_META_JETZT/.test(out) && /nur mit der Test-Attrappe/.test(out) && !/TROCKENLAUF|POST |GET /.test(out),
+    'ohne Attrappe: RW_META_JETZT allein (ohne RW_META_ROOT) → Abbruch, kein API-Aufruf', out); }
 log([]);
 { const r = senden(datei({ format: 'post', bild: 'm/einzel.jpg' }), { status: ['ERROR'] });
   check(r.code === 2 && !r.posts.some(p => /media_publish/.test(p.p)), 'Bild-Container ERROR: kein media_publish', r.out);
@@ -229,6 +239,37 @@ alog([[vor(5), '555']]);
 { const r = lauf(['kommentare', '7'], { medien: { data: [{ id: '900', caption: 'Test', timestamp: new Date().toISOString(), comments_count: 2 }] },
     kommentare: { data: [{ id: '555', text: 'Cool', username: 'a', timestamp: 'x' }, { id: '556', text: 'Wann?', username: 'b', timestamp: 'x' }] } });
   check(r.code === 0 && /\[beantwortet\] 555/.test(r.out) && /\[offen\]\s+556/.test(r.out) && !r.posts.length, 'kommentare: listet, markiert beantwortete, sendet nichts', r.out); }
+
+console.log('Tageslimit nach Kalendertag Europe/Berlin (Pascal 23.11.2026)');
+modus();
+{ const post = () => datei({ format: 'post', bild: 'm/einzel.jpg' }), story = () => datei({ format: 'story', bild: 'm/story.jpg' }, { 'Caption Instagram': null });
+  const feedFall = (logT, jetzt, erlaubt, name) => { log([[logT, 'instagram:1']]); const r = lauf(['veroeffentlichen', post(), '--senden'], {}, false, jetzt);
+    check(erlaubt ? r.code === 0 && r.posts.length === 2 : r.code === 1 && /Tageslimit erreicht/.test(r.out) && r.aufrufe.length === 0, name, r.out); };
+  // MEZ (UTC+1)
+  feedFall('2026-11-22T18:31:00Z', '2026-11-23T08:00:00Z', true, 'Post gestern 19:31 MEZ → heute 09:00 erlaubt (nur 13,5 h her)');
+  feedFall('2026-11-23T07:00:00Z', '2026-11-23T08:00:00Z', false, 'Post heute 08:00 MEZ → heute 09:00 gesperrt');
+  feedFall('2026-11-23T07:00:00Z', '2026-11-23T22:59:00Z', false, 'Post heute 08:00 MEZ → heute 23:59 MEZ noch gesperrt');
+  feedFall('2026-11-23T07:00:00Z', '2026-11-23T23:00:00Z', true, 'Post heute 08:00 MEZ → 00:00 MEZ des Folgetags erlaubt');
+  feedFall('2026-11-22T22:59:00Z', '2026-11-22T23:00:00Z', true, 'Post 23:59 MEZ → eine Minute später (00:00, neuer Tag) erlaubt');
+  feedFall('2026-11-22T23:00:00Z', '2026-11-23T22:59:00Z', false, 'Post 00:00 MEZ → 23:59 MEZ desselben Tags gesperrt');
+  // Sommerzeit Beginn 29.03.2026 (02:00 MEZ → 03:00 MESZ, Tag mit 23 h)
+  feedFall('2026-03-28T22:59:00Z', '2026-03-28T23:00:00Z', true, 'Sommerzeit: 28.03. 23:59 MEZ → 29.03. 00:00 MEZ erlaubt');
+  feedFall('2026-03-28T23:00:00Z', '2026-03-29T21:59:00Z', false, 'Sommerzeit: 29.03. 00:00 MEZ → 29.03. 23:59 MESZ gesperrt');
+  feedFall('2026-03-28T23:00:00Z', '2026-03-29T22:00:00Z', true, 'Sommerzeit: 29.03. 00:00 MEZ → 30.03. 00:00 MESZ erlaubt (nur 23 h her)');
+  // Sommerzeit Ende 25.10.2026 (03:00 MESZ → 02:00 MEZ, Tag mit 25 h)
+  feedFall('2026-10-24T21:59:00Z', '2026-10-24T22:00:00Z', true, 'Winterzeit: 24.10. 23:59 MESZ → 25.10. 00:00 MESZ erlaubt');
+  feedFall('2026-10-24T22:30:00Z', '2026-10-25T22:45:00Z', false, 'Winterzeit: 25.10. 00:30 MESZ → 25.10. 23:45 MEZ gesperrt (24 h 15 min, gleicher Tag)');
+  feedFall('2026-10-24T22:00:00Z', '2026-10-25T23:00:00Z', true, 'Winterzeit: 25.10. 00:00 MESZ → 26.10. 00:00 MEZ erlaubt');
+  // Stories: 3 pro Kalendertag
+  log([['2026-11-22T20:00:00Z', 'instagram-story:1'], ['2026-11-22T21:00:00Z', 'instagram-story:2'], ['2026-11-22T22:30:00Z', 'instagram-story:3']]);
+  { const r = lauf(['veroeffentlichen', story(), '--senden'], {}, false, '2026-11-23T06:00:00Z'); check(r.code === 0, 'Story: 3 Stories gestern Abend → heute 07:00 MEZ erlaubt', r.out); }
+  log([['2026-11-22T23:10:00Z', 'instagram-story:1'], ['2026-11-23T06:00:00Z', 'instagram-story:2'], ['2026-11-23T07:00:00Z', 'instagram-story:3']]);
+  { const r = lauf(['veroeffentlichen', story(), '--senden'], {}, false, '2026-11-23T22:30:00Z'); check(r.code === 1 && /Story-Tageslimit/.test(r.out) && r.aufrufe.length === 0, 'Story: 3 Stories heute (ab 00:10 MEZ) → 23:30 MEZ gesperrt', r.out); }
+  // Neuer Eintrag im LOG zählt für den laufenden Berliner Tag
+  log([]);
+  { const r1 = lauf(['veroeffentlichen', post(), '--senden'], {}, false, '2026-11-23T22:58:00Z'), r2 = lauf(['veroeffentlichen', post(), '--senden'], {}, false, '2026-11-23T22:59:30Z');
+    const r3 = lauf(['veroeffentlichen', post(), '--senden'], {}, false, '2026-11-23T23:00:30Z');
+    check(r1.code === 0 && r2.code === 1 && r3.code === 0, 'eigener LOG-Eintrag 23:58 MEZ sperrt bis Mitternacht, danach frei', r1.out + r2.out + r3.out); } }
 
 console.log('meta-api.js – Aufrufe je Beitrag (nur lesend)');
 { const B = { views: 0, reach: 0, saved: 0, shares: 0, likes: 0, comments: 0, total_interactions: 0 };

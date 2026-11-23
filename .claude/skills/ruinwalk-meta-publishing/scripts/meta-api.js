@@ -18,7 +18,8 @@
    Konfiguration (ohne Geheimnisse): marketing/meta/config.json  { "api_version", "page_id", "ig_user_id" }
    Tests (ohne Netz): node .claude/skills/ruinwalk-meta-publishing/tests/meta-api.test.js
    Nur für Tests und nur mit geladener Attrappe (sonst Abbruch): RW_META_ROOT (anderes Wurzelverzeichnis für config/modus/LOG/Medien), RW_META_URL_BASIS (statt GitHub-URL),
-   RW_META_POLL_MS / RW_META_POLL_MAX (Statusabfrage). */
+   RW_META_POLL_MS / RW_META_POLL_MAX (Statusabfrage), RW_META_JETZT (feste Uhrzeit, ISO).
+   Tageslimits Feed/Story: Kalendertag Europe/Berlin; Wochenlimit: rollierend 7 × 24 h. */
 const fs = require('fs'), path = require('path');
 const GEHEIM = require('./geheim.js');   // verborgene dritte Pfadstufen (Namen/Fähigkeiten/Figuren) – nie öffentlich nennen
 // Node-fetch nutzt HTTPS_PROXY nur mit NODE_USE_ENV_PROXY=1 (Claude-Cloud-Umgebung) → einmal mit gesetzter Variable neu starten.
@@ -58,6 +59,7 @@ const STORY_MAX_PRO_TAG = 3;
 const VIDEO = { reel: { maxMB: 300, minS: 3, maxS: 900 }, story: { maxMB: 100, minS: 3, maxS: 60 }, githubMB: 50 };
 const POLL_MS = Number(T('RW_META_POLL_MS') || 5000);   // Abfrageintervall Container-Status (Tests: kurz)
 const POLL_MAX = Number(T('RW_META_POLL_MAX') || 60);   // Video: max. 60 × 5 s = 5 min
+const jetztMs = () => (T('RW_META_JETZT') ? Date.parse(T('RW_META_JETZT')) : Date.now());   // Uhr; RW_META_JETZT nur Tests (Attrappe)
 
 async function api(method, p, params = {}) {
   const u = new URL(BASE + p);
@@ -222,15 +224,20 @@ function logZeilen() {
   if (!fs.existsSync(LOG_PATH)) return [];
   return fs.readFileSync(LOG_PATH, 'utf8').split('\n').filter(l => /^\| \d{4}-/.test(l)).map(l => ({ t: Date.parse(l.split('|')[1].trim()), z: l }));
 }
+// Tageslimits (Feed, Story) zählen nach KALENDERTAG Europe/Berlin (Mitternacht MEZ/MESZ, Sommerzeit über Intl), nicht als
+// rollierendes 24-h-Fenster (Pascal, 23.11.2026). Das Wochenlimit bleibt rollierend (7 × 24 h).
+const BERLIN_TAG = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit' });
+const berlinTag = t => BERLIN_TAG.format(new Date(t));   // „JJJJ-MM-TT“ in Berliner Ortszeit
 function logZaehlen() {
-  const jetzt = Date.now(), alle = logZeilen(), feed = alle.filter(x => !/instagram-story:/.test(x.z)), story = alle.filter(x => /instagram-story:/.test(x.z));
-  return { tag: feed.filter(x => jetzt - x.t < 864e5).length, woche: feed.filter(x => jetzt - x.t < 7 * 864e5).length,
-           storyTag: story.filter(x => jetzt - x.t < 864e5).length, reels: alle.filter(x => /instagram-reel:/.test(x.z)).length };
+  const jetzt = jetztMs(), heute = berlinTag(jetzt), alle = logZeilen(), feed = alle.filter(x => !/instagram-story:/.test(x.z)), story = alle.filter(x => /instagram-story:/.test(x.z));
+  const amTag = x => Number.isFinite(x.t) && berlinTag(x.t) === heute;
+  return { tag: feed.filter(amTag).length, woche: feed.filter(x => jetzt - x.t < 7 * 864e5).length,
+           storyTag: story.filter(amTag).length, reels: alle.filter(x => /instagram-reel:/.test(x.z)).length };
 }
 function logSchreiben(e, erg) {
   fs.mkdirSync(path.dirname(LOG_PATH), { recursive: true });
   if (!fs.existsSync(LOG_PATH)) fs.writeFileSync(LOG_PATH, '# Veröffentlichungsprotokoll\n\n| Zeitpunkt (UTC) | Modus | Entwurf | Kanal-IDs |\n|---|---|---|---|\n');
-  fs.appendFileSync(LOG_PATH, `| ${new Date().toISOString()} | ${MODUS.modus} | ${path.basename(e.datei)} | ${erg.join(', ')} |\n`);
+  fs.appendFileSync(LOG_PATH, `| ${new Date(jetztMs()).toISOString()} | ${MODUS.modus} | ${path.basename(e.datei)} | ${erg.join(', ')} |\n`);
 }
 
 // Container-Status abwarten (FINISHED). Video: Pflicht, sonst wird nicht veröffentlicht.
@@ -389,7 +396,7 @@ function antwortLog() {
     const f = antwortPruefen(text); if (f.length) die('Antwort nicht zulässig:\n  - ' + f.join('\n  - '));
     const log = antwortLog();
     if (log.some(x => x.kommentar === kid)) die(`Kommentar ${kid} wurde bereits beantwortet (ANTWORTEN_LOG.md).`);
-    const heute = log.filter(x => Date.now() - x.t < 864e5).length;
+    const heute = log.filter(x => jetztMs() - x.t < 864e5).length;
     if (heute >= (regel.max_pro_tag || 0)) die(`Tageslimit für Antworten erreicht (${heute}/${regel.max_pro_tag || 0}).`);
     if (!IG) die('ig_user_id fehlt in marketing/meta/config.json');
     const eigen = (cfg.instagram_handle || 'ruinwalk.official').toLowerCase();
@@ -410,7 +417,7 @@ function antwortLog() {
     const r = await api('POST', `/${kid}/replies`, { message: text });
     fs.mkdirSync(path.dirname(ANTWORT_LOG), { recursive: true });
     if (!fs.existsSync(ANTWORT_LOG)) fs.writeFileSync(ANTWORT_LOG, '# Antworten auf Kommentare (nur eigene Beiträge)\n\nKeine Namen von Kommentierenden (Datenschutz). Text = unsere Antwort.\n\n| Zeitpunkt (UTC) | Kommentar-ID | Beitrag | Antwort-ID | Antworttext |\n|---|---|---|---|---|\n');
-    fs.appendFileSync(ANTWORT_LOG, `| ${new Date().toISOString()} | ${kid} | ${mid} | ${r.id} | ${text.replace(/\|/g, '/').replace(/\n/g, ' ')} |\n`);
+    fs.appendFileSync(ANTWORT_LOG, `| ${new Date(jetztMs()).toISOString()} | ${kid} | ${mid} | ${r.id} | ${text.replace(/\|/g, '/').replace(/\n/g, ' ')} |\n`);
     console.log('✓ Antwort gesendet:', r.id, '→ protokolliert in ANTWORTEN_LOG.md');
     return;
   }
