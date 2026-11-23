@@ -230,6 +230,16 @@ alog([[vor(5), '555']]);
     kommentare: { data: [{ id: '555', text: 'Cool', username: 'a', timestamp: 'x' }, { id: '556', text: 'Wann?', username: 'b', timestamp: 'x' }] } });
   check(r.code === 0 && /\[beantwortet\] 555/.test(r.out) && /\[offen\]\s+556/.test(r.out) && !r.posts.length, 'kommentare: listet, markiert beantwortete, sendet nichts', r.out); }
 
+console.log('meta-api.js – Aufrufe je Beitrag (nur lesend)');
+{ const B = { views: 0, reach: 0, saved: 0, shares: 0, likes: 0, comments: 0, total_interactions: 0 };
+  const r = lauf(['aufrufe', '5'], { medien: { data: [
+      { id: '901', caption: 'Reel eins', media_type: 'VIDEO', media_product_type: 'REELS', timestamp: '2026-11-21T17:26:53+0000' },
+      { id: '902', caption: 'Karussell zwei', media_type: 'CAROUSEL_ALBUM', media_product_type: 'FEED', timestamp: '2026-11-22T18:31:55+0000' }] },
+    insights: { 901: { ...B, views: 111, reach: 103, ig_reels_avg_watch_time: 2770 }, 902: { ...B, views: 2, reach: 1, profile_visits: 0, follows: null } } });
+  check(r.code === 0 && /\| Reel \| Reel eins \| 111 \| 103 \|/.test(r.out) && /\| Karussell \| Karussell zwei \| 2 \| 1 \|/.test(r.out) && /Aufrufe gesamt: 113/.test(r.out), 'aufrufe: Tabelle je Beitrag mit views/reach, Summe', r.out);
+  check(/902: follows/.test(r.out) && /\| 0 \| – \|$/m.test(r.out), 'aufrufe: abgelehnte Kennzahl einzeln abgefangen, als – gezeigt', r.out);
+  check(!r.posts.length && r.aufrufe.every(a => a.m === 'GET'), 'aufrufe: nur GET-Aufrufe, nichts gesendet', JSON.stringify(r.aufrufe)); }
+
 } catch (x) { fehler++; console.log('  ✗ Abbruch der Testsuite: ' + (x && x.stack || x)); }
 finally { fs.rmSync(TMP, { recursive: true, force: true }); }
 console.log(`\nErgebnis: ${ok} bestanden, ${fehler} fehlgeschlagen${uebersprungen ? ', Video-Fälle übersprungen (ffmpeg fehlt)' : ''}`);

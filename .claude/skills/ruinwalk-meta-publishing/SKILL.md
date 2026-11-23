@@ -32,6 +32,7 @@ Anleitung für Pascal: `marketing/meta/ANBINDUNG.md`. Berechtigungsliste: `marke
 ```bash
 node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js status                      # Token, Rechte, Seite, IG-Verknüpfung (lesend)
 node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js insights 7                  # letzte Beiträge (lesend)
+node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js aufrufe [25]               # Aufrufe (views), Reichweite, Saves, Shares, Ø Wiedergabe Reel je Beitrag (lesend, GET /{media-id}/insights; abgelehnte Kennzahl = „–“)
 node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js pruefen <entwurf.md>        # Qualitätsprüfung
 node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js veroeffentlichen <entwurf.md>            # Trockenlauf
 node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js veroeffentlichen <entwurf.md> --senden   # nur nach Freigabe
@@ -79,4 +80,5 @@ Ein geplanter Auftrag (scheduled task der Claude-Umgebung) kann zu festen Zeiten
 - Quellen (Suche 20.11.2026; `developers.facebook.com` ist in dieser Umgebung nicht direkt abrufbar, Inhalte über Suchergebnisse bestätigt): Content Publishing https://developers.facebook.com/docs/instagram-platform/content-publishing/ · IG User Media https://developers.facebook.com/docs/instagram-platform/instagram-graph-api/reference/ig-user/media · Changelog https://developers.facebook.com/docs/instagram-platform/changelog · IG Comment Replies https://developers.facebook.com/docs/instagram-platform/instagram-graph-api/reference/ig-comment/replies/ · GitHub-Dateigrößen https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github
 - Facebook-Seite: Beiträge über `/{page-id}/feed` bzw. `/photos` mit Seiten-Token.
 - Musik aus der Instagram-Bibliothek ist per API nicht wählbar → Reels mit Musik postet Pascal manuell.
-- Bild und Karussell sind echt erprobt (001–003). Reels, Stories und Antworten sind nur gegen die Attrappe getestet; der erste echte Lauf je Format nach Freigabe durch Pascal.
+- Bild, Karussell, Reel und Story sind echt erprobt (001–004, 007–009). Antworten sind nur gegen die Attrappe getestet.
+- Kennzahlen je Beitrag (`aufrufe`): `views` ersetzt seit 2025 impressions/plays/video_views; Metriken je Medientyp verschieden, daher Einzelabfrage bei Ablehnung. Quelle: IG Media Insights https://developers.facebook.com/docs/instagram-platform/reference/instagram-media/insights/ (Suche 23.11.2026). Erster echter Lauf 23.11.2026: Reel 007 111 Aufrufe/103 Reichweite, Ø Wiedergabe 2,8 s.

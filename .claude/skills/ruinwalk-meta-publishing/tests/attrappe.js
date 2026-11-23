@@ -5,6 +5,7 @@
      media:      Antwort auf GET /{media-id} (owner)
      medien:     Antwort auf GET /{ig}/media
      kommentare: Antwort auf GET /{media-id}/comments
+     insights:   { "<media-id>": { "<metrik>": wert, … } } für GET /{media-id}/insights; Metrik mit Wert null = von Meta abgelehnt (Fehler 100)
    Jeder Aufruf wird als JSON-Zeile in RW_ATTRAPPE_PROTOKOLL angehängt. Nichts verlässt den Rechner. */
 const fs = require('fs');
 globalThis.__RW_META_ATTRAPPE = true;   // nur hiermit wertet meta-api.js die RW_META_*-Testschalter aus
@@ -21,6 +22,12 @@ globalThis.fetch = async (url, opt = {}) => {
   if (m === 'POST' && /\/media_publish$/.test(p)) return antwort({ id: 'P' + (++nr) });
   if (m === 'POST' && /\/replies$/.test(p)) return antwort({ id: 'R' + (++nr) });
   if (m === 'GET' && /^\/C\d+$/.test(p)) { const f = SZ.status || ['FINISHED']; const s = f[Math.min(statusIdx++, f.length - 1)]; return antwort({ status_code: s, id: p.slice(1) }); }
+  if (m === 'GET' && /^\/\d+\/insights$/.test(p)) {
+    const w = (SZ.insights || {})[p.split('/')[1]] || {}, metr = String(params.metric || '').split(',');
+    const bad = metr.find(k => !(k in w) || w[k] === null);
+    if (bad) return antwort({ error: { message: `(#100) metric[0] must be one of the following values: … (${bad})`, code: 100 } }, false);
+    return antwort({ data: metr.map(k => ({ name: k, period: 'lifetime', values: [{ value: w[k] }] })) });
+  }
   if (m === 'GET' && /\/comments$/.test(p)) return antwort(SZ.kommentare || { data: [] });
   if (m === 'GET' && /^\/\d+\/media$/.test(p)) return antwort(SZ.medien || { data: [] });
   if (m === 'GET' && p === '/me/permissions') return antwort(SZ.rechte || { data: [] });

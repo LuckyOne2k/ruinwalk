@@ -43,10 +43,13 @@ Bilder müssen für Instagram unter einer öffentlichen https-Adresse liegen (si
 | Aktion | Ohne deine Freigabe? |
 |---|---|
 | Entwürfe, Grafiken, Kalender, Analysen erstellen | ja |
-| Kennzahlen lesen (Insights) | ja (nur lesend) |
+| Kennzahlen lesen (Insights; `meta-api.js aufrufe` = Aufrufe/Reichweite je Beitrag) | ja (nur lesend) |
 | Beitrag veröffentlichen | Instagram: **ja im Modus `autonom`** (Qualitätsprüfung, Limits, Protokoll); Facebook und Modus `freigabe`: nur nach deiner Freigabe |
 | Kommentare beantworten, liken, folgen, Nachrichten | **nein** – derzeit gar nicht vorgesehen |
 | Anzeigen schalten | **nein** – nicht eingerichtet, separater Auftrag |
+
+## Kennzahlen je Beitrag (ab 23.11.2026)
+`node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js aufrufe [anzahl]` – nur lesend, `GET /{ig-media-id}/insights` (Recht `instagram_manage_insights`, im Token vorhanden). Kennzahlen: `views` (Aufrufe, ersetzt seit 2025 impressions/plays), `reach`, `likes`, `comments`, `saved`, `shares`, `total_interactions`; bei Reels zusätzlich `ig_reels_avg_watch_time` (ms), bei Bild/Karussell `profile_visits`, `follows`. Lehnt Meta eine Kennzahl für ein Medium ab, fragt das Skript sie einzeln ab und zeigt „–“ (kein Abbruch). Stories fehlen (nach 24 h nicht mehr abrufbar). Erster echter Lauf 23.11.2026: Summe 115 Aufrufe, passt zum Profil-Screenshot. Quellen: IG Media Insights https://developers.facebook.com/docs/instagram-platform/reference/instagram-media/insights/ · Changelog https://developers.facebook.com/docs/instagram-platform/changelog (Suche 23.11.2026).
 
 ## Zugriff entziehen
 Business-Einstellungen → System-User → Token widerrufen bzw. System-User löschen. Zusätzlich in der Claude-Umgebung das Netzwerk-Geheimnis löschen.

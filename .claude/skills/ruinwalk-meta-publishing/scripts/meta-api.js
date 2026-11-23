@@ -9,6 +9,7 @@
    Befehle (Repo-Wurzel):
      node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js status                       (nur lesen)
      node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js insights [tage]               (nur lesen)
+     node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js aufrufe [anzahl]              (nur lesen: Aufrufe/Reichweite je Beitrag)
      node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js pruefen <entwurf.md>
      node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js veroeffentlichen <entwurf.md> [--senden]
      node .claude/skills/ruinwalk-meta-publishing/scripts/meta-api.js kommentare [tage]             (nur lesen)
@@ -322,7 +323,41 @@ function antwortLog() {
     const tage = Number(arg1 || 7);
     if (IG) console.log(JSON.stringify(await api('GET', `/${IG}/media`, { fields: 'id,caption,timestamp,like_count,comments_count,permalink', limit: 25 }), null, 1));
     if (cfg.page_id) console.log(JSON.stringify(await api('GET', `/${cfg.page_id}/posts`, { fields: 'id,message,created_time,permalink_url', limit: 25 }), null, 1));
-    console.log(`(Für Reichweite/Impressionen je Beitrag: /{media-id}/insights bzw. /{post-id}/insights – Kennzahlen siehe ANBINDUNG.md; Zeitraum ${tage} Tage)`);
+    console.log(`(Aufrufe/Reichweite je Beitrag: Befehl „aufrufe“; Zeitraum ${tage} Tage)`);
+    return;
+  }
+  if (cmd === 'aufrufe') {
+    // NUR LESEND: Kennzahlen je Beitrag über GET /{ig-media-id}/insights (IG Media Insights).
+    // „views“ ersetzt seit 2025 impressions/plays/video_views; Metriken je Medientyp unterschiedlich → jede Kennzahl,
+    // die Meta für ein Medium ablehnt, wird einzeln abgefangen und als „–“ gezeigt (kein Abbruch). Stories sind nach 24 h
+    // nicht mehr über /{ig}/media abrufbar und fehlen daher hier.
+    if (!IG) die('ig_user_id fehlt in marketing/meta/config.json');
+    const anzahl = Math.min(50, Math.max(1, Number(arg1 || 25)));
+    const BASIS = ['views', 'reach', 'saved', 'shares', 'likes', 'comments', 'total_interactions'];
+    const EXTRA = { REELS: ['ig_reels_avg_watch_time'], FEED: ['profile_visits', 'follows'] };
+    const media = await api('GET', `/${IG}/media`, { fields: 'id,caption,media_type,media_product_type,timestamp,permalink,like_count,comments_count', limit: anzahl });
+    const liste = [];
+    for (const m of (media.data || [])) {
+      const metr = [...BASIS, ...(EXTRA[m.media_product_type] || [])], werte = {}, fehler = {};
+      const lies = j => { for (const d of (j.data || [])) { const v = (d.values && d.values[0]) ? d.values[0].value : d.total_value ? d.total_value.value : undefined; if (v !== undefined) werte[d.name] = v; } };
+      try { lies(await api('GET', `/${m.id}/insights`, { metric: metr.join(',') })); }
+      catch { for (const k of metr) { try { lies(await api('GET', `/${m.id}/insights`, { metric: k })); } catch (x) { fehler[k] = x.message.replace(/^GET \S+: /, ''); } } }
+      liste.push({ m, werte, fehler });
+    }
+    const z = v => (v === undefined ? '–' : String(v));
+    console.log(`Kennzahlen je Beitrag (@${cfg.instagram_handle || 'ruinwalk.official'}, neueste zuerst, nur lesend)`);
+    console.log('| Datum (UTC) | Typ | Beitrag | Aufrufe (views) | Reichweite | Likes | Kommentare | Gespeichert | Geteilt | Ø Wiedergabe Reel (ms) | Profilbesuche | Follows |');
+    console.log('|---|---|---|---|---|---|---|---|---|---|---|---|');
+    for (const { m, werte: w } of liste) {
+      const typ = m.media_product_type === 'REELS' ? 'Reel' : m.media_type === 'CAROUSEL_ALBUM' ? 'Karussell' : m.media_type === 'IMAGE' ? 'Bild' : (m.media_type || '?');
+      const titel = String(m.caption || '').split('\n')[0].replace(/\|/g, '/').slice(0, 45);
+      console.log(`| ${String(m.timestamp || '').slice(0, 16).replace('T', ' ')} | ${typ} | ${titel} | ${z(w.views)} | ${z(w.reach)} | ${z(w.likes ?? m.like_count)} | ${z(w.comments ?? m.comments_count)} | ${z(w.saved)} | ${z(w.shares)} | ${z(w.ig_reels_avg_watch_time)} | ${z(w.profile_visits)} | ${z(w.follows)} |`);
+    }
+    const summe = liste.reduce((s, x) => s + (Number(x.werte.views) || 0), 0);
+    console.log(`\n${liste.length} Beiträge · Aufrufe gesamt: ${summe}`);
+    const fl = liste.filter(x => Object.keys(x.fehler).length);
+    if (fl.length) { console.log('Nicht abrufbare Kennzahlen (von Meta abgelehnt, als „–“ gezeigt):');
+      for (const x of fl) console.log(`  ${x.m.id}: ` + Object.entries(x.fehler).map(([k, v]) => `${k} (${v.slice(0, 90)})`).join('; ')); }
     return;
   }
   if (cmd === 'kommentare') {
@@ -457,7 +492,7 @@ function antwortLog() {
     console.log('✓ Veröffentlicht:', erg.join(', '), '→ protokolliert; Entwurf nach marketing/freigabe/veroeffentlicht/ verschieben.');
     return;
   }
-  console.log('Befehle: status | insights [tage] | pruefen <entwurf.md> | veroeffentlichen <entwurf.md> [--senden] | kommentare [tage] | antworten <kommentar-id> "<text>" [--senden]');
+  console.log('Befehle: status | insights [tage] | aufrufe [anzahl] | pruefen <entwurf.md> | veroeffentlichen <entwurf.md> [--senden] | kommentare [tage] | antworten <kommentar-id> "<text>" [--senden]');
 })().catch(e => {
   const c = String((e.cause && (e.cause.cause || e.cause).message) || '');
   if (/403/.test(c)) die('Netzwerk: ' + HOST + ' ist in dieser Umgebung nicht freigegeben. Zuerst Zugangsschlüssel als Netzwerk-Geheimnis hinterlegen (siehe marketing/meta/ANBINDUNG.md, Stufe 2, Schritt 6).', 2);
