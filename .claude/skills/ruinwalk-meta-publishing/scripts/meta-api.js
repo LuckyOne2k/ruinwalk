@@ -19,7 +19,7 @@
    Tests (ohne Netz): node .claude/skills/ruinwalk-meta-publishing/tests/meta-api.test.js
    Nur für Tests und nur mit geladener Attrappe (sonst Abbruch): RW_META_ROOT (anderes Wurzelverzeichnis für config/modus/LOG/Medien), RW_META_URL_BASIS (statt GitHub-URL),
    RW_META_POLL_MS / RW_META_POLL_MAX (Statusabfrage), RW_META_JETZT (feste Uhrzeit, ISO).
-   Tageslimits Feed/Story: Kalendertag Europe/Berlin; Wochenlimit: rollierend 7 × 24 h. */
+   Tageslimits Feed/Story: Kalendertag Europe/Berlin; Wochenlimit: die letzten 7 Berliner Kalendertage (heute + 6). */
 const fs = require('fs'), path = require('path');
 const GEHEIM = require('./geheim.js');   // verborgene dritte Pfadstufen (Namen/Fähigkeiten/Figuren) – nie öffentlich nennen
 // Node-fetch nutzt HTTPS_PROXY nur mit NODE_USE_ENV_PROXY=1 (Claude-Cloud-Umgebung) → einmal mit gesetzter Variable neu starten.
@@ -225,13 +225,15 @@ function logZeilen() {
   return fs.readFileSync(LOG_PATH, 'utf8').split('\n').filter(l => /^\| \d{4}-/.test(l)).map(l => ({ t: Date.parse(l.split('|')[1].trim()), z: l }));
 }
 // Tageslimits (Feed, Story) zählen nach KALENDERTAG Europe/Berlin (Mitternacht MEZ/MESZ, Sommerzeit über Intl), nicht als
-// rollierendes 24-h-Fenster (Pascal, 23.11.2026). Das Wochenlimit bleibt rollierend (7 × 24 h).
+// rollierendes 24-h-Fenster (Pascal, 23.11.2026). Das Wochenlimit zählt die letzten 7 Berliner Kalendertage (heute + 6 davor;
+// Pascal, 23.11.2026); Einträge mit Zeitstempel in der Zukunft zählen weiter mit (streng).
 const BERLIN_TAG = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit' });
 const berlinTag = t => BERLIN_TAG.format(new Date(t));   // „JJJJ-MM-TT“ in Berliner Ortszeit
+const berlinTagNr = t => Date.parse(berlinTag(t) + 'T00:00:00Z') / 864e5;   // fortlaufende Nummer des Berliner Kalendertags
 function logZaehlen() {
-  const jetzt = jetztMs(), heute = berlinTag(jetzt), alle = logZeilen(), feed = alle.filter(x => !/instagram-story:/.test(x.z)), story = alle.filter(x => /instagram-story:/.test(x.z));
+  const jetzt = jetztMs(), heute = berlinTag(jetzt), heuteNr = berlinTagNr(jetzt), alle = logZeilen(), feed = alle.filter(x => !/instagram-story:/.test(x.z)), story = alle.filter(x => /instagram-story:/.test(x.z));
   const amTag = x => Number.isFinite(x.t) && berlinTag(x.t) === heute;
-  return { tag: feed.filter(amTag).length, woche: feed.filter(x => jetzt - x.t < 7 * 864e5).length,
+  return { tag: feed.filter(amTag).length, woche: feed.filter(x => Number.isFinite(x.t) && heuteNr - berlinTagNr(x.t) <= 6).length,
            storyTag: story.filter(amTag).length, reels: alle.filter(x => /instagram-reel:/.test(x.z)).length };
 }
 function logSchreiben(e, erg) {

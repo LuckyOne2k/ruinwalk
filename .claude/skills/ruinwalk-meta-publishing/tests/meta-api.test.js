@@ -271,6 +271,26 @@ modus();
     const r3 = lauf(['veroeffentlichen', post(), '--senden'], {}, false, '2026-11-23T23:00:30Z');
     check(r1.code === 0 && r2.code === 1 && r3.code === 0, 'eigener LOG-Eintrag 23:58 MEZ sperrt bis Mitternacht, danach frei', r1.out + r2.out + r3.out); } }
 
+console.log('Wochenlimit nach den letzten 7 Berliner Kalendertagen (Pascal 23.11.2026)');
+{ const post = () => datei({ format: 'post', bild: 'm/einzel.jpg' });
+  const wFall = (zeilen, jetzt, erlaubt, name, m = {}) => { modus(m); log(zeilen); const r = lauf(['veroeffentlichen', post(), '--senden'], {}, false, jetzt);
+    check(erlaubt ? r.code === 0 && r.posts.length === 2 : r.code === 1 && /Wochenlimit erreicht/.test(r.out) && r.aufrufe.length === 0, name, r.out); };
+  // Befund rw-qa: täglich gepostet, Vorwoche abends – rollierend wäre heute früh gesperrt (7 in 7 × 24 h), nach Kalendertagen frei
+  const tage = ['2026-11-16T19:00:00Z', ...[17, 18, 19, 20, 21, 22].map(d => `2026-11-${d}T08:00:00Z`)].map((t, i) => [t, 'instagram:' + i]);
+  wFall(tage, '2026-11-23T07:30:00Z', true, 'Woche: Post 16.11. 20:00 MEZ zählt am 23.11. 08:30 MEZ nicht mehr (7. Tag zurück)');
+  wFall([...tage.slice(1), ['2026-11-17T09:00:00Z', 'instagram:x']], '2026-11-23T07:30:00Z', false, 'Woche: 7 Feed-Beiträge am 17.–22.11. → 23.11. gesperrt');
+  // Grenze mit Limit 1: 17.11. 00:00 MEZ zählt am 23.11. noch, 16.11. 23:59 MEZ nicht
+  wFall([['2026-11-16T23:00:00Z', 'instagram:1']], '2026-11-23T22:59:00Z', false, 'Woche: Post 17.11. 00:00 MEZ zählt am 23.11. 23:59 MEZ (6 Tage zurück)', { max_beitraege_pro_woche: 1 });
+  wFall([['2026-11-16T22:59:00Z', 'instagram:1']], '2026-11-23T00:00:00Z', true, 'Woche: Post 16.11. 23:59 MEZ zählt am 23.11. 01:00 MEZ nicht mehr', { max_beitraege_pro_woche: 1 });
+  // Sommerzeit Ende im Fenster (25.10. hat 25 h)
+  wFall([['2026-10-25T22:59:00Z', 'instagram:1']], '2026-11-01T22:59:00Z', true, 'Woche: Winterzeitwechsel im Fenster, Post 25.10. 23:59 MEZ zählt am 01.11. nicht', { max_beitraege_pro_woche: 1 });
+  wFall([['2026-10-25T23:00:00Z', 'instagram:1']], '2026-11-01T22:59:00Z', false, 'Woche: Winterzeitwechsel im Fenster, Post 26.10. 00:00 MEZ zählt am 01.11. 23:59 MEZ', { max_beitraege_pro_woche: 1 });
+  // Einträge mit Zeitstempel in der Zukunft (Uhrfehler) zählen streng mit
+  wFall([['2026-11-25T08:00:00Z', 'instagram:1']], '2026-11-23T08:00:00Z', false, 'Woche: LOG-Eintrag in der Zukunft zählt mit (streng)', { max_beitraege_pro_woche: 1 });
+  // Stories zählen nicht zum Wochenlimit
+  wFall([['2026-11-22T08:00:00Z', 'instagram-story:1']], '2026-11-23T08:00:00Z', true, 'Woche: Stories zählen nicht zum Feed-Wochenlimit', { max_beitraege_pro_woche: 1 });
+  modus(); }
+
 console.log('meta-api.js – Aufrufe je Beitrag (nur lesend)');
 { const B = { views: 0, reach: 0, saved: 0, shares: 0, likes: 0, comments: 0, total_interactions: 0 };
   const r = lauf(['aufrufe', '5'], { medien: { data: [
