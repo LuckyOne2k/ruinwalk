@@ -62,3 +62,4 @@ Kurzes Hochformat-Video aus Ruin Walk. Eine Pixel-Art-Figur in weißer Rüstung 
 - Keine Freigabe nötig: Die Sperre „erstes Reel“ ist mit Reel 007 erledigt (`instagram-reel:` steht im LOG). Der Lauf setzt `status: autonom` nach bestandener Prüfung.
 - Ohne Musik (stille Spur). Wenn du Musik willst: in der App posten.
 - „Drei Sekunden“: Ansagezeit 3,4 s bzw. 2,8 s in der letzten Phase (`bossTick`, `dur`).
+- 23.11.2026 17:35 UTC nicht gesendet: Skript meldet „Tageslimit erreicht (1)“ – rollierendes 24-h-Fenster seit Karussell 004 (22.11., 18:31:55 UTC) noch nicht abgelaufen. Prüfung bestanden, Status bleibt autonom, nächster Reel-Termin.
