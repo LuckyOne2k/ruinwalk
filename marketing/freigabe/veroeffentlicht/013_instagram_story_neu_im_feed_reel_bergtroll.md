@@ -4,13 +4,13 @@ titel: Story – Neu im Feed: Reel 010 (Gebietsboss #1 Bergtroll)
 kanal: instagram
 format: story
 geplant_fuer: 2026-11-23, direkt nach Reel 010 (Mo, Rhythmus „Hinweis auf das Reel“)
-status: autonom
+status: veroeffentlicht
 freigegeben_von:
 freigegeben_am:
 bild: marketing/grafiken/entwuerfe/013_story_neu_im_feed_reel_bergtroll.jpg
 bild_url:
-veroeffentlicht_am:
-link:
+veroeffentlicht_am: 2026-11-23 19:00 MEZ (18:00:34 UTC, autonom, instagram-story:18135638992705980)
+link: (Story, kein Permalink über /media; 24 h sichtbar, ID instagram-story:18135638992705980)
 ---
 
 ## Ziel
