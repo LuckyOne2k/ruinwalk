@@ -14,7 +14,8 @@ description: Alle Test-Suites von Ruin Walk mit Befehlen, Voraussetzungen, CI-Zu
 | Instanzkampf Engine | `node server/instance/tests/{golden,combat,struktur,trennung,offen}.mjs` | Referenzkämpfe, Kernregeln, Klassenstruktur, Trennung Legacy | Node 22 |
 | Instanzkampf DB | `node server/instance/tests/{run,fenster,gruppe,eventende,semantik,produktion}.mjs` | Claim/Commit/Lease, Fristen, Gruppen, Eventende, Rollenrechte | PostgreSQL-Binaries |
 | Determinismus | `bash server/instance/tests/run-determinism.sh` | gleiches Ergebnis Node/Bun/Deno | lokal: `REQUIRE_RUNTIMES=node` |
-| Alle DB-Suites (Zweig `nacht/operator-edge-function`) | `bash server/instance/tests/run-all-db.sh` (`PG_MAJOR=17` für PG17) | Installation/Rollback, Rechte-Audit, Worker, Operator, stuck, k2 | PostgreSQL 16/17 |
+| Quest-Sperren (Q1) | `node server/instance/tests/quest-sperren.mjs` | QS-1–QS-9 Sperrfolge der Quest-RPCs gegen Löschen/Speichern, Rotation, Mischlast; QS-10 Migration/Rollback Q1 = `schema.sql`; QS-11/QS-12 `lock_timeout` in Migration/Rollback | PostgreSQL 16/17 |
+| Alle DB-Suites | `bash server/instance/tests/run-all-db.sh` (`PG_MAJOR=17` für PG17) | Installation/Rollback, Rechte-Audit, Konto/Löschung, B-2- und Quest-Sperren, Worker, Operator, stuck, k2 | PostgreSQL 16/17 |
 | Dungeon-Simulation | `node server/instance/sim/run-dungeon.mjs --seed 3 --ruhig` | komplette Auftragskette | PostgreSQL |
 
 Die Instanzkampf-Befehle stehen vollständig im Skill `ruinwalk-instanzkampf`.
