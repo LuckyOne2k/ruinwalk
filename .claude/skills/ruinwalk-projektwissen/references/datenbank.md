@@ -2,7 +2,7 @@
 
 Quelle: `supabase/schema.sql`, `docs/ACCOUNT_BACKEND.md`, `docs/D3_PRUEFBERICHT.md`, `docs/INSTANZKAMPF_SICHERHEIT_PHASE1.md`.
 
-## Produktiv-Schema `public` (live in Supabase)
+## Produktiv-Schema `public` (live in Supabase; ohne Q1 und B2/B4 – deren Einspielung ist nicht bestätigt, siehe unten)
 
 | Tabelle | Inhalt | Client-Zugriff |
 |---|---|---|
@@ -20,6 +20,13 @@ Quelle: `supabase/schema.sql`, `docs/ACCOUNT_BACKEND.md`, `docs/D3_PRUEFBERICHT.
 
 **Fehlermeldungen verraten nichts:** fremder/unbekannter Charakter → gleiche Antwort.
 
+## Quest-Grundgerüst Q1 (vorbereitet, NICHT installiert – weder Dev noch Produktion; laut Repo-Dokumentation, nicht live geprüft)
+Steht seit PR #14 in `supabase/schema.sql` (Zielstand); PR #16 änderte nur Migration und Rollback (`lock_timeout`). Migration/Rücknahme: `supabase/migration_q1_quest_grundlage.sql` / `rollback_q1_quest_grundlage.sql` (`set local lock_timeout = '5s'`; Einspielen nur mit Freigabe, `psql -X -v ON_ERROR_STOP=1 -f …`, ohne `-1`, Port 5432). Details: `docs/QUEST_PAKET2_BERICHT.md`.
+- **Tabellen (10, alle RLS):** `quest_events`, `quest_defs`, `quest_pools`, `quest_rotation`, `npc_defs`, `npc_seed`, `character_confirmed`, `character_quests`, `quest_rewards`, `quest_audit`.
+- **Client-Zugriff:** SELECT (`authenticated`) auf `quest_defs` (ohne Klassenprüfungen, Event-Quests erst ab Eventbeginn), `quest_rotation`, `quest_events` (begonnene), `npc_defs`; eigene Zeilen von `character_confirmed`, `character_quests`, `quest_rewards`. `quest_pools`, `npc_seed`, `quest_audit`: keine Client-Rechte. Kein Client-Schreibrecht.
+- **Funktionen (18):** Prüf-/Periodenfunktionen `quest_bereich`, `quest_ziele_ok`, `quest_inst_ok`, `quest_inst_datum`, `quest_zaehler_ok`, `quest_periode_datum`, `quest_periode_start`, `quest_stufe`; Rotation `quest_rotation_wahl`, `quest_rotation_sichern`; 7 Triggerfunktionen (`*_guard`). Einzige Client-RPC: `quest_state(p_character uuid)` (`authenticated`).
+- **Grenzen:** Tages-/Wochenaktivierung gesperrt bis Paket 3 (schreibender Teil, offen); Queststufe nur aus `character_confirmed.level`. TRUNCATE für `service_role` entzogen auf `quest_defs`, `quest_rotation`, `character_confirmed`, `character_quests` und `quest_rewards`; `quest_pools` und `npc_defs` behalten dieses Recht. Offen: NPC-Verweisschutz (Auflage für das erste Paket, das `npc_defs.vorlagen` ausliest).
+
 ## Supabase-Besonderheiten im Projekt
 - Seit 2026 vergibt Supabase für neue Tabellen keine Standardrechte mehr (Data API opt-in) → Rechte ausdrücklich vergeben, Tests prüfen beide Modi („neu“ und „legacy“).
 - Neue Funktionen in `public` bekommen standardmäßig EXECUTE für PUBLIC → nach jeder neuen Funktion `revoke … from public` wiederholen. `SECURITY DEFINER` in `public` ist sonst ein öffentlicher Endpunkt.
@@ -36,6 +43,7 @@ Quelle: `supabase/schema.sql`, `docs/ACCOUNT_BACKEND.md`, `docs/D3_PRUEFBERICHT.
 - `bash supabase/tests/run.sh` – temporäres PostgreSQL 16 + Supabase-Attrappe (`00_stub.sql`), `10_tests.sql`, beide Rechte-Modi.
 - `supabase/tests/editor_test.sql` – Test für den Supabase-SQL-Editor; `live_rls_test.sql` – Live-Prüfung (nur Testkonten).
 - `server/instance/tests/produktion.mjs` – Rechte mit echten Rollen anon/authenticated/service_role.
+- `server/instance/tests/quest-sperren.mjs` – Sperrfolge der Quest-RPCs, Migration/Rollback Q1 = `schema.sql`, `lock_timeout` (QS-1–QS-12).
 
 ## Dev-Projekt
 `ruinwalk-dev` (`jlkqktmvqxibqdcobbhf`): lesen erlaubt; Installation, Rollback, Cleanup nur über `supabase/dev/`-Skripte und nur mit Freigabe. Stand und Befunde: `supabase-integration.md`.

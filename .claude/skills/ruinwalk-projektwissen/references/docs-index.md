@@ -13,6 +13,7 @@
 | `INSTANZKAMPF_ARCHITEKTURBERICHT.md` | Fassung 1: Gesamtarchitektur Instanzkampf, Datenmodell, Phasen 0–10, Testplan |
 | `INSTANZKAMPF_ARCHITEKTURBERICHT_V2.md` | Fassung 2.1 (gilt vor Fassung 1): Watchdog, Manipulationsschutz, Belohnungs-Lease, Atomarität, Eventende K, Freigabephasen O, Entscheidungen P |
 | `INSTANZKAMPF_SICHERHEIT_PHASE1.md` | Identitätsmodell, Funktionsklassen, Rollenrechte, was nicht live geprüft ist |
+| `QUEST_PAKET2_BERICHT.md` | Quest-Server-Grundgerüst Q1 (Paket 2, PR #14/#16): Entscheidungen K1–K4, Tabellen/Funktionen, Sperrfolge, Tests, `lock_timeout` (§9); vorbereitet, nicht installiert |
 | `server/instance/README.md` | Befehle für alle Instanzkampf-Tests, Gruppenregeln, offene Kampfregeln |
 | `tests/README.md` | Playwright-Tests des Spiels |
 | `ki-team/UEBERSICHT.md` | KI-Team: Agenten, Skills, Abläufe |
