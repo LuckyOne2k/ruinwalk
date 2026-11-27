@@ -119,15 +119,16 @@ await scen('QS-9', async () => { let n40 = 0, bad = 0;
   ok(n40 === 0 && bad === 0 && (await leftovers()) === 0, `QS-9: Mischlast (${MIX} Runden: 2 × quest_state ∥ save_character ∥ delete_character/delete_account) – 0 × 40P01, nur erwartete Meldungen, keine verwaisten Questdaten`, `40P01=${n40} andere=${bad}`); });
 
 // QS-10: Migration Q1 und Rollback Q1 entsprechen schema.sql (Katalogvergleich; altes Schema = schema.sql ohne den Q1-Teil)
-await scen('QS-10', async () => {
-  const MIG = readFileSync(join(ROOT, 'supabase/migration_q1_quest_grundlage.sql'), 'utf8'), RB = readFileSync(join(ROOT, 'supabase/rollback_q1_quest_grundlage.sql'), 'utf8');
+const MIG = readFileSync(join(ROOT, 'supabase/migration_q1_quest_grundlage.sql'), 'utf8'), RB = readFileSync(join(ROOT, 'supabase/rollback_q1_quest_grundlage.sql'), 'utf8');
+const altesSchema = () => {
   const a = SCHEMA.indexOf('------------------------------------------------------------------------------------------------\n-- Quests – Paket 2'), b = SCHEMA.indexOf('------------------------------------------------------------------------------------------------\n-- Rechte: erst alles entziehen');
   const c = SCHEMA.indexOf('-- Quests (Paket 2): Katalog lesbar'), d = SCHEMA.indexOf('grant execute on function public.create_character');
   if ([a, b, c, d].some((x) => x < 0) || !(a < b && b < c && c < d)) throw new Error('Q1-Abschnitte in schema.sql nicht gefunden');
   const OLD = (SCHEMA.slice(0, a) + SCHEMA.slice(b, c) + SCHEMA.slice(d)).split('\n')
     .filter((l) => !/^alter table public\.(quest_\w+|npc_\w+|character_confirmed|character_quests) +enable row level security;$/.test(l) && !/^grant execute on function public\.quest_state\(uuid\)/.test(l) && !/^revoke truncate on public\.quest_defs/.test(l) && !/^-- Quests: TRUNCATE umginge/.test(l)).join('\n');
-  ok(!/quest_|npc_|character_confirmed/.test(OLD), 'QS-10: altes Schema (ohne Q1) enthält keine Quest-Objekte mehr', '');
-  const FP = `select md5(string_agg(x, E'\\n' order by x)) from (
+  return OLD; };
+// Katalog-Fingerabdruck des Schemas public (Tabellen, Spalten, Constraints, Indizes, Trigger, Policies, Funktionen, Rechte)
+const FP = `select md5(string_agg(x, E'\\n' order by x)) from (
       select 'rel ' || c.relname || ' ' || c.relkind::text || ' rls=' || c.relrowsecurity || ' ' || coalesce((select string_agg(a.attname || ':' || format_type(a.atttypid, a.atttypmod) || ':' || a.attnotnull || ':' || coalesce(pg_get_expr(ad.adbin, ad.adrelid), '') || ':' || a.attgenerated::text, ',' order by a.attnum)
                from pg_attribute a left join pg_attrdef ad on ad.adrelid = a.attrelid and ad.adnum = a.attnum where a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped), '')
              || ' acl=' || coalesce((select string_agg(g.grantee::regrole::text || ':' || g.privilege_type, ',' order by 1) from aclexplode(c.relacl) g), '') as x
@@ -139,6 +140,9 @@ await scen('QS-10', async () => {
       union all select 'fn ' || p.oid::regprocedure || ' ' || md5(concat_ws('|', p.prosecdef, p.provolatile, p.proisstrict, p.prorettype::regtype::text, coalesce(p.proconfig::text, ''), p.prosrc))
              || ' acl=' || coalesce((select string_agg(case when g.grantee = 0 then 'PUBLIC' else g.grantee::regrole::text end || ':' || g.privilege_type, ',' order by 1) from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) g), '')
         from pg_proc p where p.pronamespace = 'public'::regnamespace) s`;
+await scen('QS-10', async () => {
+  const OLD = altesSchema();
+  ok(!/quest_|npc_|character_confirmed/.test(OLD), 'QS-10: altes Schema (ohne Q1) enthält keine Quest-Objekte mehr', '');
   for (const legacy of [false, true]) {
     // getrennte Cluster für altes und neues Schema (die Attrappe legt globale Rollen an)
     const CA = await startCluster(PORT + (legacy ? 3 : 1)), CN = await startCluster(PORT + (legacy ? 4 : 2));
@@ -153,6 +157,59 @@ await scen('QS-10', async () => {
       ok(fpBack === fpOld, `QS-10: ${legacy ? 'legacy' : 'neu'} – rollback_q1 stellt das alte Schema wieder her`, `${fpBack} / ${fpOld}`);
     } finally { CA.stop(); CN.stop(); }
   }
+});
+
+// QS-11: lock_timeout der Migration – genau einmal „set local lock_timeout = '5s'“ als erste Anweisung nach begin, bricht hinter einer schreibenden Transaktion
+// auf public.characters nach 4,5–6,5 s ab statt zu warten, rollt vollständig zurück und ändert weder Sitzung noch andere Verbindungen.
+await scen('QS-11', async () => {
+  const kopf = MIG.split('\n').filter((l) => l.trim() && !l.startsWith('--'));
+  const m = /^set local lock_timeout = '(\d+)s';$/.exec(kopf[1] || '');
+  ok(kopf[0] === 'begin;' && m && +m[1] === 5 && kopf.filter((l) => /lock_timeout/.test(l)).length === 1 && !kopf.some((l) => /^set (session )?lock_timeout/i.test(l)),
+     `QS-11: Migration setzt direkt nach begin genau einmal „set local lock_timeout = '5s'“`, kopf.slice(0, 2).join(' | '));
+  const C = await startCluster(PORT + 1);
+  const run = async (s) => { const x = await C.psql(s); if (x.code) throw new Error(x.err.slice(0, 300)); return x.out; };
+  try {
+    await run(STUB); await run(altesSchema());
+    const block = C.psql(`set application_name = 'QS11_SCHREIBER'; begin; lock table public.characters in row exclusive mode; select pg_sleep(60); commit;`);
+    const t0 = Date.now(); while (+(await run(`select count(*) from pg_locks l join pg_stat_activity a using (pid) where a.application_name = 'QS11_SCHREIBER' and l.relation = 'public.characters'::regclass and l.granted`)) === 0) { if (Date.now() - t0 > 10000) throw new Error('Schreibsperre nicht gesetzt'); await sleep(30); }
+    const t1 = Date.now(); const r = await C.psql(MIG); const dt = Date.now() - t1;
+    const reste = await run(`select count(*) from pg_class where relnamespace = 'public'::regnamespace and relname ~ '^(quest_|npc_|character_confirmed|character_quests)'`)
+      + '/' + await run(`select count(*) from pg_proc where pronamespace = 'public'::regnamespace and proname ~ '^(quest_|npc_)'`);
+    ok(r.code !== 0 && /lock timeout/.test(r.err) && dt >= 4500 && dt < 6500 && reste === '0/0',
+       `QS-11: hinter offener Schreibtransaktion auf characters bricht die Migration nach ${(dt / 1000).toFixed(1)} s ab (lock timeout) und hinterlässt nichts (${reste})`, (r.err || '').slice(0, 160));
+    await run(`select pg_terminate_backend(pid) from pg_stat_activity where application_name = 'QS11_SCHREIBER'`); await block;
+    const nach = await run(MIG + `\nshow lock_timeout;`);
+    const andere = await run(`show lock_timeout`);
+    ok(nach.split('\n').pop() === '0' && andere === '0' && (await run(`select count(*) from pg_class where relname = 'quest_rewards'`)) === '1',
+       'QS-11: ohne Blocker läuft die Migration durch; danach gilt in derselben Sitzung und in anderen Verbindungen wieder lock_timeout = 0', `${nach.split('\n').pop()} / ${andere}`);
+  } finally { C.stop(); }
+});
+
+// QS-12: lock_timeout des Rollbacks – wie QS-11: hinter offener Schreibtransaktion auf characters spätestens nach 5 s Abbruch,
+// vollständiges Zurückrollen (Katalog und Questdaten unverändert), danach gilt die Einstellung weder in der Sitzung noch anderswo.
+await scen('QS-12', async () => {
+  const kopf = RB.split('\n').filter((l) => l.trim() && !l.startsWith('--'));
+  const m = /^set local lock_timeout = '(\d+)s';$/.exec(kopf[1] || '');
+  ok(kopf[0] === 'begin;' && m && +m[1] === 5 && kopf.filter((l) => /lock_timeout/.test(l)).length === 1,
+     `QS-12: Rollback setzt direkt nach begin genau einmal „set local lock_timeout = '5s'“`, kopf.slice(0, 2).join(' | '));
+  const C = await startCluster(PORT + 1);
+  const run = async (s) => { const x = await C.psql(s); if (x.code) throw new Error(x.err.slice(0, 300)); return x.out; };
+  try {
+    await run(STUB); await run(altesSchema()); await run(MIG);
+    await run(`insert into public.quest_defs(quest_key,version,bereich,ziele) values ('st:qs12.1',1,'story','[{"typ":"kills","basis":1}]')`);
+    const fpVor = await run(FP);
+    const block = C.psql(`set application_name = 'QS12_SCHREIBER'; begin; lock table public.characters in row exclusive mode; select pg_sleep(60); commit;`);
+    const t0 = Date.now(); while (+(await run(`select count(*) from pg_locks l join pg_stat_activity a using (pid) where a.application_name = 'QS12_SCHREIBER' and l.relation = 'public.characters'::regclass and l.granted`)) === 0) { if (Date.now() - t0 > 10000) throw new Error('Schreibsperre nicht gesetzt'); await sleep(30); }
+    const t1 = Date.now(); const r = await C.psql(RB); const dt = Date.now() - t1;
+    const fpNach = await run(FP), daten = await run(`select count(*) from public.quest_defs where quest_key = 'st:qs12.1'`);
+    ok(r.code !== 0 && /lock timeout/.test(r.err) && dt >= 4500 && dt < 6500 && fpNach === fpVor && daten === '1',
+       `QS-12: hinter offener Schreibtransaktion auf characters bricht das Rollback nach ${(dt / 1000).toFixed(1)} s ab (lock timeout); Katalog unverändert, Questdaten erhalten`, `${(r.err || '').slice(0, 120)} | ${fpNach === fpVor} | ${daten}`);
+    await run(`select pg_terminate_backend(pid) from pg_stat_activity where application_name = 'QS12_SCHREIBER'`); await block;
+    const nach = await run(RB + `\nshow lock_timeout;`);
+    const andere = await run(`show lock_timeout`);
+    ok(nach.split('\n').pop() === '0' && andere === '0' && (await run(`select count(*) from pg_class where relnamespace = 'public'::regnamespace and relname ~ '^(quest_|npc_|character_confirmed|character_quests)'`)) === '0',
+       'QS-12: ohne Blocker läuft das Rollback durch; danach gilt in derselben Sitzung und in anderen Verbindungen wieder lock_timeout = 0', `${nach.split('\n').pop()} / ${andere}`);
+  } finally { C.stop(); }
 });
 
 E.stop(); process.exit(done());

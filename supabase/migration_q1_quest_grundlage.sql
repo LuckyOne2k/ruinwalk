@@ -3,7 +3,15 @@
 -- Q1 ändert keine bestehende Funktion). Legt nur NEUE Objekte an (10 Tabellen, 18 Funktionen, 7 Trigger, 7 Lese-Policies) und verändert keine
 -- Nutzerdaten. Rücknahme: supabase/rollback_q1_quest_grundlage.sql. Die Tages-/Wochenaktivierung bleibt bis Paket 3 gesperrt (K1/K2).
 -- Gleichwertigkeit mit supabase/schema.sql prüft server/instance/tests/quest-sperren.mjs (QS-10, Katalogvergleich).
+-- Einspielen nur mit: psql -X -v ON_ERROR_STOP=1 -f supabase/migration_q1_quest_grundlage.sql (ohne -1; Port 5432, nicht der Transaktions-Pooler).
+-- Ohne ON_ERROR_STOP endet psql nach einem Abbruch mit Exit-Code 0, obwohl alles zurückgerollt wurde.
 begin;
+-- Sperren höchstens 5 s abwarten: Die Fremdschlüssel auf public.characters brauchen dort SHARE ROW EXCLUSIVE; das kollidiert mit laufenden
+-- Schreibvorgängen (Speichern, Löschen), nicht mit Lesern. Während der Wartezeit stauen sich neue Schreibzugriffe auf characters dahinter auf,
+-- höchstens etwa 5 s je Wartevorgang (lock_timeout gilt je Sperrwartezeit, nicht für die Gesamtdauer); danach bricht die Migration ab (55P03)
+-- und wird vollständig zurückgerollt; erneut ausführen. „set local“ gilt nur für diese
+-- Transaktion (endet mit commit/rollback) und ändert weder die Sitzung noch andere Verbindungen (geprüft: QS-11).
+set local lock_timeout = '5s';
 ------------------------------------------------------------------------------------------------
 -- Quests – Paket 2 (Server-Grundgerüst). Entscheidungen K1–K4 (Pascal, 23.11.2026), Bericht docs/QUEST_PAKET2_BERICHT.md.
 --  * Schlüssel: quest_key mit Bereichspräfix (st, pr, nb, tg, wo, ev), Instanzschlüssel inst_key, Belohnungs-ID rid = quest_key || '|' || inst_key.
