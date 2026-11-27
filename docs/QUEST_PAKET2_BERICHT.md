@@ -81,6 +81,7 @@ Tests (Abschnitt 20c): Poolgrößen 1–7 mit je drei aufeinanderfolgenden Perio
 - Produktionsmigrationen B2/B4 stehen weiter aus; Q1 ändert keine bestehende Funktion und kann unabhängig davon eingespielt werden (nur mit Freigabe).
 - Dev-Installation mit neuem Hash braucht eine eigene Freigabe.
 - Nicht live geprüft: echtes Supabase (`auth.uid()`, PostgREST, Standardrechte), Laufzeiten.
+- NPC-Verweisschutz: offen, Auflage für das erste Paket, das `npc_defs.vorlagen` ausliest (siehe §9, „Offen“).
 
 ## 9. Nachtrag: QA-Lücken und `lock_timeout` (Zweig `quest/paket2-qa-luecken`, 23.11.2026)
 Offene Punkte aus dem Abgleich mit `rw-qa`. `schema.sql` ist unverändert (kein neuer Hash für `install_dev.sql`).
@@ -106,14 +107,14 @@ Offene Punkte aus dem Abgleich mit `rw-qa`. `schema.sql` ist unverändert (kein 
 - Die Einstellung gilt nur innerhalb der Transaktion.
 - Geprüft im neuen Test QS-11 (`quest-sperren.mjs`, mit QS-12 insgesamt 21/21 auf PG16 und PG17):
   - die Stelle der Einstellung, der Wert genau 5 s und dass es nur eine gibt;
-  - der Abbruch hinter einem Blocker nach 4,5–6,5 s, ohne dass Objekte zurückbleiben;
+  - der Abbruch hinter einem Blocker im geprüften Zeitfenster 4,5–6,5 s (gemessen 5,0 s auf PG16 und PG17), ohne dass Objekte zurückbleiben;
   - dass danach in derselben Sitzung und in anderen Verbindungen wieder `lock_timeout = 0` gilt.
 - QS-10 (Katalogvergleich Migration = `schema.sql`) ist unverändert grün.
 
 **Rollback:** `rollback_q1_quest_grundlage.sql` hat ebenfalls `set local lock_timeout = '5s'` direkt nach `begin;`. Das Entfernen der Tabellen mit Fremdschlüsseln auf `public.characters` braucht dort **ACCESS EXCLUSIVE** (Entfernen der Fremdschlüssel-Trigger). Damit blockiert schon eine offene **Lesetransaktion** auf `characters` das Rollback, und während der Wartezeit stauen sich **alle** neuen Zugriffe auf `characters` (auch Lesezugriffe wie `list_characters`, `quest_state`, RLS-Abfragen) höchstens etwa 5 s auf. Danach bricht das Rollback ab und rollt vollständig zurück.
 - Geprüft im neuen Test QS-12:
   - Die Einstellung steht direkt nach `begin;`, kommt genau einmal vor und hat den Wert 5 s.
-  - Hinter einer offenen Schreibtransaktion auf `characters` bricht das Rollback nach 5,0 s ab (lock timeout; Lese-Blocker nicht eigens getestet, laut rw-backend-security gemessen gleiches Verhalten). Der Katalog-Fingerabdruck ist danach identisch und eine Katalogzeile bleibt erhalten, also wurde vollständig zurückgerollt.
+  - Hinter einer offenen Schreibtransaktion auf `characters` bricht das Rollback im geprüften Zeitfenster 4,5–6,5 s ab (gemessen 5,0 s auf PG16 und PG17; lock timeout; Lese-Blocker nicht eigens getestet, laut rw-backend-security gemessen gleiches Verhalten). Der Katalog-Fingerabdruck ist danach identisch und eine Katalogzeile bleibt erhalten, also wurde vollständig zurückgerollt.
   - Ohne Blocker läuft das Rollback durch. Danach gilt in derselben Sitzung und in anderen Verbindungen wieder `lock_timeout = 0`.
 
 **Einspielhinweis (Migration und Rollback):** nur mit `psql -X -v ON_ERROR_STOP=1 -f <datei>`, **ohne** `-1`, über Port 5432 (nicht den Transaktions-Pooler). Ohne `ON_ERROR_STOP` endet psql nach einem Abbruch mit Exit-Code 0, obwohl alles zurückgerollt wurde. Der Hinweis steht auch im Kopf beider Dateien.

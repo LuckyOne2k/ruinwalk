@@ -159,8 +159,8 @@ await scen('QS-10', async () => {
   }
 });
 
-// QS-11: lock_timeout der Migration – begrenzt (set local, 1–30 s, erste Anweisung nach begin), bricht hinter einer schreibenden Transaktion
-// auf public.characters ab statt zu warten, rollt vollständig zurück und ändert weder Sitzung noch andere Verbindungen.
+// QS-11: lock_timeout der Migration – genau einmal „set local lock_timeout = '5s'“ als erste Anweisung nach begin, bricht hinter einer schreibenden Transaktion
+// auf public.characters nach 4,5–6,5 s ab statt zu warten, rollt vollständig zurück und ändert weder Sitzung noch andere Verbindungen.
 await scen('QS-11', async () => {
   const kopf = MIG.split('\n').filter((l) => l.trim() && !l.startsWith('--'));
   const m = /^set local lock_timeout = '(\d+)s';$/.exec(kopf[1] || '');
